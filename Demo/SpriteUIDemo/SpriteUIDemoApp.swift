@@ -18,6 +18,7 @@ struct SpriteUIDemoApp: App {
                     Tab("Obstacles", systemImage: "square.on.square.dashed") { ObstacleDemoView() }
                 }
                 Tab("Physics", systemImage: "circle.bottomhalf.filled") { PhysicsDemoView() }
+                Tab("Scenes", systemImage: "square.stack.3d.up") { SceneDemoView() }
             }
         }
     }

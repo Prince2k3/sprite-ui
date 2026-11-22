@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */; };
+		48003CA6F0303ECCC1BF5F6E /* Level.sks in Resources */ = {isa = PBXBuildFile; fileRef = 02AEA6150EF96D3BD54FB217 /* Level.sks */; };
+		4DF5A9D126A647164D9F97B0 /* SceneDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D200C57D852A152275BB8377 /* SceneDemoView.swift */; };
 		4F6ECCF820B7267C6A46F7EE /* StrategistDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */; };
 		5426761EF954EE8084C185FA /* DemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */; };
 		543B4CE6BF2485071CC94735 /* ObstacleDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */; };
@@ -23,6 +25,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		02AEA6150EF96D3BD54FB217 /* Level.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Level.sks; sourceTree = "<group>"; };
 		12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicsDemoView.swift; sourceTree = "<group>"; };
 		1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionDemoView.swift; sourceTree = "<group>"; };
 		363FD31E7C468C0C2080419D /* SteeringDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteeringDemoView.swift; sourceTree = "<group>"; };
@@ -35,6 +38,7 @@
 		7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrategistDemoView.swift; sourceTree = "<group>"; };
 		93920852539B40941CCCD9D6 /* NoiseDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoiseDemoView.swift; sourceTree = "<group>"; };
 		B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialDemoView.swift; sourceTree = "<group>"; };
+		D200C57D852A152275BB8377 /* SceneDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDemoView.swift; sourceTree = "<group>"; };
 		E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateMachineDemoView.swift; sourceTree = "<group>"; };
 		ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObstacleDemoView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -81,11 +85,13 @@
 			children = (
 				1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */,
 				5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */,
+				02AEA6150EF96D3BD54FB217 /* Level.sks */,
 				93920852539B40941CCCD9D6 /* NoiseDemoView.swift */,
 				ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */,
 				53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */,
 				12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */,
 				5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */,
+				D200C57D852A152275BB8377 /* SceneDemoView.swift */,
 				B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */,
 				6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */,
 				E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */,
@@ -103,6 +109,7 @@
 			buildConfigurationList = 0409312B0708CA554BD315B9 /* Build configuration list for PBXNativeTarget "SpriteUIDemo" */;
 			buildPhases = (
 				CF13E95145712ABC36A7EA86 /* Sources */,
+				F59074BB5FD4B50E951A1A3E /* Resources */,
 				CEF4E06559A1FFBE9CF9B5A3 /* Frameworks */,
 			);
 			buildRules = (
@@ -148,6 +155,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		F59074BB5FD4B50E951A1A3E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				48003CA6F0303ECCC1BF5F6E /* Level.sks in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		CF13E95145712ABC36A7EA86 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -160,6 +178,7 @@
 				CA2E123843221506FF47258F /* PathfindingDemoView.swift in Sources */,
 				65A996A6A3B7D80DFB800D59 /* PhysicsDemoView.swift in Sources */,
 				5E004D84C0F6DE0B60C177E2 /* RandomDemoView.swift in Sources */,
+				4DF5A9D126A647164D9F97B0 /* SceneDemoView.swift in Sources */,
 				E97EE4905384C3E54DD197A4 /* SpatialDemoView.swift in Sources */,
 				096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */,
 				5B9DCCBB6BEC7D9D9EDBBD23 /* StateMachineDemoView.swift in Sources */,
