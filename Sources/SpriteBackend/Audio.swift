@@ -95,6 +95,7 @@ final class LegacyAudioPlaybackState: Component {
     var shots: [AudioPlaybackController] = []
     var resource: AudioResource?
     var url: URL?
+    func cloned() -> Self? { nil }
 }
 
 extension SpriteRenderer {
@@ -132,4 +133,9 @@ extension SpriteRenderer {
             }
         }
     )
+}
+
+// Configuration is copied; previous one-shot requests belong to the source.
+extension AudioComponent {
+    public func cloned() -> Self? { var copy = self; copy.playCount = 0; return copy }
 }

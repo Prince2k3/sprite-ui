@@ -367,3 +367,24 @@ public struct SteeringSystem: System {
         }
     }
 }
+
+extension SteeringComponent: EntityReferencingComponent {
+    @MainActor public mutating func remapEntityReferences(_ context: EntityReferenceRemapping) {
+        func target(_ value: SteeringTarget) -> SteeringTarget {
+            if case .entity(let id) = value { return .entity(context.id(for: id)) }
+            return value
+        }
+        func behavior(_ value: SteeringBehavior) -> SteeringBehavior {
+            switch value {
+            case .seek(let t): return .seek(target(t))
+            case .flee(let t, let d): return .flee(target(t), panicDistance: d)
+            case .arrive(let t, let r): return .arrive(target(t), slowingRadius: r)
+            case .pursue(let id): return .pursue(context.id(for: id))
+            case .evade(let id, let d): return .evade(context.id(for: id), panicDistance: d)
+            case .group(let goals): return .group(goals.map { var goal = $0; goal.behavior = behavior(goal.behavior); return goal })
+            default: return value
+            }
+        }
+        goals = goals.map { var goal = $0; goal.behavior = behavior(goal.behavior); return goal }
+    }
+}

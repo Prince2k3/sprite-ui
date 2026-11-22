@@ -64,6 +64,7 @@ final class SpatialIndexStorage {
 
 struct WorldSpatialIndexComponent: Component {
     let storage: SpatialIndexStorage
+    func cloned() -> Self? { nil }
 }
 
 extension World {

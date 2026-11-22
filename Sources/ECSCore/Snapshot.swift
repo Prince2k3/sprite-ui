@@ -98,12 +98,15 @@ public struct EntitySnapshot {
     public var name: String
     public var components: [any Component]
     public var children: [EntitySnapshot]
+    /// Original scene pose for relocating reference frames when instantiating a subtree.
+    public var sceneTransform: AffineTransform2D?
 
-    public init(id: Entity.ID = 0, name: String = "", components: [any Component] = [], children: [EntitySnapshot] = []) {
+    public init(id: Entity.ID = 0, name: String = "", components: [any Component] = [], children: [EntitySnapshot] = [], sceneTransform: AffineTransform2D? = nil) {
         self.id = id
         self.name = name
         self.components = components
         self.children = children
+        self.sceneTransform = sceneTransform
     }
 
     /// The saved component of a type, if any.
@@ -112,11 +115,17 @@ public struct EntitySnapshot {
     }
 
     /// Makes a new entity tree from the snapshot, with new IDs. Use it to spawn copies,
-    /// such as a saved prefab.
+    /// such as a saved prefab. Internal entity references are remapped after all children exist.
     @MainActor
     public func makeEntity() -> Entity {
         var restored: [Entity.ID: Entity] = [:]
-        return makeEntity(restored: &restored, keepingIDs: { _ in false })
+        let root = makeEntity(restored: &restored, keepingIDs: { _ in false })
+        let info = referenceInfo(parentTransform: .identity)
+        let context = EntityReferenceRemapping(operation: .clone, root: root, destinations: restored,
+            names: info.names, transforms: info.transforms, sourceRootID: id)
+        var all: [Entity] = []; root.visit { all.append($0) }
+        remapComponents(in: all, using: context)
+        return root
     }
 
     /// Makes the entity tree, keeping each saved ID that `keepsID` allows.
@@ -125,23 +134,35 @@ public struct EntitySnapshot {
     func makeEntity(restored: inout [Entity.ID: Entity], keepingIDs keepsID: (Entity.ID) -> Bool) -> Entity {
         let entity = keepsID(id) ? Entity(restoringID: id) : Entity()
         entity.name = name
-        entity.components.set(components)
+        entity.components.set(components.compactMap { $0.cloned() })
         restored[id] = entity
         for child in children {
             entity.addChild(child.makeEntity(restored: &restored, keepingIDs: keepsID))
         }
         return entity
     }
+    @MainActor
+    func referenceInfo(parentTransform: AffineTransform2D) -> (names: [(Entity.ID, String)], transforms: [Entity.ID: AffineTransform2D]) {
+        let pose = sceneTransform ?? (parentTransform * (self[Transform.self] ?? .identity).matrix)
+        var names = [(id, name)], transforms = [id: pose]
+        for child in children {
+            let info = child.referenceInfo(parentTransform: pose)
+            names += info.names; transforms.merge(info.transforms) { _, new in new }
+        }
+        return (names, transforms)
+    }
+
 }
 
 extension EntitySnapshot: Codable {
-    private enum CodingKeys: String, CodingKey { case id, name, components, children }
+    private enum CodingKeys: String, CodingKey { case id, name, components, children, sceneTransform }
     private enum BoxKeys: String, CodingKey { case type, value }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(Entity.ID.self, forKey: .id) ?? 0
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        sceneTransform = try container.decodeIfPresent(AffineTransform2D.self, forKey: .sceneTransform)
         children = try container.decodeIfPresent([EntitySnapshot].self, forKey: .children) ?? []
         components = []
         guard container.contains(.components) else { return }
@@ -157,6 +178,7 @@ extension EntitySnapshot: Codable {
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(sceneTransform, forKey: .sceneTransform)
         if !name.isEmpty { try container.encode(name, forKey: .name) }
         var list = container.nestedUnkeyedContainer(forKey: .components)
         for component in components {
@@ -187,7 +209,9 @@ public struct WorldSnapshot: Codable {
 
     /// Reads a snapshot written by ``jsonData()``.
     public init(data: Data) throws {
-        self = try JSONDecoder().decode(WorldSnapshot.self, from: data)
+        let decoder = JSONDecoder()
+        decoder.nonConformingFloatDecodingStrategy = .convertFromString(positiveInfinity: "inf", negativeInfinity: "-inf", nan: "nan")
+        self = try decoder.decode(WorldSnapshot.self, from: data)
     }
 
     public init(contentsOf url: URL) throws {
@@ -228,8 +252,8 @@ extension Entity {
         let saved = storage.values
             .compactMap { component in ComponentRegistry.entry(for: type(of: component)).map { ($0.name, component) } }
             .sorted { $0.0 < $1.0 }
-            .map(\.1)
-        return EntitySnapshot(id: id, name: name, components: saved, children: children.map { $0.snapshot() })
+            .compactMap { $0.1.cloned() }
+        return EntitySnapshot(id: id, name: name, components: saved, children: children.map { $0.snapshot() }, sceneTransform: sceneTransformMatrix)
     }
 }
 
@@ -245,16 +269,25 @@ extension World {
     /// Restored entities keep the IDs they were saved with, so components that point at
     /// other entities by ID, such as a camera's target, still find them. If an ID is
     /// already taken, by the world's root or a duplicate in the snapshot, that entity
-    /// gets a new one instead. The result maps each saved ID to its restored entity.
+    /// gets a new one instead. EntityReferencingComponents remap their links before
+    /// attachment. The result maps each saved ID to its restored entity.
     @discardableResult
     public func restore(_ snapshot: WorldSnapshot) -> [Entity.ID: Entity] {
         for entity in entities { removeEntity(entity) }
         var restored: [Entity.ID: Entity] = [:]
         var taken: Set<Entity.ID> = [root.id]
+        var names: [(Entity.ID, String)] = [], transforms: [Entity.ID: AffineTransform2D] = [:]
         for saved in snapshot.entities {
-            let entity = saved.makeEntity(restored: &restored, keepingIDs: { taken.insert($0).inserted })
-            addEntity(entity)
+            let info = saved.referenceInfo(parentTransform: .identity)
+            names += info.names; transforms.merge(info.transforms) { _, new in new }
         }
+        Entity.reserveIDs(through: transforms.keys.max() ?? 0)
+        let roots = snapshot.entities.map { $0.makeEntity(restored: &restored, keepingIDs: { taken.insert($0).inserted }) }
+        var all: [Entity] = []; for entity in roots { entity.visit { all.append($0) } }
+        let context = EntityReferenceRemapping(operation: .restore, root: nil, destinations: restored,
+            names: names, transforms: transforms, sourceRootID: nil)
+        remapComponents(in: all, using: context)
+        for entity in roots { addEntity(entity) }
         return restored
     }
 }

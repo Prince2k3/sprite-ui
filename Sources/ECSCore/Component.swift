@@ -9,7 +9,16 @@
 /// entity.components.set(Health(hp: 3))
 /// entity.components[Health.self]?.hp -= 1
 /// ```
-public protocol Component {}
+public protocol Component {
+    /// Copies this component for a clone or snapshot instance. The default copies by value.
+    /// Override to deep-copy mutable reference storage, or return nil to exclude
+    /// runtime state. Immutable resources may safely remain shared.
+    @MainActor func cloned() -> Self?
+}
+
+extension Component {
+    public func cloned() -> Self? { self }
+}
 
 extension Component {
     @inlinable

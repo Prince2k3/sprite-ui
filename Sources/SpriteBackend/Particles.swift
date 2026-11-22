@@ -348,3 +348,10 @@ private extension ParticleEmitterComponent {
         return a == b
     }
 }
+
+extension ParticleEmitterComponent {
+    /// Copies emitter configuration without replaying an already requested burst.
+    public func cloned() -> Self? {
+        var copy = self; copy.burstID = 0; copy.burstCount = 0; return copy
+    }
+}

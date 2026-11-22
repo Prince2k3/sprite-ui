@@ -95,6 +95,7 @@ extension Entity {
 private struct JointReferencePose: Hashable, Codable, Sendable {
     var a: AffineTransform2D
     var b: AffineTransform2D
+    var space: Entity.ID? = nil
 }
 
 struct PhysicsJointEntry {
@@ -126,14 +127,20 @@ extension SpriteRenderer {
             if let existing = jointEntries[owner.id], existing.model == model,
                existing.joint.bodyA === bodyA, existing.joint.bodyB === bodyB { continue }
             removePhysicsJoint(owner.id)
-            let reference = model.referencePose ?? current
+            let storedReference = model.referencePose ?? current
+            var reference = storedReference
+            if let space = reference.space {
+                guard let frame = world.entity(withID: space), let frameNode = node(for: frame) else { reject(.waitingForBodies); continue }
+                let matrix = displayedCollisionMatrix(for: frameNode)
+                reference.a = matrix * reference.a; reference.b = matrix * reference.b
+            }
             guard let localA = jointLocalTransform(reference.a, for: nodeA),
                   let localB = jointLocalTransform(reference.b, for: nodeB) else { reject(.invalidTransform); continue }
             guard let joint = makePhysicsJoint(model.constraint, bodyA: bodyA, bodyB: bodyB,
                                               nodeA: nodeA, nodeB: nodeB, localA: localA, localB: localB) else {
                 reject(.invalidConfiguration); continue
             }
-            model.referencePose = reference
+            model.referencePose = storedReference
             owner._setWithoutNotifying(model)
             jointEntries[owner.id] = PhysicsJointEntry(model: model, joint: joint)
             jointStatuses[owner.id] = .active
@@ -147,7 +154,7 @@ extension SpriteRenderer {
     /// Call before replacing a body or detaching a node (SpriteKit can otherwise
     /// implicitly destroy joints while our cache still considers them installed).
     func removePhysicsJoints(involving ids: Set<Entity.ID>) {
-        for (id, entry) in Array(jointEntries) where ids.contains(id) || ids.contains(entry.model.bodyA) || ids.contains(entry.model.bodyB) {
+        for (id, entry) in Array(jointEntries) where ids.contains(id) || ids.contains(entry.model.bodyA) || ids.contains(entry.model.bodyB) || entry.model.referencePose?.space.map({ ids.contains($0) }) == true {
             removePhysicsJoint(id)
             jointStatuses[id] = .waitingForBodies
         }
@@ -228,5 +235,20 @@ extension SpriteRenderer {
         }
         physicsWorld.add(joint)
         return joint
+    }
+}
+
+extension PhysicsJointComponent: EntityReferencingComponent {
+    @MainActor public mutating func remapEntityReferences(_ context: EntityReferenceRemapping) {
+        var saved = referencePose
+        let internalBodies = context.entity(for: bodyA) != nil && context.entity(for: bodyB) != nil
+        bodyA = context.id(for: bodyA); bodyB = context.id(for: bodyB)
+        if context.operation == .clone, internalBodies, let root = context.root, let reference = saved {
+            let sourceFrame = reference.space.flatMap { context.sourceTransform(for: $0) } ?? (reference.space == nil ? .identity : nil)
+            if let sourceFrame, let inverse = context.sourceRootTransform?.inverted() {
+                saved = JointReferencePose(a: inverse * sourceFrame * reference.a, b: inverse * sourceFrame * reference.b, space: root.id)
+            } else { saved = nil }
+        } else if let space = saved?.space { saved?.space = context.id(for: space) }
+        referencePose = saved
     }
 }

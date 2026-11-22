@@ -43,6 +43,12 @@ open class Entity: Identifiable {
         self.init(name: name, components: components)
     }
 
+    // Reserve file-supplied IDs before assigning replacement IDs, so an early
+    // root collision cannot consume a saved ID that appears later in the file.
+    static func reserveIDs(through id: ID) {
+        if id < ID.max { nextID = max(nextID, id + 1) }
+    }
+
     // MARK: Transform shortcuts
 
     public var transform: Transform {

@@ -197,7 +197,10 @@ public final class AudioPlaybackController: PlaybackController {
     override func terminate() { voice.stop() }
 }
 
-struct PlaybackStorage: Component { var controllers: [PlaybackController] = [] }
+struct PlaybackStorage: Component {
+    var controllers: [PlaybackController] = []
+    func cloned() -> Self? { nil }
+}
 
 extension Entity {
     /// Starts a sprite clip and returns its controller. A renderer installs the

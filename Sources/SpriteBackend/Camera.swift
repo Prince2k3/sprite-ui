@@ -255,3 +255,15 @@ extension SpriteRenderer {
     }
 
 }
+
+extension CameraComponent: EntityReferencingComponent {
+    /// Makes named targets inside a cloned subtree instance-specific; external names stay global.
+    @MainActor public mutating func remapEntityReferences(_ context: EntityReferenceRemapping) {
+        switch target {
+        case .entity(let id): target = .entity(context.id(for: id))
+        case .named(let name) where context.operation == .clone:
+            if let copy = context.entity(named: name) { target = .entity(copy.id) }
+        default: break
+        }
+    }
+}
