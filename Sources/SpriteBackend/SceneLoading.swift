@@ -85,7 +85,8 @@ public enum SceneLoadingError: Error, Equatable {
 ///
 /// Every node becomes an entity with the same name, place in the hierarchy and
 /// ``ECSCore/Transform``. Sprites become a ``SpriteComponent``, physics bodies a
-/// ``PhysicsBodyComponent``, and User Data a ``SceneUserDataComponent``. Other kinds
+/// ``PhysicsBodyComponent``, tile maps a ``TileMapComponent`` and User Data a
+/// ``SceneUserDataComponent``. Other kinds
 /// of node (labels, shapes, emitters, lights) become plain entities, and their children
 /// still load.
 ///
@@ -166,6 +167,9 @@ public struct SceneLoader {
             )
             if let sprite = node as? SKSpriteNode {
                 entity.components.set(Self.spriteComponent(from: sprite))
+            }
+            if let map = node as? SKTileMapNode {
+                entity.components.set(Self.tileMapComponent(from: map))
             }
             if let body = node.physicsBody {
                 entity.components.set(Self.physicsComponent(from: body, on: node))
@@ -262,6 +266,54 @@ public struct SceneLoader {
         }
         return SpriteImage(width: width, height: height, pixels: pixels,
                            smoothsScaling: texture.filteringMode == .linear)
+    }
+
+    /// A tile map's cells and tiles. Every tile definition in the tile set becomes a
+    /// tile, named after its group, so variants of a group stay apart.
+    static func tileMapComponent(from node: SKTileMapNode) -> TileMapComponent {
+        let tileSize = SIMD2(Float(node.tileSize.width), Float(node.tileSize.height))
+        var map = TileMapComponent(
+            columns: node.numberOfColumns, rows: node.numberOfRows, tileSize: tileSize,
+            anchorPoint: [Float(node.anchorPoint.x), Float(node.anchorPoint.y)]
+        )
+        var indices: [ObjectIdentifier: Int] = [:]
+        func index(of definition: SKTileDefinition, in group: SKTileGroup?) -> Int {
+            if let index = indices[ObjectIdentifier(definition)] { return index }
+            map.tiles.append(tile(from: definition, groupName: group?.name))
+            indices[ObjectIdentifier(definition)] = map.tiles.count - 1
+            return map.tiles.count - 1
+        }
+        for group in node.tileSet.tileGroups {
+            for rule in group.rules {
+                for definition in rule.tileDefinitions { _ = index(of: definition, in: group) }
+            }
+        }
+        for row in 0..<map.rows {
+            for column in 0..<map.columns {
+                guard let definition = node.tileDefinition(atColumn: column, row: row) else { continue }
+                map[tileIndexAt: column, row] = index(of: definition,
+                                                      in: node.tileGroup(atColumn: column, row: row))
+            }
+        }
+        return map
+    }
+
+    static func tile(from definition: SKTileDefinition, groupName: String?) -> TileMapComponent.Tile {
+        var tile = TileMapComponent.Tile(name: groupName ?? definition.name ?? "")
+        if let texture = definition.textures.first {
+            if let name = textureName(texture) {
+                tile.imageName = name
+            } else {
+                tile.image = spriteImage(texture)
+            }
+        } else {
+            tile.color = .clear
+        }
+        for (key, value) in definition.userData ?? [:] {
+            guard let key = key as? String, let value = sceneValue(value) else { continue }
+            tile.userData[key] = value
+        }
+        return tile
     }
 
     static func physicsComponent(from body: SKPhysicsBody, on node: SKNode) -> PhysicsBodyComponent {

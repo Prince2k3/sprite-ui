@@ -87,6 +87,7 @@ public final class SpriteRenderer: SKScene {
         register(SpriteComponent.self, Self.spriteBinding)
         register(PhysicsBodyComponent.self, Self.physicsBinding)
         register(CameraComponent.self, Self.cameraBinding)
+        register(TileMapComponent.self, Self.tileMapBinding)
         physicsWorld.contactDelegate = self
 
         world.observer = self

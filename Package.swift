@@ -33,5 +33,6 @@ let package = Package(
         .testTarget(name: "ECSCoreTests", dependencies: ["ECSCore"]),
         .testTarget(name: "GameplayTests", dependencies: ["Gameplay", "GameplayECS", "ECSCore"]),
         .testTarget(name: "SpriteBackendTests", dependencies: ["ECSCore", "SpriteBackend"]),
+        .testTarget(name: "SpriteUITests", dependencies: ["SpriteUI"]),
     ]
 )
