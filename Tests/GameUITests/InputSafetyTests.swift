@@ -104,6 +104,24 @@ import Testing
         #expect(capture.resolve(2, start: CGPoint(x: 50, y: 100), host: host, resolver: { $0 }) == nil)
     }
 
+    @Test func disablingAFallbackControllerCancelsInputButExplicitCollidersRemainIndependent() {
+        let (host, a, _) = host()
+        a.components.set(CharacterControllerComponent(shape: .circle(radius: 20)))
+        host.renderer.flush()
+        let point = CGPoint(x: 50, y: 100)
+        host.beginInput(at: point)
+        let capture = TargetedInputCapture<Int>()
+        #expect(capture.resolve(1, start: point, host: host, resolver: { $0 })?.entity === a)
+        a.components[CharacterControllerComponent.self]?.isEnabled = false
+        #expect(capture.resolve(2, start: point, host: host, resolver: { $0 }) == nil)
+        #expect(host.renderer.inputTarget(at: CGPoint(x: -50, y: 0)) == nil)
+        a.components.set(CollisionComponent(shape: .circle(radius: 20)))
+        host.renderer.flush(); host.cancelInputs()
+        host.beginInput(at: point)
+        let next = TargetedInputCapture<Int>()
+        #expect(next.resolve(1, start: point, host: host, resolver: { $0 })?.entity === a)
+    }
+
     @Test func cancellationDoesNotPoisonTheNextGesture() {
         let (host, a, _) = host()
         let id = host.beginInput(at: CGPoint(x: 50, y: 100))

@@ -56,27 +56,4 @@ struct BotNavigation {
         return route
     }
 
-    /// Sweep in small steps, then slide along walls. Steering remains the source
-    /// of motion; this prevents even a fast charge from tunneling through a wall.
-    func move(from start: SIMD2<Float>, toward end: SIMD2<Float>, radius: Float = 25) -> SIMD2<Float> {
-        let delta = end - start
-        let steps = max(1, Int(ceil(simd_length(delta) / 8)))
-        var result = start
-        for _ in 0..<steps {
-            var next = result + delta / Float(steps)
-            next = simd_clamp(next, bounds.min + SIMD2(repeating: radius), bounds.max - SIMD2(repeating: radius))
-            for _ in 0..<3 {
-                for obstacle in obstacles where obstacle.boundingBox.intersects(circleAt: next, radius: radius) {
-                    let distance = obstacle.signedDistance(to: next)
-                    guard distance < radius else { continue }
-                    let edge = obstacle.closestPoint(to: next)
-                    var outward = distance < 0 ? edge - next : next - edge
-                    if simd_length_squared(outward) < 0.0001 { outward = edge - obstacle.boundingBox.center }
-                    if simd_length_squared(outward) > 0 { next = edge + simd_normalize(outward) * (radius + 0.1) }
-                }
-            }
-            result = next
-        }
-        return result
-    }
 }

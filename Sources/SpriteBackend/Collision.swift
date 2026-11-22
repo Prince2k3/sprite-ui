@@ -75,7 +75,10 @@ extension Entity {
     // removing response never unexpectedly exposes a different fallback shape.
     var queryCollider: CollisionComponent? {
         if let component = components[CollisionComponent.self] { return component }
-        guard let body = components[PhysicsBodyComponent.self] else { return nil }
+        guard let body = components[PhysicsBodyComponent.self] else {
+            guard let controller = components[CharacterControllerComponent.self] else { return nil }
+            return CollisionComponent(shape: controller.shape, offset: controller.offset, filter: controller.filter, isEnabled: controller.isEnabled)
+        }
         return CollisionComponent(shape: body.shape, filter: .init(group: .init(rawValue: body.categoryBitMask), mask: .init(rawValue: body.collisionBitMask)))
     }
 }
@@ -112,7 +115,7 @@ extension World {
             CollisionGeometry.sweep(placed, by: delta, against: target).map { CollisionHit(entity: entity, geometry: $0) }
         }.ordered(query)
     }
-    private func queryColliders(filter: CollisionQueryFilter) -> [(Entity, CollisionGeometry.Shape)] {
+    func queryColliders(filter: CollisionQueryFilter) -> [(Entity, CollisionGeometry.Shape)] {
         allEntities.compactMap { entity in
             guard let collider = entity.queryCollider, collider.isEnabled,
                   filter.includes(entity, filter: collider.filter) else { return nil }

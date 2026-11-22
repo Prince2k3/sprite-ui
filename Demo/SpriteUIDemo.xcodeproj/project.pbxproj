@@ -10,6 +10,7 @@
 		096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */; };
 		399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */; };
 		48003CA6F0303ECCC1BF5F6E /* Level.sks in Resources */ = {isa = PBXBuildFile; fileRef = 02AEA6150EF96D3BD54FB217 /* Level.sks */; };
+		4B56EED400299D758A88822E /* CharacterDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF8BBC73CE04F21EF2DDBAC /* CharacterDemoView.swift */; };
 		4DF5A9D126A647164D9F97B0 /* SceneDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D200C57D852A152275BB8377 /* SceneDemoView.swift */; };
 		4F6ECCF820B7267C6A46F7EE /* StrategistDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */; };
 		5426761EF954EE8084C185FA /* DemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */; };
@@ -49,6 +50,7 @@
 		5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RandomDemoView.swift; sourceTree = "<group>"; };
 		6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpriteUIDemoApp.swift; sourceTree = "<group>"; };
 		7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrategistDemoView.swift; sourceTree = "<group>"; };
+		8AF8BBC73CE04F21EF2DDBAC /* CharacterDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterDemoView.swift; sourceTree = "<group>"; };
 		93920852539B40941CCCD9D6 /* NoiseDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoiseDemoView.swift; sourceTree = "<group>"; };
 		95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConsolidationDemoView.swift; sourceTree = "<group>"; };
 		AD4B56781DDCE0AD924A5FAD /* coin.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coin.wav; sourceTree = "<group>"; };
@@ -102,6 +104,7 @@
 			isa = PBXGroup;
 			children = (
 				95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */,
+				8AF8BBC73CE04F21EF2DDBAC /* CharacterDemoView.swift */,
 				AD4B56781DDCE0AD924A5FAD /* coin.wav */,
 				4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */,
 				1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */,
@@ -204,6 +207,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DF0D389E25A50C55302D74CD /* APIConsolidationDemoView.swift in Sources */,
+				4B56EED400299D758A88822E /* CharacterDemoView.swift in Sources */,
 				399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */,
 				D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */,
 				5426761EF954EE8084C185FA /* DemoView.swift in Sources */,

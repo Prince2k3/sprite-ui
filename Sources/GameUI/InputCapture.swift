@@ -89,6 +89,9 @@ final class TargetedInputCapture<Value> {
         guard sourceHost === host, let contact, !contact.cancelled,
               let hit = contact.hit, hit.world === host.world, hit.isInputTarget,
               hit.components[CollisionComponent.self]?.isEnabled != false,
+              // Only a fallback controller supplies this hit's interaction shape.
+              (hit.components[CollisionComponent.self] != nil || hit.components[PhysicsBodyComponent.self] != nil ||
+               hit.components[CharacterControllerComponent.self]?.isEnabled != false),
               let target, target.world === host.world, resolver(hit) === target else {
             target = nil
             return nil

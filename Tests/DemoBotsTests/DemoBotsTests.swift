@@ -56,15 +56,13 @@ import Testing
         }
     }
 
-    @Test func navigationRoutesAroundWallsAndPreventsTunneling() {
+    @Test func navigationRoutesAroundWalls() {
         let wall = PolygonObstacle(BoundingBox(min: [90, 40], max: [110, 200]))
         let navigation = BotNavigation(bounds: BoundingBox(min: .zero, max: [400, 400]), obstacles: [wall], radius: 15)
         let route = navigation.path(from: [40, 120], to: [200, 120])
         #expect(route.count > 2)
         for (a, b) in zip(route, route.dropFirst()) { #expect(navigation.isClear(from: a, to: b)) }
-        let result = navigation.move(from: [40, 120], toward: [240, 120], radius: 15)
-        #expect(result.x < 76)
-        #expect(wall.signedDistance(to: result) >= 14.9)
+
     }
 }
 
@@ -87,6 +85,21 @@ import Testing
         bot.enter(BotMode.patrol)
         game.player = player; game.bots = [bot]; game.camera = nil; game.beamLines = []
         return (game, world, player, bot)
+    }
+
+    @Test func characterMovementStopsAndSlidesBeforeSpatialQueries() {
+        let (game, world, player, _) = fixture()
+        let wall = Entity(components: CollisionComponent(shape: .rectangle(size: [2, 300]), filter: .init(group: BotCollisionGroups.walls)))
+        wall.position = [60, 0]; world.addEntity(wall)
+        player.components[BotComponent.self]?.previousPosition = .zero
+        player.position = [500, 50]
+        game.resolveMovement(deltaTime: 1 / 60)
+        #expect(abs(player.position.x - 33.99) < 0.01 && abs(player.position.y - 50) < 0.01)
+        let velocity = player.components[SteeringComponent.self]!.velocity
+        #expect(velocity.y > 0)
+        let order = world.systems.types.map { String(describing: $0) }
+        #expect(order.firstIndex(of: "SteeringSystem")! < order.firstIndex(of: "DemoBotsMovementSystem")!)
+        #expect(order.firstIndex(of: "DemoBotsMovementSystem")! < order.firstIndex(of: "SpatialIndexSystem")!)
     }
 
     @Test func allThreeOriginalScenesLoadWithTheirPatrolMarkers() {

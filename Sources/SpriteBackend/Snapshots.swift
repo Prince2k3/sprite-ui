@@ -18,6 +18,7 @@ extension SpriteRenderer {
         SpriteComponent.registerComponent()
         PhysicsBodyComponent.registerComponent()
         CollisionComponent.registerComponent()
+        CharacterControllerComponent.registerComponent()
         CameraComponent.registerComponent()
         LifetimeComponent.registerComponent()
         SceneComponent.registerComponent()

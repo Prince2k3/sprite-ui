@@ -90,6 +90,7 @@ public final class DemoBotsSession {
         world.root.components.set(DemoBotsRuntime(game: self))
         world.addSystem(DemoBotsLogicSystem.self)
         world.addSystem(SteeringSystem.self)
+        world.addSystem(DemoBotsMovementSystem.self)
         world.addSystem(DemoBotsPresentationSystem.self)
         world.addSystem(PlaybackSystem.self)
         world.addSystem(SpatialIndexSystem.self)
@@ -130,6 +131,8 @@ public final class DemoBotsSession {
             default: box = BoundingBox(min: [128, -1280], max: [2048, 640])
             }
             navigation = BotNavigation(bounds: box, obstacles: world.polygonObstacles)
+            let boundary = Entity(name: "movement-boundary", components: CollisionComponent(shape: .edgeLoop(rectangle: box.size), filter: .init(group: BotCollisionGroups.walls)))
+            boundary.position = box.center; world.addEntity(boundary)
             mapBounds = [box.min.x, box.min.y, box.size.x, box.size.y]
             let backdrop = Entity(name: "circuit-backdrop", components: SpriteComponent(color: Color(red: 0.025, green: 0.07, blue: 0.09), size: [20000, 20000]))
             backdrop.transform.zPosition = -200
@@ -233,6 +236,7 @@ public final class DemoBotsSession {
         let entity = Entity(components: data, SteeringComponent(maxSpeed: 210, maxForce: 900, radius: 25), SpatialIndexComponent())
         entity.position = point
         entity.components.set(CollisionComponent(shape: .circle(radius: 25), filter: .init(group: BotCollisionGroups.actors)))
+        entity.components.set(CharacterControllerComponent(shape: .circle(radius: 25), filter: .init(group: BotCollisionGroups.actors, mask: BotCollisionGroups.walls)))
         let body = Entity(name: "body", components: SpriteComponent(imageName: "PlayerBot", size: [120, 120]))
         body.position = [0, 25]; entity.addChild(body)
         let shadow = Entity(name: "shadow", components: SpriteComponent(imageName: kind == .player ? "PlayerBotShadow" : "GroundBotShadow", size: [80, 32], opacity: 0.6))
@@ -409,19 +413,34 @@ public final class DemoBotsSession {
         }
     }
 
-    func afterSteering(deltaTime: Float) {
-        guard phase == .playing, let player, let navigation else { return }
+    func resolveMovement(deltaTime: Float) {
+        guard phase == .playing, let player else { return }
         let dt = min(max(deltaTime, 0), 1 / 15)
         for entity in [player] + bots {
             guard var info = entity.components[BotComponent.self], var steering = entity.components[SteeringComponent.self] else { continue }
             let proposed = entity.position
-            entity.position = navigation.move(from: info.previousPosition, toward: proposed)
+            entity.position = info.previousPosition
+            do {
+                let movement = try entity.moveCharacter(by: proposed - info.previousPosition)
+                if !movement.contacts.isEmpty {
+                    steering.velocity = (movement.displacement - movement.recoveryTranslation) / max(dt, 0.001)
+                }
+            } catch {
+                // A rejected controller configuration leaves the last safe pose.
+                steering.velocity = .zero
+            }
             let delta = entity.position - info.previousPosition
-            // Remove the blocked velocity component, allowing a tangential slide.
-            if simd_distance_squared(entity.position, proposed) > 0.1 { steering.velocity = delta / max(dt, 0.001) }
             if info.kind != .player && simd_length_squared(delta) > 0.5 { info.heading = atan2(delta.y, delta.x) }
             entity.components.set(info); entity.components.set(steering)
-            updateLook(entity, info: info, moving: simd_length_squared(delta) > 0.05)
+        }
+    }
+
+    func afterSteering(deltaTime: Float) {
+        guard phase == .playing, let player else { return }
+        let dt = min(max(deltaTime, 0), 1 / 15)
+        for entity in [player] + bots {
+            guard let info = entity.components[BotComponent.self] else { continue }
+            updateLook(entity, info: info, moving: simd_distance_squared(entity.position, info.previousPosition) > 0.05)
         }
         for bot in bots {
             guard var info = bot.components[BotComponent.self], info.isBad, info.attackCooldown <= 0, bot.state(BotMode.self) != .zapped else { continue }

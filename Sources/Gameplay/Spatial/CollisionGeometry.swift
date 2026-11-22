@@ -80,6 +80,77 @@ public enum CollisionGeometry {
         }
         return nil
     }
+    /// A separating translation for the query shape. Normal points away from
+    /// the target; depth is measured in scene units, including affine scaling.
+    public struct Penetration: Sendable {
+        public let position: SIMD2<Float>
+        public let normal: SIMD2<Float>
+        public let depth: Float
+    }
+
+    /// Finds the deepest overlapping convex piece using an expanding support
+    /// polytope. Edge chains are resolved one segment at a time. Touching returns
+    /// approximately zero depth. Re-query after applying the correction for compound
+    /// edges. Returns nil for separated, invalid or unconverged geometry. Check
+    /// `overlap` separately when unresolved penetration must stop movement.
+    public static func penetration(_ query: Shape, against target: Shape) -> Penetration? {
+        guard let a = Placed(query), let b = Placed(target), intersects(a.bounds, b.bounds) else { return nil }
+        var best: Penetration?
+        for first in a.pieces {
+            for second in b.pieces {
+                guard distance(first, second).length <= tolerance,
+                      let result = penetration(first, second) else { continue }
+                if result.depth > (best?.depth ?? -1) { best = result }
+            }
+        }
+        return best
+    }
+
+    private static func penetration(_ a: Primitive, _ b: Primitive) -> Penetration? {
+        func support(_ d: SIMD2<Double>) -> Vertex { Vertex(a: a.support(d), b: b.support(-d)) }
+        // Seed an enclosing hull, including the GJK simplex. Axis samples also
+        // handle touching and coincident-center configurations deterministically.
+        var points = distance(a, b).simplex
+        for i in 0..<16 {
+            let angle = Double(i) * 2 * .pi / 16
+            points.append(support([cos(angle), sin(angle)]))
+        }
+        points.sort { $0.p.x == $1.p.x ? $0.p.y < $1.p.y : $0.p.x < $1.p.x }
+        var unique: [Vertex] = []
+        for p in points where unique.last.map({ length($0.p - p.p) > 1e-12 }) ?? true { unique.append(p) }
+        func half(_ points: [Vertex]) -> [Vertex] {
+            var result: [Vertex] = []
+            for p in points {
+                while result.count >= 2 && collisionCross(result.last!.p - result[result.count - 2].p, p.p - result.last!.p) <= 0 { result.removeLast() }
+                result.append(p)
+            }
+            return result
+        }
+        var hull = Array(half(unique).dropLast()) + Array(half(unique.reversed()).dropLast())
+        guard hull.count >= 3 else { return nil }
+        for _ in 0..<512 {
+            var index = 0, gap = Double.infinity, normal = SIMD2<Double>.zero
+            for i in hull.indices {
+                let edge = hull[(i + 1) % hull.count].p - hull[i].p
+                let n = unit(SIMD2(edge.y, -edge.x)), d = collisionDot(n, hull[i].p)
+                if d < gap { index = i; gap = d; normal = n }
+            }
+            let candidate = support(normal)
+            let advance = collisionDot(normal, candidate.p) - gap
+            if advance <= 1e-4 * max(1, abs(gap)) || hull.contains(where: { length($0.p - candidate.p) < 1e-10 }) {
+                let next = hull[(index + 1) % hull.count], first = hull[index]
+                let edge = next.p - first.p, denominator = collisionDot(edge, edge)
+                let t = denominator > 0 ? min(1, max(0, -collisionDot(first.p, edge) / denominator)) : 0
+                let witness = first.b + (next.b - first.b) * t
+                return Penetration(position: [Float(witness.x), Float(witness.y)],
+                                   normal: [Float(-normal.x), Float(-normal.y)], depth: Float(max(0, collisionDot(normal, candidate.p))))
+            }
+            hull.insert(candidate, at: index + 1)
+        }
+        // An unconverged polytope must not report an underestimated correction.
+        return nil
+    }
+
     /// Sweeps a shape by a translation. Its orientation and scale remain fixed.
     /// Supports transformed circles (ellipses), convex polygons, and edge chains.
     public static func sweep(_ query: Shape, by translation: SIMD2<Float>, against target: Shape) -> Hit? {

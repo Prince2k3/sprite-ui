@@ -13,6 +13,15 @@ struct DemoBotsLogicSystem: System {
     }
 }
 
+/// Resolve steering movement before spatial queries and presentation see it.
+struct DemoBotsMovementSystem: System {
+    static var dependencies: [SystemDependency] { [.after(SteeringSystem.self), .before(SpatialIndexSystem.self)] }
+    init(world: World) {}
+    mutating func update(context: UpdateContext) {
+        context.world.root.components[DemoBotsRuntime.self]?.game?.resolveMovement(deltaTime: Float(context.deltaTime))
+    }
+}
+
 struct DemoBotsPresentationSystem: System {
     static var phase: SystemPhase { .presentation }
     static var dependencies: [SystemDependency] { [.after(SteeringSystem.self), .before(PlaybackSystem.self)] }
