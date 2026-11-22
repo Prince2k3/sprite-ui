@@ -9,6 +9,10 @@ import SwiftUI
 /// The level is several screens big, so a `CameraComponent` follows the newest ball,
 /// stays inside the level and shakes on hard hits. Tap to drop a ball, drag to look
 /// around, pinch to zoom.
+///
+/// The Particles and audio milestone: each ball has a `ContactEffectComponent`, so a hard
+/// hit throws sparks and thuds, more the harder it lands. A collected coin bursts into
+/// gold sparks with a chime, and the ball the camera follows trails smoke.
 struct SceneDemoView: View {
     @State private var scene = LevelScene()
     @State private var pinchStart: Float?
@@ -79,6 +83,8 @@ final class LevelScene {
     private static let solidCategory: UInt32 = 1 << 0
     private static let coinCategory: UInt32 = 1 << 2
     private static let ballCategory: UInt32 = 1 << 3
+    private static let thud = AudioComponent(named: "thud", volume: 0.8)
+    private static let chime = AudioComponent(named: "coin", volume: 0.6)
 
     private(set) var summary = "loading"
     private(set) var background = Color.black
@@ -169,6 +175,13 @@ final class LevelScene {
             collisionBitMask: ~Self.coinCategory,
             contactTestBitMask: Self.coinCategory | Self.solidCategory
         ))
+        ball.components.set(ContactEffectComponent(
+            particles: .sparks(color: Self.colors[balls.count % Self.colors.count]),
+            count: 14, sound: Self.thud, minimumImpulse: 3
+        ))
+        // Only the ball being followed trails smoke.
+        balls.last?.components[ParticleEmitterComponent.self] = nil
+        ball.components.set(ParticleEmitterComponent.smoke(color: .white.opacity(0.5)))
         balls.append(ball)
         world?.addEntity(ball)
         camera?.components[CameraComponent.self]?.target = .entity(ball.id)
@@ -221,6 +234,8 @@ final class LevelScene {
         // Only count it once, even if two balls touch it in the same step.
         coin.components[CoinComponent.self] = nil
         points += value
+        world?.addEntity(.oneShot(particles: .sparks(color: .yellow), count: 30,
+                                  sound: Self.chime, at: coin.scenePosition))
         withAnimation(.easeOut(duration: 0.25)) {
             coin.components[SpriteComponent.self]?.opacity = 0
             coin.transform.scale = [2, 2]

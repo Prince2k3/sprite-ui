@@ -206,6 +206,8 @@ extension SpriteRenderer {
             .filter { $0.components[CameraComponent.self]?.isActive == true }
             .compactMap { self.node(for: $0)?.childNode(withName: Self.cameraNodeName) as? SKCameraNode }
             .first
+        // Positional sounds are heard from the camera.
+        listener = camera
     }
 
     private func cameraEntities() -> [Entity] {

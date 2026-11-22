@@ -71,6 +71,8 @@ public final class SpriteRenderer: SKScene {
     /// Transactions whose actions were dropped outside a flush; ended at the next flush.
     private var droppedTransactions: [ActionTransaction] = []
     private var nextToken = 0
+    /// Adds ``ContactEffectComponent`` effects as contacts are published.
+    private var contactEffects: EventSubscription?
     private var lastUpdateTime: TimeInterval?
     private var lastDeltaTime: TimeInterval = 0
     /// The time SpriteKit passed to the latest `update(_:)`.
@@ -88,7 +90,14 @@ public final class SpriteRenderer: SKScene {
         register(PhysicsBodyComponent.self, Self.physicsBinding)
         register(CameraComponent.self, Self.cameraBinding)
         register(TileMapComponent.self, Self.tileMapBinding)
+        register(ParticleEmitterComponent.self, Self.particleBinding)
+        register(AudioComponent.self, Self.audioBinding)
         physicsWorld.contactDelegate = self
+
+        world.addSystem(LifetimeSystem.self)
+        contactEffects = world.subscribe(to: PhysicsEvents.ContactBegan.self) { [weak self] contact in
+            self?.addContactEffects(contact)
+        }
 
         world.observer = self
         for entity in world.entities {
