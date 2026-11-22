@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */; };
+		4F6ECCF820B7267C6A46F7EE /* StrategistDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */; };
 		5426761EF954EE8084C185FA /* DemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */; };
 		5B9DCCBB6BEC7D9D9EDBBD23 /* StateMachineDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */; };
 		5E004D84C0F6DE0B60C177E2 /* RandomDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */; };
@@ -28,6 +29,7 @@
 		5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoView.swift; sourceTree = "<group>"; };
 		5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RandomDemoView.swift; sourceTree = "<group>"; };
 		6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpriteUIDemoApp.swift; sourceTree = "<group>"; };
+		7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrategistDemoView.swift; sourceTree = "<group>"; };
 		93920852539B40941CCCD9D6 /* NoiseDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoiseDemoView.swift; sourceTree = "<group>"; };
 		B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialDemoView.swift; sourceTree = "<group>"; };
 		E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateMachineDemoView.swift; sourceTree = "<group>"; };
@@ -82,6 +84,7 @@
 				6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */,
 				E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */,
 				363FD31E7C468C0C2080419D /* SteeringDemoView.swift */,
+				7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */,
 			);
 			path = SpriteUIDemo;
 			sourceTree = "<group>";
@@ -153,6 +156,7 @@
 				096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */,
 				5B9DCCBB6BEC7D9D9EDBBD23 /* StateMachineDemoView.swift in Sources */,
 				7EB43AEF065D6756EB90E8CE /* SteeringDemoView.swift in Sources */,
+				4F6ECCF820B7267C6A46F7EE /* StrategistDemoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

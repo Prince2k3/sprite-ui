@@ -13,6 +13,7 @@ struct SpriteUIDemoApp: App {
                 Tab("Steering", systemImage: "bird") { SteeringDemoView() }
                 Tab("Noise", systemImage: "cloud") { NoiseDemoView() }
                 Tab("Decisions", systemImage: "questionmark.diamond") { DecisionDemoView() }
+                Tab("Strategists", systemImage: "circle.grid.3x3.fill") { StrategistDemoView() }
             }
         }
     }
