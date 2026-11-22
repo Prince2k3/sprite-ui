@@ -11,7 +11,8 @@ import SwiftUI
 /// 3. `didSimulatePhysics()` copies simulation results back into ``Transform`` and
 ///    ``PhysicsBodyComponent`` without marking them changed, then publishes the step's
 ///    ``PhysicsEvents``.
-/// 4. SpriteKit renders.
+/// 4. `didFinishUpdate()` moves cameras (see ``CameraComponent``) and flushes again.
+/// 5. SpriteKit renders.
 ///
 /// Component changes are batched: they reach the nodes when ``flush()`` runs, not immediately.
 @MainActor
@@ -71,6 +72,9 @@ public final class SpriteRenderer: SKScene {
     private var droppedTransactions: [ActionTransaction] = []
     private var nextToken = 0
     private var lastUpdateTime: TimeInterval?
+    private var lastDeltaTime: TimeInterval = 0
+    /// The time SpriteKit passed to the latest `update(_:)`.
+    var lastFrameTime: TimeInterval? { lastUpdateTime }
 
     public init(world: World, size: CGSize = CGSize(width: 1, height: 1)) {
         self.world = world
@@ -82,6 +86,7 @@ public final class SpriteRenderer: SKScene {
         register(Transform.self, Self.transformBinding)
         register(SpriteComponent.self, Self.spriteBinding)
         register(PhysicsBodyComponent.self, Self.physicsBinding)
+        register(CameraComponent.self, Self.cameraBinding)
         physicsWorld.contactDelegate = self
 
         world.observer = self
@@ -120,7 +125,14 @@ public final class SpriteRenderer: SKScene {
     public override func update(_ currentTime: TimeInterval) {
         let deltaTime = lastUpdateTime.map { min(currentTime - $0, 1.0 / 15.0) } ?? 0
         lastUpdateTime = currentTime
+        lastDeltaTime = deltaTime
         world.update(deltaTime: deltaTime)
+        flush()
+    }
+
+    /// Moves cameras once physics and actions have run, so they frame where things ended up.
+    public override func didFinishUpdate() {
+        updateCameras(deltaTime: lastDeltaTime, time: lastUpdateTime ?? 0)
         flush()
     }
 
@@ -433,6 +445,7 @@ extension SpriteRenderer: WorldObserver {
         if let node = nodes.removeValue(forKey: entity.id) {
             entityIDs[ObjectIdentifier(node)] = nil
             node.removeFromParent()
+            if let camera, camera.inParentHierarchy(node) { chooseCamera() }
         }
     }
 

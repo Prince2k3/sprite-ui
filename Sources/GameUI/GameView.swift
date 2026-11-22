@@ -15,6 +15,12 @@ public struct GameViewContent {
     public func add(_ entity: Entity) { world.addEntity(entity) }
     public func remove(_ entity: Entity) { world.removeEntity(entity) }
 
+    /// The scene-space point under a point in the view (SwiftUI coordinates, origin at
+    /// the top left), following the active ``CameraComponent`` if there is one.
+    public func scenePoint(fromView point: CGPoint) -> SIMD2<Float> {
+        renderer.scenePoint(fromView: point)
+    }
+
     public func subscribe<E: Event>(
         to type: E.Type,
         on entity: Entity? = nil,
