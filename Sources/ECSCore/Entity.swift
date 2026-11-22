@@ -8,6 +8,50 @@ open class Entity: Identifiable {
     public nonisolated let id: ID
     public var name: String
 
+    /// Local enablement. Disabling a parent suspends its subtree without changing
+    /// the children's local flags or removing anything from the world.
+    public var isEnabled: Bool {
+        get { enabled }
+        set {
+            guard enabled != newValue else { return }
+            let previous = activationStates()
+            enabled = newValue
+            activationDidChange(from: previous)
+        }
+    }
+    private var enabled = true
+
+    public var isEnabledInHierarchy: Bool { isEnabled && (parent?.isEnabledInHierarchy ?? true) }
+    /// Enabled in a world. Scene pause is a separate clock setting.
+    public var isActive: Bool { world != nil && isEnabledInHierarchy }
+    @_spi(Backend) public private(set) var activationRevision: UInt64 = 0
+
+    func invalidateActivation() { activationRevision &+= 1 }
+
+    private func activationStates() -> [(Entity, Bool)] {
+        var result: [(Entity, Bool)] = []
+        visit { result.append(($0, $0.isEnabledInHierarchy)) }
+        return result
+    }
+
+    private func activationDidChange(from previous: [(Entity, Bool)]) {
+        var changes: [(Entity, Bool, UInt64)] = []
+        for (entity, old) in previous {
+            let value = entity.isEnabledInHierarchy
+            guard old != value else { continue }
+            entity.activationRevision &+= 1
+            changes.append((entity, value, entity.activationRevision))
+        }
+        // Finish backend transitions before user handlers can reenter this setter.
+        for (entity, _, _) in changes {
+            if let world = entity.world { world.observer?.world(world, activationDidChange: entity) }
+        }
+        for (entity, value, revision) in changes {
+            guard entity.activationRevision == revision, let world = entity.world else { continue }
+            world.publish(WorldEvents.DidChangeEntityActivation(entity: entity, isEnabledInHierarchy: value), from: entity)
+        }
+    }
+
     public private(set) weak var parent: Entity?
     public private(set) var children: [Entity] = []
 
@@ -70,16 +114,20 @@ open class Entity: Identifiable {
 
     // Called only after setParent has validated the whole operation.
     func adopt(_ child: Entity) {
+        let previous = child.activationStates()
         children.append(child)
         child.parent = self
+        child.activationDidChange(from: previous)
         world?.attach(child)
     }
 
     public func removeFromParent() {
         guard let parent else { return }
+        let previous = activationStates()
         world?.detach(self)
         parent.children.removeAll { $0 === self }
         self.parent = nil
+        activationDidChange(from: previous)
     }
 
     /// Finds the first entity with the given name in this entity's subtree, depth first.

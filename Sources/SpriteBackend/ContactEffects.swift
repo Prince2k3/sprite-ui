@@ -59,7 +59,7 @@ extension SpriteRenderer {
     /// Adds the effects of ``ContactEffectComponent``s for a contact.
     func addContactEffects(_ contact: PhysicsEvents.ContactBegan) {
         for entity in [contact.entityA, contact.entityB] {
-            guard let effect = entity.components[ContactEffectComponent.self]?.effect(for: contact) else { continue }
+            guard entity.isActive, entity.world === world, let effect = entity.components[ContactEffectComponent.self]?.effect(for: contact) else { continue }
             world.addEntity(effect)
         }
     }

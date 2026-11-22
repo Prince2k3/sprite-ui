@@ -13,6 +13,10 @@ public final class EventSubscription {
 }
 
 public enum WorldEvents {
+    public struct DidChangeEntityActivation: Event {
+        public let entity: Entity
+        public let isEnabledInHierarchy: Bool
+    }
     /// Scene simulation settings changed, including while paused.
     public struct SimulationDidChange: Event { public let world: World }
 

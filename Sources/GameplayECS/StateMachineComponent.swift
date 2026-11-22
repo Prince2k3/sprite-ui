@@ -132,7 +132,7 @@ public struct StateMachineSystem<State: GameState>: System {
 
     public mutating func update(context: UpdateContext) {
         for entity in context.entities(matching: Self.query) {
-            guard var component = entity.components[StateMachineComponent<State>.self] else { continue }
+            guard entity.isActive, entity.world === context.world, var component = entity.components[StateMachineComponent<State>.self] else { continue }
             // Timers tick every frame; they aren't changes the renderer needs to hear about.
             component.machine.advance(by: context.deltaTime)
             entity._setWithoutNotifying(component)

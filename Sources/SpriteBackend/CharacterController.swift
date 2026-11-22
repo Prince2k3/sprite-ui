@@ -35,6 +35,7 @@ public struct CharacterControllerComponent: Component, Hashable, Codable, Sendab
 
 /// A rejected move leaves the character unchanged.
 public enum CharacterMovementError: Error, Equatable, Sendable {
+    case inactiveEntity
     case notInScene, missingController, disabledController, invalidConfiguration, dynamicPhysicsBody
 }
 
@@ -70,6 +71,7 @@ extension Entity {
     @discardableResult
     public func moveCharacter(by translation: SIMD2<Float>, relativeTo reference: Entity? = nil) throws -> CharacterMovementResult {
         guard let world else { throw CharacterMovementError.notInScene }
+        guard isActive else { throw CharacterMovementError.inactiveEntity }
         guard let controller = components[CharacterControllerComponent.self] else { throw CharacterMovementError.missingController }
         guard controller.isEnabled else { throw CharacterMovementError.disabledController }
         guard components[PhysicsBodyComponent.self]?.isDynamic != true else { throw CharacterMovementError.dynamicPhysicsBody }

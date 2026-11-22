@@ -55,6 +55,12 @@ public final class ActionTransaction {
         fireIfDone()
     }
 
+    /// Cancels the completion when a backend discards an entity's old lifetime
+    /// (for example, pool release). Other actions in the transaction may finish,
+    /// but its completion must not mutate a reused entity.
+    @_spi(Backend)
+    public func cancelCompletion() { finished = true }
+
     /// Called by a backend once it has turned all pending changes into actions.
     /// Transactions that started nothing complete now.
     @_spi(Backend)

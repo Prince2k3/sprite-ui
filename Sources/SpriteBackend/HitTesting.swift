@@ -12,7 +12,7 @@ extension SpriteRenderer {
         var hits: [(entity: Entity, z: CGFloat, order: Int)] = []
         var order = 0
         func visit(_ entity: Entity, parentZ: CGFloat, hasColliderAncestor: Bool) {
-            guard let node = node(for: entity), !node.isHidden else { return }
+            guard entity.isActive, let node = node(for: entity), !node.isHidden else { return }
             let z = parentZ + node.zPosition
             let collider = entity.queryCollider
             if let collider {

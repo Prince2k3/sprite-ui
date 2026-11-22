@@ -114,10 +114,10 @@ extension SpriteRenderer {
         for owner in owners {
             guard var model = owner.components[PhysicsJointComponent.self] else { continue }
             func reject(_ status: PhysicsJointStatus) { removePhysicsJoint(owner.id); jointStatuses[owner.id] = status }
-            guard model.isEnabled else { reject(.disabled); continue }
+            guard owner.isActive, model.isEnabled else { reject(.disabled); continue }
             guard model.constraint.isValid else { reject(.invalidConfiguration); continue }
             guard model.bodyA != model.bodyB else { reject(.invalidBodies); continue }
-            guard let a = world.entity(withID: model.bodyA), let b = world.entity(withID: model.bodyB),
+            guard let a = world.entity(withID: model.bodyA), let b = world.entity(withID: model.bodyB), a.isActive, b.isActive,
                   let nodeA = node(for: a), let nodeB = node(for: b),
                   nodeA.scene === self, nodeB.scene === self,
                   let bodyA = nodeA.physicsBody, let bodyB = nodeB.physicsBody else { reject(.waitingForBodies); continue }
@@ -130,7 +130,7 @@ extension SpriteRenderer {
             let storedReference = model.referencePose ?? current
             var reference = storedReference
             if let space = reference.space {
-                guard let frame = world.entity(withID: space), let frameNode = node(for: frame) else { reject(.waitingForBodies); continue }
+                guard let frame = world.entity(withID: space), frame.isActive, let frameNode = node(for: frame) else { reject(.waitingForBodies); continue }
                 let matrix = displayedCollisionMatrix(for: frameNode)
                 reference.a = matrix * reference.a; reference.b = matrix * reference.b
             }

@@ -53,6 +53,7 @@ extension Entity {
             let copy = copies[source.id]!
             for child in copy.children { child.removeFromParent() }
             copy.name = source.name
+            copy.isEnabled = source.isEnabled
             copy.storage = source.storage.compactMapValues { $0.cloned() }
         }
         if recursive {

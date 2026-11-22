@@ -200,7 +200,7 @@ public struct LifetimeSystem: System {
                 entity._setWithoutNotifying(lifetime)
             }
         }
-        for entity in expired { entity.removeFromParent() }
+        for entity in expired where entity.isActive && entity.world === context.world { entity.removeFromParent() }
     }
 }
 

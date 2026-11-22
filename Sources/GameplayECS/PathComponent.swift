@@ -80,7 +80,7 @@ public struct PathFollowSystem: System {
         }
         var finished: [Entity] = []
         for (entity, start) in movers {
-            guard entity.world === context.world, var path = entity.components[PathComponent.self] else { continue }
+            guard entity.isActive, entity.world === context.world, var path = entity.components[PathComponent.self] else { continue }
             var position = start
             var budget = path.speed * Float(context.deltaTime)
             var heading: SIMD2<Float>?
@@ -118,7 +118,7 @@ public struct PathFollowSystem: System {
         }
         // Completion handlers may teleport entities, replace paths, or remove a
         // hierarchy. Deliver after committing this frame so those edits win.
-        for entity in finished where entity.world === context.world {
+        for entity in finished where entity.isActive && entity.world === context.world {
             context.world.publish(PathEvents.DidFinish(entity: entity), from: entity)
         }
     }

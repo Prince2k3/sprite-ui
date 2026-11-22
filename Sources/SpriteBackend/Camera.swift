@@ -198,7 +198,7 @@ extension SpriteRenderer {
     /// The entity whose camera the view uses, if any.
     public var activeCamera: Entity? {
         if let id = world.selectedCameraID, let entity = world.entity(withID: id),
-           entity.components[CameraComponent.self]?.isActive == true, node(for: entity) != nil { return entity }
+           entity.isActive, entity.components[CameraComponent.self]?.isActive == true, node(for: entity) != nil { return entity }
         return cameraEntities().first { $0.components[CameraComponent.self]?.isActive == true && node(for: $0) != nil }
     }
 
@@ -211,7 +211,7 @@ extension SpriteRenderer {
 
     private func cameraEntities() -> [Entity] {
         world.allEntities
-            .filter { $0.components.has(CameraComponent.self) }
+            .filter { $0.isActive && $0.components.has(CameraComponent.self) }
             .sorted { $0.id < $1.id }
     }
 
@@ -238,8 +238,8 @@ extension SpriteRenderer {
 
     private func target(of target: CameraComponent.Target) -> Entity? {
         switch target {
-        case .entity(let id): world.entity(withID: id)
-        case .named(let name): world.root.findEntity(named: name).flatMap { $0 === world.root ? nil : $0 }
+        case .entity(let id): world.entity(withID: id).flatMap { $0.isActive ? $0 : nil }
+        case .named(let name): world.root.findEntity(named: name).flatMap { $0 === world.root || !$0.isActive ? nil : $0 }
         }
     }
 

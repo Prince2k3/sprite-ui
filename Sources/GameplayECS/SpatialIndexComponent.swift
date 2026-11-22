@@ -102,7 +102,7 @@ extension World {
     public func updateSpatialIndex() {
         let storage = spatialStorage
         var current: [Entity.ID: SpatialCategories] = [:]
-        for entity in allEntities {
+        for entity in allEntities where entity.isActive {
             guard let component = entity.components[SpatialIndexComponent.self] else { continue }
             current[entity.id] = component.categories
             storage.hash.insert(entity.id, at: entity.scenePosition)
@@ -173,7 +173,7 @@ extension World {
         _ storage: SpatialIndexStorage
     ) -> [Entity] {
         ids.compactMap { id in
-            guard let entity = entity(withID: id),
+            guard let entity = entity(withID: id), entity.isActive,
                   storage.categories[id]?.isDisjoint(with: categories) == false
             else { return nil }
             return entity

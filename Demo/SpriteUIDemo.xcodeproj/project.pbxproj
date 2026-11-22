@@ -24,6 +24,7 @@
 		71199A69A3664097CE441EB3 /* thud.wav in Resources */ = {isa = PBXBuildFile; fileRef = D7386C3C0BCBEF0A3A80FFAA /* thud.wav */; };
 		750F555994F2A1805B0DC34D /* SpriteUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3FC3600C0AEE0E6FCA318D2A /* SpriteUI */; };
 		7EB43AEF065D6756EB90E8CE /* SteeringDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363FD31E7C468C0C2080419D /* SteeringDemoView.swift */; };
+		834AC392652D26FA615C2843 /* PoolingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30D56C2F72A47BC882F8D3E /* PoolingDemoView.swift */; };
 		957F35C1A2CDA8A3200EA432 /* coin.wav in Resources */ = {isa = PBXBuildFile; fileRef = AD4B56781DDCE0AD924A5FAD /* coin.wav */; };
 		9724ED58A1891C9FFE8B84F5 /* playback-demo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 336679CC6AC0F80F32FB81A4 /* playback-demo.wav */; };
 		AFE3EB6EC6605EBA36A44F3B /* NoiseDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93920852539B40941CCCD9D6 /* NoiseDemoView.swift */; };
@@ -62,6 +63,7 @@
 		AD4B56781DDCE0AD924A5FAD /* coin.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coin.wav; sourceTree = "<group>"; };
 		B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialDemoView.swift; sourceTree = "<group>"; };
 		D200C57D852A152275BB8377 /* SceneDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDemoView.swift; sourceTree = "<group>"; };
+		D30D56C2F72A47BC882F8D3E /* PoolingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolingDemoView.swift; sourceTree = "<group>"; };
 		D7386C3C0BCBEF0A3A80FFAA /* thud.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = thud.wav; sourceTree = "<group>"; };
 		E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileMapDemoView.swift; sourceTree = "<group>"; };
 		E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateMachineDemoView.swift; sourceTree = "<group>"; };
@@ -124,6 +126,7 @@
 				67F776F36226B4DF4AC99FA4 /* Pendulum.prefab */,
 				12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */,
 				336679CC6AC0F80F32FB81A4 /* playback-demo.wav */,
+				D30D56C2F72A47BC882F8D3E /* PoolingDemoView.swift */,
 				64A07FC6D53E7ACB7F7547F5 /* PrefabDemoView.swift */,
 				5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */,
 				4D6F537FD724A2F0E44CE0F5 /* ResourcesDemoView.swift */,
@@ -226,6 +229,7 @@
 				543B4CE6BF2485071CC94735 /* ObstacleDemoView.swift in Sources */,
 				CA2E123843221506FF47258F /* PathfindingDemoView.swift in Sources */,
 				65A996A6A3B7D80DFB800D59 /* PhysicsDemoView.swift in Sources */,
+				834AC392652D26FA615C2843 /* PoolingDemoView.swift in Sources */,
 				34BC0125BB63B500F46459E3 /* PrefabDemoView.swift in Sources */,
 				5E004D84C0F6DE0B60C177E2 /* RandomDemoView.swift in Sources */,
 				58A7DA7CAE71579207CD942C /* ResourcesDemoView.swift in Sources */,

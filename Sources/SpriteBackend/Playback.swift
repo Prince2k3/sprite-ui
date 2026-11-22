@@ -87,7 +87,7 @@ public class PlaybackController {
     }
     func synchronize() {
         guard !isTerminal else { return }
-        let suspended = entity?.world?.isPaused != false || (entity?.world?.timeScale ?? 0) == 0
+        let suspended = entity?.isActive != true || entity?.world?.isPaused != false || (entity?.world?.timeScale ?? 0) == 0
         if sceneSuspended != suspended { sceneSuspended = suspended }
         do { try apply() } catch { fail((error as? PlaybackError) ?? .audioUnavailable) }
     }
@@ -103,6 +103,7 @@ public class PlaybackController {
     func advance(by delta: TimeInterval) {
         guard state == .playing, delta.isFinite, delta >= 0 else { return }
         guard let entity, entity.world != nil else { stop(reason: .removed); return }
+        guard entity.isActive else { synchronize(); return }
         let next = elapsed + delta * speed
         guard next.isFinite else { fail(.invalidOptions); return }
         elapsed = next
@@ -224,7 +225,7 @@ extension Entity {
     public func playAudio(_ resource: AudioResource, options: PlaybackOptions = .init(), volume: Float = 1, isPositional: Bool = false) throws -> AudioPlaybackController {
         try options.validate(duration: resource.duration)
         let rate = options.speed * (world?.timeScale ?? 1)
-        guard world?.isPaused == true || rate == 0 || (0.5...2).contains(rate) else { throw PlaybackError.unsupportedAudioRate(rate) }
+        guard !isActive || world?.isPaused == true || rate == 0 || (0.5...2).contains(rate) else { throw PlaybackError.unsupportedAudioRate(rate) }
         let voice: any AudioVoice
         do { voice = try PlaybackSystem.makeVoice(resource) } catch { throw PlaybackError.audioUnavailable }
         let controller = AudioPlaybackController(entity: self, resource: resource, options: options, volume: volume, isPositional: isPositional, voice: voice)
@@ -251,13 +252,17 @@ public struct PlaybackSystem: System {
     static var makeVoice: @MainActor (AudioResource) throws -> any AudioVoice = { try PlayerAudioVoice(resource: $0) }
     private let changes: EventSubscription
     private let removals: EventSubscription
+    private let activations: EventSubscription
     private static let query = EntityQuery(where: .has(PlaybackStorage.self))
 
     public init(world: World) {
         changes = world.subscribe(to: WorldEvents.SimulationDidChange.self) { event in
-            for entity in event.world.performQuery(Self.query) {
+            for entity in event.world.performQuery(EntityQuery(where: .has(PlaybackStorage.self), includingDisabled: true)) {
                 for controller in entity.components[PlaybackStorage.self]?.controllers ?? [] { controller.synchronize() }
             }
+        }
+        activations = world.subscribe(to: WorldEvents.DidChangeEntityActivation.self) { event in
+            for controller in event.entity.components[PlaybackStorage.self]?.controllers ?? [] { controller.synchronize() }
         }
         removals = world.subscribe(to: WorldEvents.WillRemoveEntity.self) { event in
             for controller in event.entity.components[PlaybackStorage.self]?.controllers ?? [] { controller.stop(reason: .removed) }

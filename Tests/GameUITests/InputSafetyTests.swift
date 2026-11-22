@@ -5,6 +5,20 @@ import SwiftUI
 import Testing
 
 @MainActor @Suite struct InputSafetyTests {
+    @Test func disablingAndReenablingCannotDeliverAnOldContactToAReusedEntity() {
+        let (host, a, _) = host()
+        let point = CGPoint(x: 50, y: 100)
+        host.beginInput(at: point)
+        let existing = TargetedInputCapture<Int>()
+        #expect(existing.resolve(1, start: point, host: host, resolver: { $0 })?.entity === a)
+        a.isEnabled = false; a.isEnabled = true
+        #expect(existing.resolve(2, start: point, host: host, resolver: { $0 }) == nil)
+        // This gesture has not resolved even once; it must still reject the old pointer.
+        #expect(TargetedInputCapture<Int>().resolve(1, start: point, host: host, resolver: { $0 }) == nil)
+        host.cancelInputs(); host.beginInput(at: point)
+        #expect(TargetedInputCapture<Int>().resolve(1, start: point, host: host, resolver: { $0 })?.entity === a)
+    }
+
     func host() -> (GameHost, Entity, Entity) {
         let host = GameHost()
         host.renderer.size = CGSize(width: 200, height: 200)

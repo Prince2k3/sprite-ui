@@ -63,7 +63,14 @@ public final class SpriteRenderer: SKScene {
     var jointStatuses: [Entity.ID: PhysicsJointStatus] = [:]
     var physicsShapes: [Entity.ID: PhysicsShapeConfiguration] = [:]
     /// Contacts reported during the current simulation step, published after it.
-    private var contacts: [any Event] = []
+    private struct QueuedContact {
+        let event: any Event
+        let a: Entity
+        let b: Entity
+        let revisionA: UInt64
+        let revisionB: UInt64
+    }
+    private var contacts: [QueuedContact] = []
     /// Pending changes per entity and component type. A new entry starts whenever the
     /// transaction changes, so a nested `withAnimation(.disabled)` doesn't affect properties
     /// the outer animation changed.
@@ -205,31 +212,33 @@ public final class SpriteRenderer: SKScene {
     /// then publishes the contacts the step reported.
     public override func didSimulatePhysics() {
         guard !world.isPaused, world.timeScale > 0 else { contacts.removeAll(); return }
-        for id in bodies {
-            guard let node = nodes[id], let body = node.physicsBody, body.isDynamic,
-                  let entity = world.entity(withID: id)
-            else { continue }
-            // A change made during the step (say, by a contact handler) wins over the simulation.
-            let pending = dirty[id]
-            if pending?[Self.transformKey] == nil {
-                var transform = entity.transform
-                transform.translation = [Float(node.position.x), Float(node.position.y)]
-                transform.rotation = Float(node.zRotation)
-                if transform != entity.transform {
-                    entity._setWithoutNotifying(transform)
-                    applied[id, default: [:]][Self.transformKey] = transform
-                }
-            }
-            if pending?[Self.physicsKey] == nil, var physics = entity.components[PhysicsBodyComponent.self] {
-                physics.velocity = [Float(body.velocity.dx), Float(body.velocity.dy)]
-                physics.angularVelocity = Float(body.angularVelocity)
-                if physics != entity.components[PhysicsBodyComponent.self] {
-                    entity._setWithoutNotifying(physics)
-                    applied[id, default: [:]][Self.physicsKey] = physics
-                }
+        for id in bodies { copyPhysicsResult(id) }
+        publishContacts()
+    }
+
+    private func copyPhysicsResult(_ id: Entity.ID) {
+        guard let node = nodes[id], let body = node.physicsBody, body.isDynamic,
+              let entity = world.entity(withID: id)
+        else { return }
+        // A change made during the step (say, by a contact handler) wins over the simulation.
+        let pending = dirty[id]
+        if pending?[Self.transformKey] == nil {
+            var transform = entity.transform
+            transform.translation = [Float(node.position.x), Float(node.position.y)]
+            transform.rotation = Float(node.zRotation)
+            if transform != entity.transform {
+                entity._setWithoutNotifying(transform)
+                applied[id, default: [:]][Self.transformKey] = transform
             }
         }
-        publishContacts()
+        if pending?[Self.physicsKey] == nil, var physics = entity.components[PhysicsBodyComponent.self] {
+            physics.velocity = [Float(body.velocity.dx), Float(body.velocity.dy)]
+            physics.angularVelocity = Float(body.angularVelocity)
+            if physics != entity.components[PhysicsBodyComponent.self] {
+                entity._setWithoutNotifying(physics)
+                applied[id, default: [:]][Self.physicsKey] = physics
+            }
+        }
     }
 
     /// Publishes the queued contacts, skipping any whose entities have left the world.
@@ -237,8 +246,10 @@ public final class SpriteRenderer: SKScene {
         guard !contacts.isEmpty else { return }
         let reported = contacts
         contacts.removeAll()
-        for event in reported {
-            switch event {
+        for contact in reported {
+            guard contact.a.isActive, contact.b.isActive,
+                  contact.a.activationRevision == contact.revisionA, contact.b.activationRevision == contact.revisionB else { continue }
+            switch contact.event {
             case let began as PhysicsEvents.ContactBegan:
                 guard began.entityA.world === world, began.entityB.world === world else { continue }
                 world.publish(began, from: [began.entityA, began.entityB])
@@ -256,18 +267,20 @@ public final class SpriteRenderer: SKScene {
                        point: CGPoint = .zero, normal: CGVector = .zero, impulse: CGFloat = 0) {
         guard let nodeA, let nodeB,
               let idA = entityIDs[ObjectIdentifier(nodeA)], let idB = entityIDs[ObjectIdentifier(nodeB)],
-              let a = world.entity(withID: idA), let b = world.entity(withID: idB)
+              let a = world.entity(withID: idA), let b = world.entity(withID: idB), a.isActive, b.isActive
         else { return }
+        let event: any Event
         if began {
-            contacts.append(PhysicsEvents.ContactBegan(
+            event = PhysicsEvents.ContactBegan(
                 entityA: a, entityB: b,
                 point: [Float(point.x), Float(point.y)],
                 normal: [Float(normal.dx), Float(normal.dy)],
                 impulse: Float(impulse)
-            ))
+            )
         } else {
-            contacts.append(PhysicsEvents.ContactEnded(entityA: a, entityB: b))
+            event = PhysicsEvents.ContactEnded(entityA: a, entityB: b)
         }
+        contacts.append(QueuedContact(event: event, a: a, b: b, revisionA: a.activationRevision, revisionB: b.activationRevision))
     }
 
     // MARK: Running actions (used by Animator)
@@ -446,13 +459,60 @@ public final class SpriteRenderer: SKScene {
 
 extension SpriteRenderer: WorldObserver {
     public func worldSimulationDidChange(_ world: World) {
-        let paused = world.isPaused || world.timeScale == 0
+        let paused = world.isPaused || world.timeScale == 0 || !world.root.isEnabledInHierarchy
         node(for: world.root)?.isPaused = paused
         node(for: world.root)?.speed = CGFloat(world.timeScale)
         physicsWorld.speed = paused ? 0 : CGFloat(world.timeScale)
         let gravity = world.physics.gravity
         physicsWorld.gravity = CGVector(dx: CGFloat(gravity.x), dy: CGFloat(gravity.y))
         chooseCamera()
+    }
+
+    public func world(_ world: World, activationDidChange entity: Entity) {
+        guard let node = nodes[entity.id] else { return }
+        if !entity.isActive {
+            copyPhysicsResult(entity.id)
+            removePhysicsJoints(involving: [entity.id])
+        }
+        node.isHidden = !entity.isEnabledInHierarchy
+        node.isPaused = !entity.isEnabledInHierarchy || (entity === world.root && (world.isPaused || world.timeScale == 0))
+        applyPhysics(entity.components[PhysicsBodyComponent.self], previous: nil, entity: entity, node: node)
+        if entity === world.root { worldSimulationDidChange(world) }
+        chooseCamera()
+    }
+
+    /// A pool release is a new use of the entity, not an ordinary pause. Cancel
+    /// old actions without delivering their completion into a later lease.
+    func resetPooledPresentation(_ root: Entity, preparing: Bool = true) {
+        root.visit { entity in
+            guard let node = nodes[entity.id] else { return }
+            let pending = dirty.removeValue(forKey: entity.id) ?? [:]
+            for change in pending.values.flatMap({ $0 }) { change.transaction?.cancelCompletion() }
+            if let actions = running.removeValue(forKey: entity.id) {
+                for action in actions.values {
+                    action.transaction?.cancelCompletion()
+                    action.transaction?.endAction()
+                }
+            }
+            @MainActor func clear(_ node: SKNode) {
+                node.removeAllActions()
+                for child in node.children { clear(child) }
+            }
+            // Do not clear descendant entity nodes here; each is processed below.
+            node.removeAllActions()
+            for child in node.children where entityIDs[ObjectIdentifier(child)] == nil { clear(child) }
+            // Also remove retired streams whose component was removed while
+            // particles were still fading (their reserved name is already nil).
+            for child in node.children where child is SKEmitterNode {
+                child.removeFromParent()
+            }
+            let keys = Set(applied[entity.id]?.keys.map { $0 } ?? []).union(entity.componentKeys)
+            applied[entity.id] = nil
+            for key in keys {
+                if !preparing && (key == ObjectIdentifier(AudioComponent.self) || key == ObjectIdentifier(ParticleEmitterComponent.self)) { continue }
+                apply(key, value: entity.component(forKey: key), of: entity, to: node, transaction: nil)
+            }
+        }
     }
 
     public func worldActiveCamera(_ world: World) -> Entity? { activeCamera }
@@ -466,6 +526,8 @@ extension SpriteRenderer: WorldObserver {
 
         let parentNode: SKNode = entity.parent.flatMap { nodes[$0.id] } ?? self
         parentNode.addChild(node)
+        node.isHidden = !entity.isEnabledInHierarchy
+        node.isPaused = !entity.isEnabledInHierarchy
 
         // New nodes get every component set directly so nothing pops in a frame late
         // or animates in from the origin.

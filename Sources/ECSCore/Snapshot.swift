@@ -96,14 +96,16 @@ public struct EntitySnapshot {
     /// The entity's ID when the snapshot was taken.
     public var id: Entity.ID
     public var name: String
+    public var isEnabled: Bool
     public var components: [any Component]
     public var children: [EntitySnapshot]
     /// Original scene pose for relocating reference frames when instantiating a subtree.
     public var sceneTransform: AffineTransform2D?
 
-    public init(id: Entity.ID = 0, name: String = "", components: [any Component] = [], children: [EntitySnapshot] = [], sceneTransform: AffineTransform2D? = nil) {
+    public init(id: Entity.ID = 0, name: String = "", isEnabled: Bool = true, components: [any Component] = [], children: [EntitySnapshot] = [], sceneTransform: AffineTransform2D? = nil) {
         self.id = id
         self.name = name
+        self.isEnabled = isEnabled
         self.components = components
         self.children = children
         self.sceneTransform = sceneTransform
@@ -134,6 +136,7 @@ public struct EntitySnapshot {
     func makeEntity(restored: inout [Entity.ID: Entity], keepingIDs keepsID: (Entity.ID) -> Bool) -> Entity {
         let entity = keepsID(id) ? Entity(restoringID: id) : Entity()
         entity.name = name
+        entity.isEnabled = isEnabled
         entity.components.set(components.compactMap { $0.cloned() })
         restored[id] = entity
         for child in children {
@@ -155,13 +158,14 @@ public struct EntitySnapshot {
 }
 
 extension EntitySnapshot: Codable {
-    private enum CodingKeys: String, CodingKey { case id, name, components, children, sceneTransform }
+    private enum CodingKeys: String, CodingKey { case id, name, isEnabled, components, children, sceneTransform }
     private enum BoxKeys: String, CodingKey { case type, value }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(Entity.ID.self, forKey: .id) ?? 0
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         sceneTransform = try container.decodeIfPresent(AffineTransform2D.self, forKey: .sceneTransform)
         children = try container.decodeIfPresent([EntitySnapshot].self, forKey: .children) ?? []
         components = []
@@ -178,6 +182,7 @@ extension EntitySnapshot: Codable {
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
+        if !isEnabled { try container.encode(false, forKey: .isEnabled) }
         try container.encodeIfPresent(sceneTransform, forKey: .sceneTransform)
         if !name.isEmpty { try container.encode(name, forKey: .name) }
         var list = container.nestedUnkeyedContainer(forKey: .components)
@@ -253,7 +258,7 @@ extension Entity {
             .compactMap { component in ComponentRegistry.entry(for: type(of: component)).map { ($0.name, component) } }
             .sorted { $0.0 < $1.0 }
             .compactMap { $0.1.cloned() }
-        return EntitySnapshot(id: id, name: name, components: saved, children: children.map { $0.snapshot() }, sceneTransform: sceneTransformMatrix)
+        return EntitySnapshot(id: id, name: name, isEnabled: isEnabled, components: saved, children: children.map { $0.snapshot() }, sceneTransform: sceneTransformMatrix)
     }
 }
 

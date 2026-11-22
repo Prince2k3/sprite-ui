@@ -19,6 +19,7 @@ extension Entity {
     /// Whether targeted gestures can hit this entity: the nearest
     /// ``InputTargetComponent`` on it or an ancestor is enabled.
     public var isInputTarget: Bool {
+        guard isEnabledInHierarchy else { return false }
         var current: Entity? = self
         while let entity = current {
             if let target = entity.components[InputTargetComponent.self] {

@@ -39,8 +39,12 @@ extension QueryPredicate where Value == Entity {
 /// Selects the entities in a world that match a predicate.
 public struct EntityQuery: Sendable {
     public let predicate: QueryPredicate<Entity>
+    /// Opt into dormant entities for inspection and reset work. Systems normally
+    /// operate only on active entities.
+    public let includingDisabled: Bool
 
-    public init(where predicate: QueryPredicate<Entity> = .all) {
+    public init(where predicate: QueryPredicate<Entity> = .all, includingDisabled: Bool = false) {
         self.predicate = predicate
+        self.includingDisabled = includingDisabled
     }
 }

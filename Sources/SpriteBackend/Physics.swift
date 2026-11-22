@@ -124,7 +124,7 @@ public enum PhysicsEvents {
 
 extension Entity {
     private var physicsBody: SKPhysicsBody? {
-        guard let renderer = world?.observer as? SpriteRenderer else { return nil }
+        guard isActive, let renderer = world?.observer as? SpriteRenderer else { return nil }
         return renderer.node(for: self)?.physicsBody
     }
 
@@ -193,7 +193,7 @@ extension SpriteRenderer {
     func applyPhysics(_ model: PhysicsBodyComponent?, previous: PhysicsBodyComponent?, entity: Entity, node: SKNode) {
         defer { if node.physicsBody != nil { bodies.insert(entity.id) } else { bodies.remove(entity.id) } }
         let collider = entity.components[CollisionComponent.self]
-        guard let model, collider?.isEnabled != false else {
+        guard entity.isActive, let model, collider?.isEnabled != false else {
             removePhysicsJoints(involving: [entity.id])
             node.physicsBody = nil; physicsShapes[entity.id] = nil; return
         }

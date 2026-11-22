@@ -18,6 +18,7 @@ public protocol WorldObserver: AnyObject {
     )
     /// Scene simulation settings changed.
     func worldSimulationDidChange(_ world: World)
+    func world(_ world: World, activationDidChange entity: Entity)
     func worldActiveCamera(_ world: World) -> Entity?
 
     /// The value of a component as currently shown on screen, mid-animation.
@@ -26,6 +27,7 @@ public protocol WorldObserver: AnyObject {
 }
 
 extension WorldObserver {
+    public func world(_ world: World, activationDidChange entity: Entity) {}
     public func worldSimulationDidChange(_ world: World) {}
     public func worldActiveCamera(_ world: World) -> Entity? { nil }
     public func world(_ world: World, presentationValueOf componentType: any Component.Type, for entity: Entity) -> (any Component)? {
@@ -71,7 +73,7 @@ public final class World {
     public var activeCamera: Entity? {
         get {
             if let observer { return observer.worldActiveCamera(self) }
-            return selectedCameraID.flatMap { entity(withID: $0) }
+            return selectedCameraID.flatMap { entity(withID: $0) }.flatMap { $0.isActive ? $0 : nil }
         }
         set {
             precondition(newValue == nil || newValue?.world === self, "A camera must belong to this world.")
@@ -123,7 +125,7 @@ public final class World {
     }
 
     public func performQuery(_ query: EntityQuery) -> [Entity] {
-        index.values.filter { query.predicate.evaluate($0) }
+        index.values.filter { (query.includingDisabled || $0.isActive) && query.predicate.evaluate($0) }
     }
 
     // MARK: Systems
@@ -189,6 +191,7 @@ public final class World {
 
     func attach(_ subtree: Entity) {
         subtree.visit { entity in
+            entity.invalidateActivation()
             entity.world = self
             index[entity.id] = entity
             observer?.world(self, didAdd: entity)
@@ -203,6 +206,7 @@ public final class World {
             publish(WorldEvents.WillRemoveEntity(entity: entity), from: entity)
             observer?.world(self, willRemove: entity)
             index[entity.id] = nil
+            entity.invalidateActivation()
             entity.world = nil
         }
     }

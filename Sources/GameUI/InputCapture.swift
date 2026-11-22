@@ -1,4 +1,4 @@
-import ECSCore
+@_spi(Backend) import ECSCore
 import Foundation
 import SpriteBackend
 import SwiftUI
@@ -19,10 +19,11 @@ struct GameHostPreferenceKey: PreferenceKey {
 final class InputContact {
     let id: UInt64
     let start: CGPoint
+    let activationRevision: UInt64?
     weak var hit: Entity?
     var endedAt: TimeInterval?
     var cancelled = false
-    init(id: UInt64, start: CGPoint, hit: Entity?) { self.id = id; self.start = start; self.hit = hit }
+    init(id: UInt64, start: CGPoint, hit: Entity?) { self.id = id; self.start = start; self.hit = hit; activationRevision = hit?.activationRevision }
 }
 
 extension GameHost {
@@ -88,11 +89,12 @@ final class TargetedInputCapture<Value> {
         }
         guard sourceHost === host, let contact, !contact.cancelled,
               let hit = contact.hit, hit.world === host.world, hit.isInputTarget,
+              hit.activationRevision == contact.activationRevision,
               hit.components[CollisionComponent.self]?.isEnabled != false,
               // Only a fallback controller supplies this hit's interaction shape.
               (hit.components[CollisionComponent.self] != nil || hit.components[PhysicsBodyComponent.self] != nil ||
                hit.components[CharacterControllerComponent.self]?.isEnabled != false),
-              let target, target.world === host.world, resolver(hit) === target else {
+              let target, target.world === host.world, target.isActive, resolver(hit) === target else {
             target = nil
             return nil
         }

@@ -117,7 +117,7 @@ extension World {
     }
     func queryColliders(filter: CollisionQueryFilter) -> [(Entity, CollisionGeometry.Shape)] {
         allEntities.compactMap { entity in
-            guard let collider = entity.queryCollider, collider.isEnabled,
+            guard entity.isActive, let collider = entity.queryCollider, collider.isEnabled,
                   filter.includes(entity, filter: collider.filter) else { return nil }
             let matrix = entity.sceneTransformMatrix * AffineTransform2D(tx: collider.offset.x, ty: collider.offset.y)
             return (entity, collisionGeometry(shape: collider.shape, matrix: matrix))

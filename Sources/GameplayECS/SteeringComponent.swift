@@ -264,13 +264,13 @@ public struct SteeringSystem: System {
         func position(of target: SteeringTarget) -> SIMD2<Float>? {
             switch target {
             case .point(let point): point
-            case .entity(let id): snapshot[id]?.position ?? world.entity(withID: id)?.scenePosition
+            case .entity(let id): snapshot[id]?.position ?? world.entity(withID: id).flatMap { $0.isActive ? $0.scenePosition : nil }
             }
         }
 
         func motion(of id: Entity.ID) -> (SIMD2<Float>, SIMD2<Float>)? {
             if let agent = snapshot[id] { return (agent.position, agent.velocity) }
-            return world.entity(withID: id).map { ($0.scenePosition, .zero) }
+            return world.entity(withID: id).flatMap { $0.isActive ? ($0.scenePosition, .zero) : nil }
         }
 
         func neighbors(of entity: Entity, _ agent: SteeringAgent, radius: Float, _ categories: SpatialCategories) -> [SteeringAgent] {
@@ -352,6 +352,7 @@ public struct SteeringSystem: System {
             return a == b ? $0.0.id < $1.0.id : a < b
         }
         for (entity, steering, agent) in ordered {
+            guard entity.isActive, entity.world === world else { continue }
             guard (try? entity.setPosition(agent.position, relativeTo: nil)) != nil else {
                 var stopped = steering
                 stopped.velocity = .zero
