@@ -16,12 +16,18 @@ public protocol WorldObserver: AnyObject {
         didChange componentType: any Component.Type,
         transaction: ActionTransaction?
     )
+    /// Scene simulation settings changed.
+    func worldSimulationDidChange(_ world: World)
+    func worldActiveCamera(_ world: World) -> Entity?
+
     /// The value of a component as currently shown on screen, mid-animation.
     /// Return `nil` when it matches the model value or the backend can't tell.
     func world(_ world: World, presentationValueOf componentType: any Component.Type, for entity: Entity) -> (any Component)?
 }
 
 extension WorldObserver {
+    public func worldSimulationDidChange(_ world: World) {}
+    public func worldActiveCamera(_ world: World) -> Entity? { nil }
     public func world(_ world: World, presentationValueOf componentType: any Component.Type, for entity: Entity) -> (any Component)? {
         nil
     }
@@ -34,7 +40,46 @@ public final class World {
     public let root: Entity
 
     private var index: [Entity.ID: Entity] = [:]
-    private var systems: [any System] = []
+    private var installedSystems: [SystemEntry] = []
+    var scheduledSystems: [SystemEntry] = []
+    var isRunningSystems = false
+
+    /// Whether simulation, backend physics, and actions are paused. Component edits
+    /// still render while paused. User interface updates are not scene simulation.
+    public var isPaused = false { didSet { observer?.worldSimulationDidChange(self) } }
+    /// Scene time multiplier. Zero freezes simulation. Values must be finite and
+    /// nonnegative; invalid assignments are ignored.
+    public var timeScale: Double {
+        get { storedTimeScale }
+        set {
+            guard newValue.isFinite, newValue >= 0 else { return }
+            storedTimeScale = newValue
+            observer?.worldSimulationDidChange(self)
+        }
+    }
+    private var storedTimeScale: Double = 1
+    /// Physics settings are available before a renderer is created.
+    public var physics = PhysicsSimulationSettings() { didSet { observer?.worldSimulationDidChange(self) } }
+    /// World-scoped resource components, independent of any rendered entity.
+    public var resources: ComponentSet { root.components }
+    /// Installed systems, including dependency-aware installation and enablement.
+    public var systems: SystemCollection { SystemCollection(world: self) }
+
+    /// The explicitly selected camera, or the backend's automatic camera. Assign
+    /// an entity with a CameraComponent in this world; `nil` restores automatic
+    /// selection. Selection can be configured before the renderer exists.
+    public var activeCamera: Entity? {
+        get {
+            if let observer { return observer.worldActiveCamera(self) }
+            return selectedCameraID.flatMap { entity(withID: $0) }
+        }
+        set {
+            precondition(newValue == nil || newValue?.world === self, "A camera must belong to this world.")
+            selectedCameraID = newValue?.id
+            observer?.worldSimulationDidChange(self)
+        }
+    }
+    @_spi(Backend) public private(set) var selectedCameraID: Entity.ID?
     private var events = EventBus()
 
     @_spi(Backend)
@@ -46,7 +91,8 @@ public final class World {
         root.name = "root"
         root.world = self
         for type in SystemRegistry.types {
-            systems.append(type.init(world: self))
+            do { try installSystem(type) }
+            catch { preconditionFailure("Invalid registered system schedule: \(error)") }
         }
     }
 
@@ -68,7 +114,7 @@ public final class World {
     }
 
     public func entity(withID id: Entity.ID) -> Entity? {
-        index[id]
+        id == root.id ? root : index[id]
     }
 
     public func performQuery(_ query: EntityQuery) -> [Entity] {
@@ -77,19 +123,38 @@ public final class World {
 
     // MARK: Systems
 
-    /// Adds a system to this world only.
+    /// Adds a system to this world only, retaining the original setup API.
+    /// Invalid dependencies are programmer errors here; use `try systems.add(...)`
+    /// to handle schedule errors explicitly.
     public func addSystem<S: System>(_ type: S.Type) {
-        guard !systems.contains(where: { Swift.type(of: $0) == type }) else { return }
-        systems.append(type.init(world: self))
+        do { try installSystem(type) }
+        catch { preconditionFailure("Invalid system schedule: \(error)") }
     }
 
-    /// Advances the world by one frame: publishes ``WorldEvents/Update`` and runs systems in order.
+    func systemEntry(_ type: any System.Type) -> SystemEntry? {
+        installedSystems.first { ObjectIdentifier($0.type) == ObjectIdentifier(type) }
+    }
+
+    func installSystem(_ type: any System.Type) throws {
+        guard systemEntry(type) == nil else { return }
+        let types = installedSystems.map(\.type) + [type]
+        let order = try SystemSchedule.ordered(types)
+        // Validate before initializing a system, which may subscribe to events.
+        installedSystems.append(SystemEntry(type, world: self))
+        scheduledSystems = order.compactMap(systemEntry)
+    }
+
+    func uninstallSystem(_ type: any System.Type) {
+        installedSystems.removeAll { ObjectIdentifier($0.type) == ObjectIdentifier(type) }
+        let order = (try? SystemSchedule.ordered(installedSystems.map(\.type))) ?? []
+        scheduledSystems = order.compactMap(systemEntry)
+    }
+
+    /// Advances a complete headless frame, including simulation and presentation.
+    /// Paused scenes do not advance. A zero delta still delivers an update event.
     public func update(deltaTime: TimeInterval) {
-        publish(WorldEvents.Update(world: self, deltaTime: deltaTime))
-        let context = UpdateContext(world: self, deltaTime: deltaTime)
-        for i in systems.indices {
-            systems[i].update(context: context)
-        }
+        guard let frame = beginFrame(deltaTime: deltaTime) else { return }
+        finishFrame(frame)
     }
 
     // MARK: Events

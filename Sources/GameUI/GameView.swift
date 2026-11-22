@@ -7,6 +7,8 @@ import SwiftUI
 @MainActor
 public struct GameViewContent {
     public let world: World
+    /// The scene being presented. `world` remains available for existing code.
+    public var scene: World { world }
     /// The SpriteKit renderer, for things the ECS doesn't cover yet.
     public let renderer: SpriteRenderer
 
@@ -49,6 +51,7 @@ public struct GameView: View {
     private let showsStatistics: Bool
 
     @State private var host = GameHost()
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(
         showsStatistics: Bool = false,
@@ -62,6 +65,10 @@ public struct GameView: View {
 
     public var body: some View {
         SKViewHost(host: host, update: update, showsStatistics: showsStatistics)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { host.viewFrame = $0 }
+            .preference(key: GameHostPreferenceKey.self, value: [GameHostReference(id: host.inputHostID, host: host)])
+            .onDisappear { host.cancelInputs() }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { host.cancelInputs() } }
             .task {
                 guard !host.isReady else { return }
                 var content = host.content
@@ -100,47 +107,34 @@ final class GameHost {
 
     // MARK: Targeted input
 
-    struct TouchTarget {
-        weak var host: GameHost?
-        weak var entity: Entity?
-    }
+    var viewFrame = CGRect.zero
+    let inputHostID = UUID()
+    var nextInputID: UInt64 = 0
+    var inputContacts: [UInt64: InputContact] = [:]
+    var lastMouseTimestamp: TimeInterval?
+    var mouseContact: UInt64?
 
-    /// The game view and entity under the most recent touch-down, across all game views.
-    /// Targeted gestures read it; SwiftUI only reports locations.
-    static var touchTarget: TouchTarget?
-
-    func recordTouch(at viewPoint: CGPoint, in view: SKView) {
-        guard view.scene === renderer else { return }
-        let scenePoint = renderer.convertPoint(fromView: viewPoint)
-        Self.touchTarget = TouchTarget(host: self, entity: renderer.inputTarget(at: scenePoint))
-    }
 }
 
 /// An `SKView` that notes which entity a touch starts on, before SwiftUI's gestures see it.
 final class GameSKView: SKView {
     weak var host: GameHost?
 
-#if os(iOS) || os(tvOS) || os(visionOS)
-    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        let hit = super.hitTest(point, with: event)
-        if hit != nil, event?.type == .touches {
-            host?.recordTouch(at: point, in: self)
-        }
-        return hit
-    }
-#elseif os(macOS)
+#if os(macOS)
     override func hitTest(_ point: NSPoint) -> NSView? {
         let hit = super.hitTest(point)
-        if hit != nil, let superview {
-            switch NSApp.currentEvent?.type {
-            case .leftMouseDown, .rightMouseDown, .otherMouseDown:
-                host?.recordTouch(at: convert(point, from: superview), in: self)
-            default:
-                break
-            }
+        if hit != nil, let superview, let event = NSApp.currentEvent,
+           [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type),
+           host?.lastMouseTimestamp != event.timestamp {
+            if let previous = host?.mouseContact { host?.endInput(previous) }
+            host?.lastMouseTimestamp = event.timestamp
+            var local = convert(point, from: superview)
+            if !isFlipped { local.y = bounds.height - local.y }
+            host?.mouseContact = host?.beginInput(at: local)
         }
         return hit
     }
+
 #endif
 }
 
@@ -176,6 +170,14 @@ private struct SKViewHost: NSViewRepresentable {
 private func makeView(host: GameHost) -> SKView {
     let view = GameSKView()
     view.host = host
+#if os(iOS) || os(tvOS) || os(visionOS)
+    let tracking = GameInputRecognizer(target: nil, action: nil)
+    tracking.host = host
+    tracking.cancelsTouchesInView = false
+    tracking.delaysTouchesBegan = false
+    tracking.delaysTouchesEnded = false
+    view.addGestureRecognizer(tracking)
+#endif
     view.ignoresSiblingOrder = true
     view.presentScene(host.renderer)
     return view

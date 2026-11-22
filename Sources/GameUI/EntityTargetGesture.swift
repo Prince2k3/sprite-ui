@@ -3,27 +3,12 @@ import SpriteBackend
 import SpriteKit
 import SwiftUI
 
-// Targeted gestures, in the style of RealityKit:
-//
-//     GameView { ... }
-//         .gesture(SpatialTapGesture().targetedToAnyEntity().onEnded { value in
-//             value.entity.removeFromParent()
-//         })
-//
-// The entity under the finger is picked when the touch goes down, from entities with
-// an enabled `InputTargetComponent` (on themselves or an ancestor). A touch that starts
-// on no target doesn't call `onChanged` or `onEnded`.
-//
-// Attach these gestures to the `GameView` itself: locations are read in its local space.
-
 extension Gesture {
-    /// Fires only for touches that start on an entity that accepts input.
-    public func targetedToAnyEntity() -> EntityTargetGesture<Self> {
-        EntityTargetGesture(base: self) { $0 }
-    }
+    /// Targets the entity under this gesture's starting pointer. Attach to a
+    /// GameView or a wrapper containing exactly one GameView.
+    public func targetedToAnyEntity() -> EntityTargetGesture<Self> { EntityTargetGesture(base: self) { $0 } }
 
-    /// Fires only for touches that start on `entity` or one of its descendants.
-    /// `value.entity` is always `entity`.
+    /// Targets this entity when the pointer starts on it or an enabled descendant.
     public func targetedToEntity(_ entity: Entity) -> EntityTargetGesture<Self> {
         EntityTargetGesture(base: self) { [weak entity] hit in
             guard let entity, hit === entity || hit.isDescendant(of: entity) else { return nil }
@@ -31,8 +16,7 @@ extension Gesture {
         }
     }
 
-    /// Fires only for touches that start on an entity matching `predicate`, or on a
-    /// descendant of one. `value.entity` is the nearest match.
+    /// Targets the nearest matching ancestor of the entity under the pointer.
     public func targetedToEntity(where predicate: QueryPredicate<Entity>) -> EntityTargetGesture<Self> {
         EntityTargetGesture(base: self) { hit in
             var current: Entity? = hit
@@ -45,114 +29,161 @@ extension Gesture {
     }
 }
 
-/// A gesture that only fires on entities. Make one with ``SwiftUICore/Gesture/targetedToAnyEntity()``.
-///
-/// Use its own `onChanged` and `onEnded`, which hand you an ``EntityTargetValue``.
+/// A view-scoped targeted gesture. Its handlers keep a stable capture for their
+/// own pointer, rather than looking up a process-wide last touch. Tap and drag
+/// values identify their starting location. Gestures without a starting location
+/// are delivered only when a single contact is unambiguous.
 public struct EntityTargetGesture<Base: Gesture>: Gesture {
-    /// `nil` while the touch didn't start on a matching entity.
-    /// The `onChanged`/`onEnded` overloads below filter those out.
     public typealias Value = EntityTargetValue<Base.Value>?
-
     let base: Base
     let resolve: @MainActor (Entity) -> Entity?
+    var changed: [@MainActor (EntityTargetValue<Base.Value>) -> Void] = []
+    var ended: [@MainActor (EntityTargetValue<Base.Value>) -> Void] = []
+    var equals: ((Base.Value, Base.Value) -> Bool)?
 
-    public var body: some Gesture<Value> {
-        base.map { value in
-            MainActor.assumeIsolated {
-                guard let touch = GameHost.touchTarget,
-                      let host = touch.host,
-                      let hit = touch.entity,
-                      hit.world === host.world,
-                      let entity = resolve(hit)
-                else { return nil }
-                return EntityTargetValue(entity: entity, gestureValue: value, host: host)
-            }
-        }
-    }
+    /// View's targeted-gesture overloads bind this value to their GameView.
+    /// An unbound gesture intentionally produces no entity events.
+    public var body: some Gesture<Value> { base.map { _ in nil as Value } }
 
-    /// Runs `action` when the gesture ends on a targeted entity.
-    public func onEnded(
-        _ action: @escaping (EntityTargetValue<Base.Value>) -> Void
-    ) -> _EndedGesture<Self> {
-        let filtered: (Value) -> Void = { value in
-            if let value { action(value) }
-        }
-        return onEnded(filtered)
+    /// Runs when this gesture ends successfully on its captured entity.
+    public func onEnded(_ action: @escaping @MainActor (EntityTargetValue<Base.Value>) -> Void) -> Self {
+        var result = self; result.ended.append(action); return result
     }
 }
 
 extension EntityTargetGesture where Base.Value: Equatable {
-    /// Runs `action` each time the gesture's value changes on a targeted entity.
-    public func onChanged(
-        _ action: @escaping (EntityTargetValue<Base.Value>) -> Void
-    ) -> _ChangedGesture<Self> {
-        let filtered: (Value) -> Void = { value in
-            if let value { action(value) }
-        }
-        return onChanged(filtered)
+    public func onChanged(_ action: @escaping @MainActor (EntityTargetValue<Base.Value>) -> Void) -> Self {
+        var result = self; result.changed.append(action); result.equals = { $0 == $1 }; return result
     }
 }
 
-extension _ChangedGesture {
-    /// Lets `.onChanged { }.onEnded { }` chains on targeted gestures get a non-optional value.
-    public func onEnded<Base: Gesture>(
-        _ action: @escaping (EntityTargetValue<Base.Value>) -> Void
-    ) -> _EndedGesture<Self> where Content == EntityTargetGesture<Base> {
-        let filtered: (Value) -> Void = { value in
-            if let value { action(value) }
-        }
-        return onEnded(filtered)
+extension View {
+    public func gesture<Base: Gesture>(_ gesture: EntityTargetGesture<Base>, including mask: GestureMask = .all) -> some View {
+        modifier(TargetedGestureModifier(gesture: gesture, mask: mask, mode: .normal))
+    }
+    public func simultaneousGesture<Base: Gesture>(_ gesture: EntityTargetGesture<Base>, including mask: GestureMask = .all) -> some View {
+        modifier(TargetedGestureModifier(gesture: gesture, mask: mask, mode: .simultaneous))
+    }
+    public func highPriorityGesture<Base: Gesture>(_ gesture: EntityTargetGesture<Base>, including mask: GestureMask = .all) -> some View {
+        modifier(TargetedGestureModifier(gesture: gesture, mask: mask, mode: .highPriority))
     }
 }
 
-/// The value of a targeted gesture: the entity it hit plus the underlying gesture's value.
-///
-/// Members of the underlying value are available directly, so `value.location` and
-/// `value.translation` work as they do on the original gesture.
 @MainActor
-@dynamicMemberLookup
+private struct TargetedGestureEvent<Value>: Equatable {
+    let target: EntityTargetValue<Value>?
+    let rawValue: Value
+    let equals: ((Value, Value) -> Bool)?
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        MainActor.assumeIsolated {
+            lhs.target?.entity === rhs.target?.entity && (lhs.equals?(lhs.rawValue, rhs.rawValue) ?? true)
+        }
+    }
+}
+
+private enum TargetedGestureMode { case normal, simultaneous, highPriority }
+
+@MainActor
+private struct TargetedGestureModifier<Base: Gesture>: ViewModifier {
+    let gesture: EntityTargetGesture<Base>
+    let mask: GestureMask
+    let mode: TargetedGestureMode
+    @State private var hosts: [GameHostReference] = []
+    @State private var origin = CGPoint.zero
+    @State private var capture = TargetedInputCapture<Base.Value>()
+    @GestureState private var isActive = false
+
+    func body(content: Content) -> some View {
+        let native = gesture.base.map { value -> TargetedGestureEvent<Base.Value> in
+            MainActor.assumeIsolated {
+                var target: EntityTargetValue<Base.Value>?
+                if hosts.count == 1, let host = hosts.first?.host {
+                    let offset = CGPoint(x: host.viewFrame.minX - origin.x, y: host.viewFrame.minY - origin.y)
+                    let start = startPoint(value).map { CGPoint(x: $0.x - offset.x, y: $0.y - offset.y) }
+                    target = capture.resolve(value, start: start, host: host, resolver: gesture.resolve)
+                    target?.viewOffset = offset
+                }
+                return TargetedGestureEvent(target: target, rawValue: value, equals: gesture.equals)
+            }
+        }.updating($isActive) { _, active, _ in active = true }
+        .onChanged { event in
+            MainActor.assumeIsolated {
+                guard let target = event.target else { return }
+                for action in gesture.changed { action(target) }
+            }
+        }.onEnded { event in
+            MainActor.assumeIsolated {
+                defer { capture.end() }
+                if let target = event.target { for action in gesture.ended { action(target) } }
+            }
+        }
+        return attach(native, to: content)
+            .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { origin = $0 }
+            .onPreferenceChange(GameHostPreferenceKey.self) { references in
+                Task { @MainActor in
+                    if references != hosts { capture.end() }
+                    hosts = references
+                }
+            }
+            .onChange(of: isActive) { _, active in if !active { capture.end() } }
+            .onDisappear { capture.end() }
+    }
+
+    @ViewBuilder
+    private func attach<G: Gesture>(_ native: G, to content: Content) -> some View {
+        switch mode {
+        case .normal: content.gesture(native, including: mask)
+        case .simultaneous: content.simultaneousGesture(native, including: mask)
+        case .highPriority: content.highPriorityGesture(native, including: mask)
+        }
+    }
+
+    private func startPoint(_ value: Base.Value) -> CGPoint? {
+        if let drag = value as? DragGesture.Value { return drag.startLocation }
+        if let tap = value as? SpatialTapGesture.Value { return tap.location }
+        return nil
+    }
+}
+
+/// A captured entity and the underlying gesture's value. Point conversions use
+/// the displayed transforms, including camera zoom, rotation, and animation.
+@MainActor @dynamicMemberLookup
 public struct EntityTargetValue<Value> {
-    /// The entity the gesture targets.
     public let entity: Entity
-    /// The underlying gesture's value.
     public let gestureValue: Value
-
     weak var host: GameHost?
+    var viewOffset = CGPoint.zero
 
-    public subscript<T>(dynamicMember keyPath: KeyPath<Value, T>) -> T {
-        gestureValue[keyPath: keyPath]
-    }
+    public subscript<T>(dynamicMember keyPath: KeyPath<Value, T>) -> T { gestureValue[keyPath: keyPath] }
 
-    /// Converts a point in the `GameView`'s local space (such as `value.location`)
-    /// to scene coordinates.
+    /// Converts a gesture point into scene space. Prefer `convertIfAvailable` when
+    /// retaining a gesture value beyond the view's lifetime; this returns zero if detached.
     public func convert(_ point: CGPoint, to space: GameCoordinateSpace) -> SIMD2<Float> {
-        guard let renderer = host?.renderer else { return .zero }
-        let scenePoint = renderer.convertPoint(fromView: point)
-        return SIMD2(Float(scenePoint.x), Float(scenePoint.y))
+        convertIfAvailable(point, to: space) ?? .zero
     }
-
-    /// Converts a point in the `GameView`'s local space to `entity`'s coordinate space,
-    /// the space its children's positions are in.
+    public func convertIfAvailable(_ point: CGPoint, to space: GameCoordinateSpace) -> SIMD2<Float>? {
+        guard let renderer = host?.renderer else { return nil }
+        return renderer.scenePoint(fromView: localPoint(point))
+    }
     public func convert(_ point: CGPoint, to entity: Entity) -> SIMD2<Float> {
-        guard let renderer = host?.renderer else { return .zero }
-        // The world's root has no node of its own: its children sit in the scene.
-        let node: SKNode? = entity === renderer.world.root ? renderer : renderer.node(for: entity)
-        guard let node else { return .zero }
-        let local = node.convert(renderer.convertPoint(fromView: point), from: renderer)
-        return SIMD2(Float(local.x), Float(local.y))
+        convertIfAvailable(point, to: entity) ?? .zero
     }
+    public func convertIfAvailable(_ point: CGPoint, to entity: Entity) -> SIMD2<Float>? {
+        guard let host, entity.world === host.world, let node = host.renderer.node(for: entity) else { return nil }
+        let scene = host.renderer.scenePoint(fromView: localPoint(point))
+        let point = node.convert(CGPoint(x: CGFloat(scene.x), y: CGFloat(scene.y)), from: host.renderer)
+        guard point.x.isFinite, point.y.isFinite else { return nil }
+        return [Float(point.x), Float(point.y)]
+    }
+    private func localPoint(_ point: CGPoint) -> CGPoint { CGPoint(x: point.x - viewOffset.x, y: point.y - viewOffset.y) }
 }
 
 extension EntityTargetValue: Equatable where Value: Equatable {
     public nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
-        MainActor.assumeIsolated {
-            lhs.entity === rhs.entity && lhs.gestureValue == rhs.gestureValue
-        }
+        MainActor.assumeIsolated { lhs.entity === rhs.entity && lhs.gestureValue == rhs.gestureValue }
     }
 }
 
-/// A coordinate space in the game world, for ``EntityTargetValue/convert(_:to:)-(_,GameCoordinateSpace)``.
 public struct GameCoordinateSpace: Sendable {
-    /// The scene's space: the same space as top-level entities' positions.
     public static let scene = GameCoordinateSpace()
 }

@@ -160,14 +160,20 @@ import Testing
         game.move([1, 0])
         world.update(deltaTime: 1 / 60)
         game.pause()
+        #expect(world.isPaused)
+        let effect = Entity(components: LifetimeComponent(0.1))
+        world.addEntity(effect)
         let time = game.remainingTime; let position = player.position
         let stateTime = player.timeInState(BotMode.self)
         for _ in 0..<60 { world.update(deltaTime: 1 / 60) }
         #expect(game.remainingTime == time)
         #expect(player.position == position)
         #expect(player.timeInState(BotMode.self) == stateTime)
+        #expect(effect.world === world)
         game.resume(); game.move([1, 0])
         for _ in 0..<15 { world.update(deltaTime: 1 / 60) }
+        #expect(!world.isPaused)
+        #expect(effect.world == nil)
         #expect(game.remainingTime < time)
         #expect(player.position.x > position.x)
     }

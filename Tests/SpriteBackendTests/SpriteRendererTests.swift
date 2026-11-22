@@ -12,7 +12,7 @@ import Testing
         world.addEntity(entity)
 
         let node = try! #require(renderer.node(for: entity))
-        #expect(node.parent === renderer)
+        #expect(node.parent === renderer.node(for: world.root))
         #expect(node.position == CGPoint(x: 10, y: 20))
         #expect(node.zRotation == 1)
         #expect(node.zPosition == 3)

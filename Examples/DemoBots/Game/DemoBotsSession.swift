@@ -54,11 +54,12 @@ public final class DemoBotsSession {
     public func build(in content: GameViewContent) {
         attach(to: content.world)
         renderer = content.renderer
-        content.renderer.gravity = .zero
+        content.scene.physics.gravity = .zero
     }
 
     func attach(to world: World) {
         self.world = world
+        world.isPaused = true
         world.root.components.set(DemoBotsRuntime(game: self))
         world.addSystem(DemoBotsLogicSystem.self)
         world.addSystem(SteeringSystem.self)
@@ -138,6 +139,7 @@ public final class DemoBotsSession {
             }
             totalBots = bots.count
             remainingTime = config.timeLimit; elapsed = 0; hudDelay = 0; effectDelay = 0
+            world.isPaused = false
             phase = .playing; message = "Cure every corrupted bot"
             refreshHUD()
         } catch {
@@ -177,15 +179,16 @@ public final class DemoBotsSession {
     }
     public func pause() {
         guard phase == .playing else { return }
-        phase = .paused; stopMotion()
+        phase = .paused; world?.isPaused = true; stopMotion()
     }
     public func resume() {
         guard phase == .paused else { return }
         phase = .playing
+        world?.isPaused = false
         for bot in bots { bot.components[BotComponent.self]?.decisionDelay = 0 }
     }
     public func home() {
-        phase = .home; stopMotion()
+        phase = .home; world?.isPaused = true; stopMotion()
     }
     func stopMotion() {
         moveInput = .zero; aimInput = .zero; isFiring = false
@@ -448,6 +451,7 @@ public final class DemoBotsSession {
     func finish(won: Bool) {
         guard phase == .playing else { return }
         phase = won ? .won : .lost
+        world?.isPaused = true
         stopMotion(); refreshHUD()
     }
     func refreshHUD() {

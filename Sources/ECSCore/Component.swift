@@ -20,7 +20,7 @@ extension Component {
 @MainActor
 public struct ComponentSet {
     @usableFromInline
-    unowned let entity: Entity
+    let entity: Entity
 
     init(entity: Entity) {
         self.entity = entity

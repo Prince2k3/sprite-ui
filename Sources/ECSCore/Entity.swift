@@ -58,8 +58,12 @@ open class Entity: Identifiable {
     // MARK: Hierarchy
 
     public func addChild(_ child: Entity) {
-        precondition(child !== self, "An entity can't be its own child.")
-        child.removeFromParent()
+        do { try child.setParent(self) }
+        catch { preconditionFailure("Invalid entity hierarchy: \(error)") }
+    }
+
+    // Called only after setParent has validated the whole operation.
+    func adopt(_ child: Entity) {
         children.append(child)
         child.parent = self
         world?.attach(child)

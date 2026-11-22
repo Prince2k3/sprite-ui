@@ -70,9 +70,18 @@ public struct PathFollowSystem: System {
     public init(world: World) {}
 
     public mutating func update(context: UpdateContext) {
-        for entity in context.entities(matching: Self.query) {
-            guard var path = entity.components[PathComponent.self] else { continue }
-            var position = entity.position
+        let snapshot: [(entity: Entity, position: SIMD2<Float>)] = context.entities(matching: Self.query).map {
+            (entity: $0, position: $0.scenePosition)
+        }
+        let movers = snapshot.sorted { lhs, rhs in
+            let a = lhs.entity.movementDepth, b = rhs.entity.movementDepth
+            if a == b { return lhs.entity.id < rhs.entity.id }
+            return a < b
+        }
+        var finished: [Entity] = []
+        for (entity, start) in movers {
+            guard entity.world === context.world, var path = entity.components[PathComponent.self] else { continue }
+            var position = start
             var budget = path.speed * Float(context.deltaTime)
             var heading: SIMD2<Float>?
 
@@ -93,20 +102,34 @@ public struct PathFollowSystem: System {
                 }
             }
 
-            var transform = entity.transform
-            transform.translation = position
+            guard (try? entity.setPosition(position, relativeTo: nil)) != nil else { continue }
             if path.orientsToPath, let heading {
-                transform.rotation = atan2(heading.y, heading.x)
+                let local = entity.parent?.convert(direction: heading, from: nil) ?? heading
+                entity.rotation = atan2(local.y, local.x)
             }
-            entity.transform = transform
 
             if path.nextIndex >= path.waypoints.count {
                 entity.components.remove(PathComponent.self)
-                context.world.publish(PathEvents.DidFinish(entity: entity), from: entity)
+                finished.append(entity)
             } else {
                 // Progress along the path isn't something the renderer draws.
                 entity._setWithoutNotifying(path)
             }
         }
+        // Completion handlers may teleport entities, replace paths, or remove a
+        // hierarchy. Deliver after committing this frame so those edits win.
+        for entity in finished where entity.world === context.world {
+            context.world.publish(PathEvents.DidFinish(entity: entity), from: entity)
+        }
+    }
+}
+
+// Shared movement commit order: descendants convert against their parents' final
+// transforms, while all movers keep the scene positions captured for this frame.
+extension Entity {
+    var movementDepth: Int {
+        var result = 0; var ancestor = parent
+        while let entity = ancestor { result += 1; ancestor = entity.parent }
+        return result
     }
 }

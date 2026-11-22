@@ -144,8 +144,8 @@ extension [SteeringGoal] {
 /// ]))
 /// ```
 ///
-/// Steered entities should be top-level, or under parents that only translate:
-/// the system reads scene positions but moves the entity's own translation.
+/// Positions, velocities, radii and goals use scene space. Rotated and scaled
+/// parents are supported; a singular parent prevents motion until it is invertible.
 public struct SteeringComponent: Component, Hashable, Codable, Sendable {
     public var goals: [SteeringGoal]
     /// Points per second.
@@ -345,14 +345,23 @@ public struct SteeringSystem: System {
         }
         world.random = random
 
-        for (entity, steering, agent) in results {
-            let start = snapshot[entity.id]!.position
-            var transform = entity.transform
-            transform.translation += agent.position - start
-            if steering.orientsToVelocity, let heading = agent.heading {
-                transform.rotation = atan2(heading.y, heading.x)
+        // A moving ancestor must commit before descendants convert their computed
+        // scene positions back into local space. Queries have no hierarchy order.
+        let ordered = results.sorted {
+            let a = $0.0.movementDepth, b = $1.0.movementDepth
+            return a == b ? $0.0.id < $1.0.id : a < b
+        }
+        for (entity, steering, agent) in ordered {
+            guard (try? entity.setPosition(agent.position, relativeTo: nil)) != nil else {
+                var stopped = steering
+                stopped.velocity = .zero
+                entity._setWithoutNotifying(stopped)
+                continue
             }
-            entity.transform = transform
+            if steering.orientsToVelocity, let heading = agent.heading {
+                let local = entity.parent?.convert(direction: heading, from: nil) ?? heading
+                entity.rotation = atan2(local.y, local.x)
+            }
             // Velocity and wander state aren't drawn, so backends needn't hear of them.
             entity._setWithoutNotifying(steering)
         }

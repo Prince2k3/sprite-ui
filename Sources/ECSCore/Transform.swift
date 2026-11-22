@@ -40,12 +40,6 @@ extension Entity {
     /// The entity's position in scene space: the same space as top-level entities'
     /// positions, after every ancestor's translation, rotation and scale.
     public var scenePosition: SIMD2<Float> {
-        var point = position
-        var current = parent
-        while let ancestor = current {
-            point = ancestor.transform.apply(to: point)
-            current = ancestor.parent
-        }
-        return point
+        sceneTransformMatrix.apply(to: .zero)
     }
 }

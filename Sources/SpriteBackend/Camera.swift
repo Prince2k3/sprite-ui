@@ -197,15 +197,14 @@ extension SpriteRenderer {
 
     /// The entity whose camera the view uses, if any.
     public var activeCamera: Entity? {
-        cameraEntities().first { $0.components[CameraComponent.self]?.isActive == true && node(for: $0) != nil }
+        if let id = world.selectedCameraID, let entity = world.entity(withID: id),
+           entity.components[CameraComponent.self]?.isActive == true, node(for: entity) != nil { return entity }
+        return cameraEntities().first { $0.components[CameraComponent.self]?.isActive == true && node(for: $0) != nil }
     }
 
     /// Points it the scene at the first active camera.
     func chooseCamera() {
-        camera = cameraEntities().lazy
-            .filter { $0.components[CameraComponent.self]?.isActive == true }
-            .compactMap { self.node(for: $0)?.childNode(withName: Self.cameraNodeName) as? SKCameraNode }
-            .first
+        camera = activeCamera.flatMap { node(for: $0)?.childNode(withName: Self.cameraNodeName) as? SKCameraNode }
         // Positional sounds are heard from the camera.
         listener = camera
     }
@@ -223,8 +222,8 @@ extension SpriteRenderer {
         for entity in cameraEntities() {
             guard var camera = entity.components[CameraComponent.self] else { continue }
             let goal = camera.target.flatMap(target(of:))?.scenePosition
-            let next = camera.step(from: entity.position, toward: goal, viewSize: viewSize, deltaTime: Float(deltaTime))
-            if next != entity.position { entity.position = next }
+            let next = camera.step(from: entity.scenePosition, toward: goal, viewSize: viewSize, deltaTime: Float(deltaTime))
+            if next != entity.scenePosition { try? entity.setPosition(next, relativeTo: nil) }
 
             if camera.trauma > 0 {
                 camera.trauma = max(0, camera.trauma - camera.traumaDecay * Float(deltaTime))
@@ -250,14 +249,9 @@ extension SpriteRenderer {
         let viewSize = SIMD2(Float(size.width), Float(size.height))
         var local = SIMD2(Float(point.x), Float(point.y)) - viewSize / 2
         local.y = -local.y
-        guard let entity = activeCamera, let camera = entity.components[CameraComponent.self] else { return local }
-        let shake = camera.shakeOffset(at: lastFrameTime ?? 0)
-        let zoom = presentation(of: entity)?.zoom ?? camera.zoom
-        return entity.position + shake + local / max(zoom, 1e-3)
+        guard let camera else { return local }
+        let point = camera.convert(CGPoint(x: CGFloat(local.x), y: CGFloat(local.y)), to: self)
+        return [Float(point.x), Float(point.y)]
     }
 
-    private func presentation(of entity: Entity) -> CameraComponent? {
-        guard let model = entity.components[CameraComponent.self] else { return nil }
-        return self.world(self.world, presentationValueOf: CameraComponent.self, for: entity) as? CameraComponent ?? model
-    }
 }

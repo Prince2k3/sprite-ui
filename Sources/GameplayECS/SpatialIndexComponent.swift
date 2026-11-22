@@ -42,6 +42,7 @@ public struct SpatialIndexComponent: Component, Hashable, Codable, Sendable {
 /// world.addSystem(SpatialIndexSystem.self)   // after anything that moves entities
 /// ```
 public struct SpatialIndexSystem: System {
+    public static var dependencies: [SystemDependency] { [.after(SteeringSystem.self), .after(PathFollowSystem.self)] }
     public init(world: World) {}
 
     public mutating func update(context: UpdateContext) {

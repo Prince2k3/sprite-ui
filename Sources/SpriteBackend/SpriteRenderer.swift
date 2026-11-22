@@ -5,13 +5,14 @@ import SwiftUI
 /// The SpriteKit side of a ``World``: one `SKNode` per entity, kept in sync each frame.
 ///
 /// Frame order:
-/// 1. `update(_:)` runs the world's systems, then pushes changed components onto nodes,
+/// 1. `update(_:)` runs update events and simulation systems, then pushes changed components onto nodes,
 ///    turning changes made inside `withAnimation` into `SKAction`s.
 /// 2. SpriteKit evaluates actions and simulates physics.
 /// 3. `didSimulatePhysics()` copies simulation results back into ``Transform`` and
 ///    ``PhysicsBodyComponent`` without marking them changed, then publishes the step's
 ///    ``PhysicsEvents``.
-/// 4. `didFinishUpdate()` moves cameras (see ``CameraComponent``) and flushes again.
+/// 4. `didFinishUpdate()` runs presentation systems, moves cameras (see ``CameraComponent``),
+///    and flushes again.
 /// 5. SpriteKit renders.
 ///
 /// Component changes are batched: they reach the nodes when ``flush()`` runs, not immediately.
@@ -75,8 +76,8 @@ public final class SpriteRenderer: SKScene {
     private var contactEffects: EventSubscription?
     private var lastUpdateTime: TimeInterval?
     private var lastDeltaTime: TimeInterval = 0
-    /// The time SpriteKit passed to the latest `update(_:)`.
-    var lastFrameTime: TimeInterval? { lastUpdateTime }
+    private var currentFrame: WorldFrame?
+    private var simulationTime: TimeInterval = 0
 
     public init(world: World, size: CGSize = CGSize(width: 1, height: 1)) {
         self.world = world
@@ -101,9 +102,13 @@ public final class SpriteRenderer: SKScene {
         }
 
         world.observer = self
+        // Mirror the root too: its transform defines scene-space conversions,
+        // and its node provides a single action clock for the entire hierarchy.
+        self.world(world, didAdd: world.root)
         for entity in world.entities {
             entity.visit { self.world(world, didAdd: $0) }
         }
+        worldSimulationDidChange(world)
     }
 
     @available(*, unavailable)
@@ -136,14 +141,17 @@ public final class SpriteRenderer: SKScene {
     public override func update(_ currentTime: TimeInterval) {
         let deltaTime = lastUpdateTime.map { min(currentTime - $0, 1.0 / 15.0) } ?? 0
         lastUpdateTime = currentTime
-        lastDeltaTime = deltaTime
-        world.update(deltaTime: deltaTime)
+        currentFrame = world.beginFrame(deltaTime: deltaTime)
+        lastDeltaTime = currentFrame?.deltaTime ?? 0
+        simulationTime += lastDeltaTime
         flush()
     }
 
     /// Moves cameras once physics and actions have run, so they frame where things ended up.
     public override func didFinishUpdate() {
-        updateCameras(deltaTime: lastDeltaTime, time: lastUpdateTime ?? 0)
+        if let currentFrame { world.finishFrame(currentFrame) }
+        currentFrame = nil
+        if !world.isPaused, world.timeScale > 0 { updateCameras(deltaTime: lastDeltaTime, time: simulationTime) }
         flush()
     }
 
@@ -189,6 +197,7 @@ public final class SpriteRenderer: SKScene {
     /// Copies each dynamic body's position, rotation and velocity back into its entity,
     /// then publishes the contacts the step reported.
     public override func didSimulatePhysics() {
+        guard !world.isPaused, world.timeScale > 0 else { contacts.removeAll(); return }
         for id in bodies {
             guard let node = nodes[id], let body = node.physicsBody, body.isDynamic,
                   let entity = world.entity(withID: id)
@@ -427,6 +436,18 @@ public final class SpriteRenderer: SKScene {
 // MARK: - WorldObserver
 
 extension SpriteRenderer: WorldObserver {
+    public func worldSimulationDidChange(_ world: World) {
+        let paused = world.isPaused || world.timeScale == 0
+        node(for: world.root)?.isPaused = paused
+        node(for: world.root)?.speed = CGFloat(world.timeScale)
+        physicsWorld.speed = paused ? 0 : CGFloat(world.timeScale)
+        let gravity = world.physics.gravity
+        physicsWorld.gravity = CGVector(dx: CGFloat(gravity.x), dy: CGFloat(gravity.y))
+        chooseCamera()
+    }
+
+    public func worldActiveCamera(_ world: World) -> Entity? { activeCamera }
+
     public func world(_ world: World, didAdd entity: Entity) {
         guard nodes[entity.id] == nil else { return }
         let node = SKNode()

@@ -177,8 +177,8 @@ extension SpriteRenderer {
     /// The world's gravity in meters per second squared (SpriteKit uses 150 points per
     /// meter). Down by default.
     public var gravity: SIMD2<Float> {
-        get { [Float(physicsWorld.gravity.dx), Float(physicsWorld.gravity.dy)] }
-        set { physicsWorld.gravity = CGVector(dx: CGFloat(newValue.x), dy: CGFloat(newValue.y)) }
+        get { world.physics.gravity }
+        set { world.physics.gravity = newValue }
     }
 
     static func makeBody(_ shape: PhysicsShape) -> SKPhysicsBody {
