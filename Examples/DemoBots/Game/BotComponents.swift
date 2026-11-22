@@ -20,7 +20,6 @@ struct BotComponent: Component {
     var decisionDelay: Float = 0
     var attackCooldown: Float = 0
     var hitFlash: Float = 0
-    var animationTime: Float = 0
     var route: [SIMD2<Float>] = []
     var previousPosition = SIMD2<Float>.zero
 }
@@ -123,7 +122,7 @@ enum DemoBotsResources {
         return frames
     }()
 
-    static func texture(for bot: BotComponent, mode: BotMode, moving: Bool) -> String {
+    static func animationKey(for bot: BotComponent, mode: BotMode, moving: Bool) -> (prefix: String, direction: String) {
         let prefix: String
         switch bot.kind {
         case .player:
@@ -134,9 +133,7 @@ enum DemoBotsResources {
             prefix = mode == .zapped ? "FlyingBotZapped" : (bot.isBad ? "FlyingBotBadWalk" : "FlyingBotGoodWalk")
         }
         let direction = (Int((bot.heading / (2 * .pi) * 16).rounded()) % 16 + 16) % 16
-        let frames = animations[prefix]?[String(direction)] ?? animations[prefix]?["0"] ?? []
-        guard !frames.isEmpty else { return "PlayerBot" }
-        return frames[Int(bot.animationTime * 12) % frames.count]
+        return (prefix, animations[prefix]?[String(direction)] != nil ? String(direction) : "0")
     }
 
     static func heading(_ compass: String) -> Float {

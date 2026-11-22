@@ -15,7 +15,7 @@ struct DemoBotsLogicSystem: System {
 
 struct DemoBotsPresentationSystem: System {
     static var phase: SystemPhase { .presentation }
-    static var dependencies: [SystemDependency] { [.after(SteeringSystem.self)] }
+    static var dependencies: [SystemDependency] { [.after(SteeringSystem.self), .before(PlaybackSystem.self)] }
     init(world: World) {}
     mutating func update(context: UpdateContext) {
         context.world.root.components[DemoBotsRuntime.self]?.game?.afterSteering(deltaTime: Float(context.deltaTime))

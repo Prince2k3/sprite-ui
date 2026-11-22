@@ -17,16 +17,20 @@ public struct DemoBotsView: View {
         GeometryReader { geometry in
             ZStack {
                 Color(red: 0.025, green: 0.07, blue: 0.06)
-                GameView { content in game.build(in: content) }
+                GameView { content in
+                    game.build(in: content)
+                    await game.prepareResources()
+                }
                     .contentShape(Rectangle())
                     .gesture(SpatialTapGesture().onEnded { game.sendPlayer(toView: $0.location) })
                     .onGeometryChange(for: CGSize.self) { $0.size } action: { game.resize($0) }
-                if game.phase == .home { home(size: geometry.size) }
+                if game.phase == .home { home(size: geometry.size).allowsHitTesting(!game.isLoadingResources) }
                 else {
                     gameplayHUD(size: geometry.size)
                     if game.phase == .paused { pauseMenu }
                     if game.phase == .won || game.phase == .lost { resultMenu }
                 }
+                if game.isLoadingResources { ProgressView("Loading sprites…").padding(20).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)) }
             }
         }
         .ignoresSafeArea()

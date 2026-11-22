@@ -6,6 +6,8 @@ public struct SpriteComponent: Component, Equatable {
     /// Name of an image in the asset catalog. With no `imageName` or `image`, draws a
     /// solid `color` rectangle.
     public var imageName: String?
+    /// A shared resource; takes precedence over image and imageName.
+    public var texture: TextureResource? = nil
     /// Pixels made in code, such as a colored ``NoiseMap``. Wins over `imageName`.
     public var image: SpriteImage?
     /// Fill color, or the tint color when an image is set.
@@ -50,6 +52,19 @@ public struct SpriteComponent: Component, Equatable {
         self.size = size
         self.anchorPoint = anchorPoint
         self.opacity = opacity
+    }
+
+    public init(
+        texture: TextureResource,
+        size: SIMD2<Float>? = nil,
+        tint: Color = .white,
+        tintAmount: Float = 0,
+        anchorPoint: SIMD2<Float> = [0.5, 0.5],
+        opacity: Float = 1
+    ) {
+        self.init(image: texture.image, size: size, tint: tint, tintAmount: tintAmount, anchorPoint: anchorPoint, opacity: opacity)
+        self.image = nil
+        self.texture = texture
     }
 
     public init(

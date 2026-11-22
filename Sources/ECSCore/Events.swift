@@ -13,6 +13,9 @@ public final class EventSubscription {
 }
 
 public enum WorldEvents {
+    /// Scene simulation settings changed, including while paused.
+    public struct SimulationDidChange: Event { public let world: World }
+
     /// Published once per frame, before systems run.
     public struct Update: Event {
         public let world: World

@@ -75,7 +75,9 @@ extension SpriteImage: Codable {
         let width = try container.decode(Int.self, forKey: .width)
         let height = try container.decode(Int.self, forKey: .height)
         let pixels = try container.decode(Data.self, forKey: .pixels)
-        guard width > 0, height > 0, pixels.count == width * height * 4 else {
+        let (pixelCount, pixelOverflow) = width.multipliedReportingOverflow(by: height)
+        let (byteCount, byteOverflow) = pixelCount.multipliedReportingOverflow(by: 4)
+        guard width > 0, height > 0, !pixelOverflow, !byteOverflow, pixels.count == byteCount else {
             throw DecodingError.dataCorruptedError(forKey: .pixels, in: container,
                 debugDescription: "Expected \(width) × \(height) × 4 bytes, found \(pixels.count)")
         }
@@ -96,7 +98,7 @@ extension SpriteImage: Codable {
 
 extension SpriteComponent: Codable {
     private enum CodingKeys: String, CodingKey {
-        case imageName, image, color, colorBlendFactor, size, anchorPoint, opacity
+        case imageName, image, texture, color, colorBlendFactor, size, anchorPoint, opacity
     }
 
     public init(from decoder: any Decoder) throws {
@@ -104,6 +106,7 @@ extension SpriteComponent: Codable {
         self.init(color: try container.decodeColor(forKey: .color), size: .zero)
         imageName = try container.decodeIfPresent(String.self, forKey: .imageName)
         image = try container.decodeIfPresent(SpriteImage.self, forKey: .image)
+        texture = try container.decodeIfPresent(TextureResource.self, forKey: .texture)
         colorBlendFactor = try container.decode(Float.self, forKey: .colorBlendFactor)
         size = try container.decodeIfPresent(SIMD2<Float>.self, forKey: .size)
         anchorPoint = try container.decode(SIMD2<Float>.self, forKey: .anchorPoint)
@@ -114,6 +117,7 @@ extension SpriteComponent: Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(imageName, forKey: .imageName)
         try container.encodeIfPresent(image, forKey: .image)
+        try container.encodeIfPresent(texture, forKey: .texture)
         try container.encode(color: color, forKey: .color)
         try container.encode(colorBlendFactor, forKey: .colorBlendFactor)
         try container.encodeIfPresent(size, forKey: .size)

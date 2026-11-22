@@ -85,53 +85,51 @@ public struct AudioComponent: Component, Hashable, Sendable {
     }
 }
 
-// MARK: - Renderer support
+// MARK: - Compatibility adapter
+
+// The component trigger API shares the same playback clock and pause behavior as
+// explicit controllers. Resource-library users avoid this synchronous legacy path.
+@MainActor
+final class LegacyAudioPlaybackState: Component {
+    var loop: AudioPlaybackController?
+    var shots: [AudioPlaybackController] = []
+    var resource: AudioResource?
+    var url: URL?
+}
 
 extension SpriteRenderer {
-    static let loopNodeName = "__audio"
-    static let oneShotAudioNodeName = "__sound"
-
     static let audioBinding = Binding<AudioComponent>(
-        apply: { new, old, node, _ in
-            let existing = node.childNode(withName: loopNodeName) as? SKAudioNode
+        apply: { new, old, _, animator in
+            guard let entity = animator.renderer.world.entity(withID: animator.entityID) else { return }
+            let state = entity.components[LegacyAudioPlaybackState.self] ?? LegacyAudioPlaybackState()
+            entity._setWithoutNotifying(state)
+            state.shots.removeAll { $0.isTerminal }
             guard let sound = new, let url = sound.url else {
-                existing?.removeFromParent()
+                state.loop?.stop(); state.loop = nil
+                for shot in state.shots { shot.stop() }
+                state.shots = []; state.resource = nil; state.url = nil
                 return
             }
-
+            if state.url != url || state.resource == nil {
+                state.loop?.stop(); state.loop = nil
+                state.url = url
+                if let data = try? Data(contentsOf: url), let file = try? AVAudioFile(forReading: url),
+                   file.fileFormat.sampleRate > 0, file.length > 0 {
+                    state.resource = AudioResource(name: url.lastPathComponent, duration: Double(file.length) / file.fileFormat.sampleRate, data: data)
+                } else { state.resource = nil }
+            }
+            guard let resource = state.resource else { return }
             if sound.isLooping {
-                if existing == nil || old?.url != sound.url || old?.isLooping != true {
-                    existing?.removeFromParent()
-                    let loop = SKAudioNode(url: url)
-                    loop.name = loopNodeName
-                    loop.autoplayLooped = true
-                    loop.isPositional = sound.isPositional
-                    node.addChild(loop)
-                    loop.run(.changeVolume(to: sound.volume, duration: 0))
-                    if !sound.isPlaying { loop.run(.pause()) }
-                    return
+                if state.loop == nil || state.loop?.isTerminal == true {
+                    state.loop = try? entity.playAudio(resource, options: .init(repeatMode: .forever, startsPaused: !sound.isPlaying), volume: sound.volume, isPositional: sound.isPositional)
                 }
-                guard let loop = existing else { return }
-                loop.isPositional = sound.isPositional
-                if old?.volume != sound.volume { loop.run(.changeVolume(to: sound.volume, duration: 0)) }
-                if old?.isPlaying != sound.isPlaying { loop.run(sound.isPlaying ? .play() : .pause()) }
-                return
+                state.loop?.volume = sound.volume; state.loop?.isPositional = sound.isPositional
+                if sound.isPlaying { state.loop?.resume() } else { state.loop?.pause() }
+            } else {
+                state.loop?.stop(); state.loop = nil
+                let changed = old.map { $0.playCount != sound.playCount } ?? (sound.playCount != 0)
+                if changed, let shot = try? entity.playAudio(resource, volume: sound.volume, isPositional: sound.isPositional) { state.shots.append(shot) }
             }
-
-            existing?.removeFromParent()
-            let isNewPlay = old.map { $0.playCount != sound.playCount } ?? (sound.playCount != 0)
-            guard isNewPlay else { return }
-            let shot = SKAudioNode(url: url)
-            shot.name = oneShotAudioNodeName
-            shot.autoplayLooped = false
-            shot.isPositional = sound.isPositional
-            node.addChild(shot)
-            shot.run(.sequence([
-                .changeVolume(to: sound.volume, duration: 0),
-                .play(),
-                .wait(forDuration: TimeInterval(sound.duration ?? 1) + 0.1),
-                .removeFromParent(),
-            ]))
         }
     )
 }

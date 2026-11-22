@@ -97,6 +97,7 @@ public final class SpriteRenderer: SKScene {
         physicsWorld.contactDelegate = self
 
         world.addSystem(LifetimeSystem.self)
+        world.addSystem(PlaybackSystem.self)
         contactEffects = world.subscribe(to: PhysicsEvents.ContactBegan.self) { [weak self] contact in
             self?.addContactEffects(contact)
         }
@@ -376,9 +377,11 @@ public final class SpriteRenderer: SKScene {
                 old = nil   // a fresh node has none of the old values
             }
 
-            let imageChanged = old == nil || old?.imageName != sprite.imageName || old?.image != sprite.image
+            let imageChanged = old == nil || old?.imageName != sprite.imageName || old?.image != sprite.image || old?.texture != sprite.texture
             if imageChanged {
-                if let image = sprite.image {
+                if let texture = sprite.texture {
+                    spriteNode.texture = texture.nativeTexture
+                } else if let image = sprite.image {
                     spriteNode.texture = makeTexture(image)
                 } else {
                     spriteNode.texture = sprite.imageName.map { SKTexture(imageNamed: $0) }

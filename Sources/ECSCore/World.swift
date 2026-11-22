@@ -46,20 +46,20 @@ public final class World {
 
     /// Whether simulation, backend physics, and actions are paused. Component edits
     /// still render while paused. User interface updates are not scene simulation.
-    public var isPaused = false { didSet { observer?.worldSimulationDidChange(self) } }
+    public var isPaused = false { didSet { if oldValue != isPaused { simulationDidChange() } } }
     /// Scene time multiplier. Zero freezes simulation. Values must be finite and
     /// nonnegative; invalid assignments are ignored.
     public var timeScale: Double {
         get { storedTimeScale }
         set {
-            guard newValue.isFinite, newValue >= 0 else { return }
+            guard newValue.isFinite, newValue >= 0, newValue != storedTimeScale else { return }
             storedTimeScale = newValue
-            observer?.worldSimulationDidChange(self)
+            simulationDidChange()
         }
     }
     private var storedTimeScale: Double = 1
     /// Physics settings are available before a renderer is created.
-    public var physics = PhysicsSimulationSettings() { didSet { observer?.worldSimulationDidChange(self) } }
+    public var physics = PhysicsSimulationSettings() { didSet { if oldValue != physics { simulationDidChange() } } }
     /// World-scoped resource components, independent of any rendered entity.
     public var resources: ComponentSet { root.components }
     /// Installed systems, including dependency-aware installation and enablement.
@@ -94,6 +94,11 @@ public final class World {
             do { try installSystem(type) }
             catch { preconditionFailure("Invalid registered system schedule: \(error)") }
         }
+    }
+
+    private func simulationDidChange() {
+        observer?.worldSimulationDidChange(self)
+        publish(WorldEvents.SimulationDidChange(world: self))
     }
 
     // MARK: Entities

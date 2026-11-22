@@ -13,6 +13,7 @@
 		4F6ECCF820B7267C6A46F7EE /* StrategistDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */; };
 		5426761EF954EE8084C185FA /* DemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */; };
 		543B4CE6BF2485071CC94735 /* ObstacleDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */; };
+		58A7DA7CAE71579207CD942C /* ResourcesDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6F537FD724A2F0E44CE0F5 /* ResourcesDemoView.swift */; };
 		5B9DCCBB6BEC7D9D9EDBBD23 /* StateMachineDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */; };
 		5E004D84C0F6DE0B60C177E2 /* RandomDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */; };
 		65A996A6A3B7D80DFB800D59 /* PhysicsDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */; };
@@ -20,11 +21,13 @@
 		750F555994F2A1805B0DC34D /* SpriteUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3FC3600C0AEE0E6FCA318D2A /* SpriteUI */; };
 		7EB43AEF065D6756EB90E8CE /* SteeringDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363FD31E7C468C0C2080419D /* SteeringDemoView.swift */; };
 		957F35C1A2CDA8A3200EA432 /* coin.wav in Resources */ = {isa = PBXBuildFile; fileRef = AD4B56781DDCE0AD924A5FAD /* coin.wav */; };
+		9724ED58A1891C9FFE8B84F5 /* playback-demo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 336679CC6AC0F80F32FB81A4 /* playback-demo.wav */; };
 		AFE3EB6EC6605EBA36A44F3B /* NoiseDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93920852539B40941CCCD9D6 /* NoiseDemoView.swift */; };
 		CA2E123843221506FF47258F /* PathfindingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */; };
 		CBB78677B4DAD6DADA4850F2 /* TileMapDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */; };
 		D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */; };
 		DD3287454DA5B45AE92B6504 /* Dungeon.sks in Resources */ = {isa = PBXBuildFile; fileRef = EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */; };
+		DE2C19546DECB3C0712FACFF /* Runner.atlas in Resources */ = {isa = PBXBuildFile; fileRef = 4E6B60BFB5AC5EA7E1A86B4C /* Runner.atlas */; };
 		DF0D389E25A50C55302D74CD /* APIConsolidationDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */; };
 		E97EE4905384C3E54DD197A4 /* SpatialDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */; };
 /* End PBXBuildFile section */
@@ -33,8 +36,11 @@
 		02AEA6150EF96D3BD54FB217 /* Level.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Level.sks; sourceTree = "<group>"; };
 		12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicsDemoView.swift; sourceTree = "<group>"; };
 		1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionDemoView.swift; sourceTree = "<group>"; };
+		336679CC6AC0F80F32FB81A4 /* playback-demo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "playback-demo.wav"; sourceTree = "<group>"; };
 		363FD31E7C468C0C2080419D /* SteeringDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteeringDemoView.swift; sourceTree = "<group>"; };
 		3E7FA495E00535524F68A83E /* swiftui-ecs */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "swiftui-ecs"; path = ..; sourceTree = SOURCE_ROOT; };
+		4D6F537FD724A2F0E44CE0F5 /* ResourcesDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourcesDemoView.swift; sourceTree = "<group>"; };
+		4E6B60BFB5AC5EA7E1A86B4C /* Runner.atlas */ = {isa = PBXFileReference; lastKnownFileType = folder.skatlas; path = Runner.atlas; sourceTree = "<group>"; };
 		53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathfindingDemoView.swift; sourceTree = "<group>"; };
 		5460ADE1BA5199CE0654EFAF /* SpriteUIDemo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SpriteUIDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoView.swift; sourceTree = "<group>"; };
@@ -103,7 +109,10 @@
 				ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */,
 				53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */,
 				12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */,
+				336679CC6AC0F80F32FB81A4 /* playback-demo.wav */,
 				5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */,
+				4D6F537FD724A2F0E44CE0F5 /* ResourcesDemoView.swift */,
+				4E6B60BFB5AC5EA7E1A86B4C /* Runner.atlas */,
 				D200C57D852A152275BB8377 /* SceneDemoView.swift */,
 				B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */,
 				6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */,
@@ -177,7 +186,9 @@
 			files = (
 				DD3287454DA5B45AE92B6504 /* Dungeon.sks in Resources */,
 				48003CA6F0303ECCC1BF5F6E /* Level.sks in Resources */,
+				DE2C19546DECB3C0712FACFF /* Runner.atlas in Resources */,
 				957F35C1A2CDA8A3200EA432 /* coin.wav in Resources */,
+				9724ED58A1891C9FFE8B84F5 /* playback-demo.wav in Resources */,
 				71199A69A3664097CE441EB3 /* thud.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -197,6 +208,7 @@
 				CA2E123843221506FF47258F /* PathfindingDemoView.swift in Sources */,
 				65A996A6A3B7D80DFB800D59 /* PhysicsDemoView.swift in Sources */,
 				5E004D84C0F6DE0B60C177E2 /* RandomDemoView.swift in Sources */,
+				58A7DA7CAE71579207CD942C /* ResourcesDemoView.swift in Sources */,
 				4DF5A9D126A647164D9F97B0 /* SceneDemoView.swift in Sources */,
 				E97EE4905384C3E54DD197A4 /* SpatialDemoView.swift in Sources */,
 				096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */,

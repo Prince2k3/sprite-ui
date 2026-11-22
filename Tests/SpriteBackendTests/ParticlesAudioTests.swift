@@ -195,7 +195,10 @@ private func makeWAV(seconds: Double, sampleRate: Int = 8000) throws -> URL {
         #expect(sound.playCount == 2)
     }
 
-    @Test func eachPlayAddsAnAudioNode() throws {
+    @Test func eachPlayAddsAnIndependentVoice() throws {
+        let oldFactory = PlaybackSystem.makeVoice
+        defer { PlaybackSystem.makeVoice = oldFactory }
+        PlaybackSystem.makeVoice = { _ in TestAudioVoice() }
         let url = try makeWAV(seconds: 0.1)
         defer { try? FileManager.default.removeItem(at: url) }
         let world = World()
@@ -212,10 +215,13 @@ private func makeWAV(seconds: Double, sampleRate: Int = 8000) throws -> URL {
         renderer.flush()
         coin.components[AudioComponent.self]?.volume = 0.3   // not a new play
         renderer.flush()
-        #expect(node.children.filter { $0.name == "__sound" && $0 is SKAudioNode }.count == 2)
+        #expect(coin.components[LegacyAudioPlaybackState.self]?.shots.count == 2)
     }
 
     @Test func loopsFollowIsPlaying() throws {
+        let oldFactory = PlaybackSystem.makeVoice
+        defer { PlaybackSystem.makeVoice = oldFactory }
+        PlaybackSystem.makeVoice = { _ in TestAudioVoice() }
         let url = try makeWAV(seconds: 0.1)
         defer { try? FileManager.default.removeItem(at: url) }
         let world = World()
@@ -223,14 +229,14 @@ private func makeWAV(seconds: Double, sampleRate: Int = 8000) throws -> URL {
         let engine = Entity(components: AudioComponent(url: url, isLooping: true))
         world.addEntity(engine)
         renderer.flush()
-        let loop = try #require(renderer.node(for: engine)?.childNode(withName: "__audio") as? SKAudioNode)
-        #expect(loop.autoplayLooped)
+        let loop = try #require(engine.components[LegacyAudioPlaybackState.self]?.loop)
+        #expect(loop.repeatMode == .forever && loop.state == .playing)
 
         engine.components[AudioComponent.self]?.isPlaying = false
         renderer.flush()
-        #expect(renderer.node(for: engine)?.childNode(withName: "__audio") === loop)
+        #expect(engine.components[LegacyAudioPlaybackState.self]?.loop === loop && loop.state == .paused)
         engine.components[AudioComponent.self] = nil
         renderer.flush()
-        #expect(renderer.node(for: engine)?.childNode(withName: "__audio") == nil)
+        #expect(engine.components[LegacyAudioPlaybackState.self]?.loop == nil && loop.state == .stopped)
     }
 }

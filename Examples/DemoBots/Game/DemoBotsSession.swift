@@ -49,6 +49,33 @@ public final class DemoBotsSession {
     @ObservationIgnored var elapsed: Float = 0
     @ObservationIgnored var viewSize = CGSize(width: 402, height: 874)
 
+    public private(set) var isLoadingResources = false
+    @ObservationIgnored private var clips: [String: AnimationResource] = [:]
+    @ObservationIgnored private var activeClips: [Entity.ID: String] = [:]
+    @ObservationIgnored private var cureSound: AudioResource?
+    @ObservationIgnored private let resourceLibrary = ResourceLibrary()
+
+    /// Preloads the app's asset catalog once; tests can still load editor scenes
+    /// without a GPU or the application asset catalog.
+    public func prepareResources() async {
+        guard clips.isEmpty, !isLoadingResources else { return }
+        isLoadingResources = true
+        defer { isLoadingResources = false }
+        do {
+            let frames = DemoBotsResources.animations.values.flatMap { $0.values.flatMap { $0 } }
+            let atlas = try await resourceLibrary.atlas(named: "DemoBots", textureNames: frames)
+            var prepared: [String: AnimationResource] = [:]
+            for (prefix, directions) in DemoBotsResources.animations {
+                for (direction, frames) in directions {
+                    let key = "\(prefix):\(direction)"
+                    prepared[key] = try atlas.animation(named: key, frames: frames, framesPerSecond: 12)
+                }
+            }
+            cureSound = try await resourceLibrary.audio(named: "cure.wav", in: .module)
+            clips = prepared
+        } catch { message = "Couldn’t load animation resources: \(error.localizedDescription)" }
+    }
+
     public init() {}
 
     public func build(in content: GameViewContent) {
@@ -64,6 +91,7 @@ public final class DemoBotsSession {
         world.addSystem(DemoBotsLogicSystem.self)
         world.addSystem(SteeringSystem.self)
         world.addSystem(DemoBotsPresentationSystem.self)
+        world.addSystem(PlaybackSystem.self)
         world.addSystem(SpatialIndexSystem.self)
         world.addSystem(LifetimeSystem.self)
     }
@@ -73,7 +101,7 @@ public final class DemoBotsSession {
         moveInput = .zero; aimInput = .zero; isFiring = false
         destination = nil; playerRoute = []; beam = DebugBeam(); playerCharge = PlayerCharge()
         for entity in world.entities { entity.removeFromParent() }
-        bots = []; player = nil; camera = nil; beamLines = []; pathLines = []
+        bots = []; player = nil; camera = nil; beamLines = []; pathLines = []; activeClips = [:]
         levelNumber = min(max(number, 1), 3)
         do {
             let config = try BotLevelConfiguration.load(levelNumber)
@@ -384,7 +412,6 @@ public final class DemoBotsSession {
             // Remove the blocked velocity component, allowing a tangential slide.
             if simd_distance_squared(entity.position, proposed) > 0.1 { steering.velocity = delta / max(dt, 0.001) }
             if info.kind != .player && simd_length_squared(delta) > 0.5 { info.heading = atan2(delta.y, delta.x) }
-            info.animationTime += dt
             entity.components.set(info); entity.components.set(steering)
             updateLook(entity, info: info, moving: simd_length_squared(delta) > 0.05)
         }
@@ -425,9 +452,11 @@ public final class DemoBotsSession {
 
     func updateLook(_ entity: Entity, info: BotComponent, moving: Bool) {
         let mode = entity.state(BotMode.self) ?? .patrol
-        let texture = DemoBotsResources.texture(for: info, mode: mode, moving: moving)
-        if let body = entity.findEntity(named: "body"), body.components[SpriteComponent.self]?.imageName != texture {
-            body.components[SpriteComponent.self]?.imageName = texture
+        let animation = DemoBotsResources.animationKey(for: info, mode: mode, moving: moving)
+        let key = "\(animation.prefix):\(animation.direction)"
+        if activeClips[entity.id] != key, let clip = clips[key], let body = entity.findEntity(named: "body") {
+            _ = try? body.playAnimation(clip, options: .init(repeatMode: .forever))
+            activeClips[entity.id] = key
         }
         entity.transform.zPosition = 100 - entity.position.y / 10000
         let amount = info.kind == .player ? playerCharge.value : (info.isBad ? info.corruption : 100 - info.corruption)
@@ -445,8 +474,10 @@ public final class DemoBotsSession {
         world?.addEntity(.oneShot(particles: particles, count: 60, at: position + [0, 25]))
     }
     func playTone(_ name: String, at position: SIMD2<Float>) {
-        guard let url = Bundle.module.url(forResource: name, withExtension: "wav") else { return }
-        world?.addEntity(.oneShot(sound: AudioComponent(url: url, volume: 0.3), at: position))
+        guard name == "cure", let cureSound, let world else { return }
+        let emitter = Entity(name: "cure sound", components: LifetimeComponent(Float(cureSound.duration + 0.1)))
+        emitter.position = position; world.addEntity(emitter)
+        _ = try? emitter.playAudio(cureSound, volume: 0.3, isPositional: true)
     }
     func finish(won: Bool) {
         guard phase == .playing else { return }
