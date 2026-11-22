@@ -42,6 +42,13 @@ public enum Steering {
         return steer(agent, toward: offset * (speed / distance))
     }
 
+    /// Speed up or slow down to `speed` without turning, in place of
+    /// `GKGoal(toReachTargetSpeed:)`. An agent standing still sets off along +x.
+    public static func reachSpeed(_ agent: SteeringAgent, _ speed: Float) -> SIMD2<Float> {
+        let target = max(0, min(speed, agent.maxSpeed))
+        return steer(agent, toward: (agent.heading ?? [1, 0]) * target)
+    }
+
     /// Head for where a moving target is going to be.
     public static func pursue(
         _ agent: SteeringAgent,
@@ -205,6 +212,21 @@ public enum Steering {
             return arrive(agent, at: path.points[path.points.count - 1], slowingRadius: max(agent.brakingDistance, 1))
         }
         return seek(agent, toward: path.point(atDistance: along + ahead))
+    }
+
+    /// Keep within `path`'s radius without moving along it, in place of
+    /// `GKGoal(toStayOn:maxPredictionTime:)`. Nothing happens while the agent, and
+    /// where it will be in `lookAhead` seconds, are both on the path; otherwise it
+    /// turns back toward the nearest point on it. Pair it with goals that move the agent.
+    public static func stay(_ agent: SteeringAgent, on path: SteeringPath, lookAhead: Float = 0.5) -> SIMD2<Float> {
+        guard !path.points.isEmpty else { return .zero }
+        let probe = agent.predictedPosition(after: lookAhead)
+        let nearest = path.point(atDistance: path.distance(closestTo: probe))
+        let gap = magnitude(probe - nearest)
+        guard gap > path.radius else { return .zero }
+        // Harder the further out it would stray, up to a full turn at twice the radius.
+        let strength = min((gap - path.radius) / max(path.radius, 1), 1)
+        return seek(agent, toward: nearest) * strength
     }
 }
 

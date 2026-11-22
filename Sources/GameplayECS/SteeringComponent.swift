@@ -36,17 +36,96 @@ public enum SteeringBehavior: Hashable, Codable, Sendable {
     case stayWithin(BoundingBox, margin: Float = 0)
     /// Travel along a path.
     case follow(SteeringPath, lookAhead: Float = 0.5)
+    /// Keep within a path's radius, turning back when about to leave it. It doesn't
+    /// move the entity along; pair it with `wander`, `reachSpeed` or a target.
+    case stayOn(SteeringPath, lookAhead: Float = 0.5)
+    /// Speed up or slow down to this many points per second, keeping the heading.
+    case reachSpeed(Float)
+    /// Several goals acting as one, in place of `GKCompositeBehavior`. Their
+    /// weighted forces add up, then the group's own weight scales the total.
+    /// Name the group to switch it with ``SteeringComponent/setEnabled(_:named:)``.
+    case group([SteeringGoal])
 }
 
-/// A weighted behavior. Forces from all of an entity's goals are scaled by their
-/// weights and added up.
+/// A weighted behavior. Forces from all of an entity's enabled goals are scaled by
+/// their weights and added up.
 public struct SteeringGoal: Hashable, Codable, Sendable {
     public var behavior: SteeringBehavior
     public var weight: Float
+    /// A label for finding the goal, for example to switch a group of goals on and off.
+    public var name: String?
+    /// Whether the goal pushes at all. A disabled goal keeps its weight and state.
+    public var isEnabled: Bool
 
-    public init(_ behavior: SteeringBehavior, weight: Float = 1) {
+    public init(_ behavior: SteeringBehavior, weight: Float = 1, name: String? = nil, isEnabled: Bool = true) {
         self.behavior = behavior
         self.weight = weight
+        self.name = name
+        self.isEnabled = isEnabled
+    }
+
+    /// A named group of goals, in place of `GKCompositeBehavior`.
+    public static func group(
+        _ name: String? = nil,
+        weight: Float = 1,
+        isEnabled: Bool = true,
+        _ goals: [SteeringGoal]
+    ) -> SteeringGoal {
+        SteeringGoal(.group(goals), weight: weight, name: name, isEnabled: isEnabled)
+    }
+
+    private enum CodingKeys: String, CodingKey { case behavior, weight, name, isEnabled }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        behavior = try container.decode(SteeringBehavior.self, forKey: .behavior)
+        weight = try container.decode(Float.self, forKey: .weight)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(behavior, forKey: .behavior)
+        try container.encode(weight, forKey: .weight)
+        try container.encodeIfPresent(name, forKey: .name)
+        if !isEnabled { try container.encode(isEnabled, forKey: .isEnabled) }
+    }
+}
+
+extension SteeringBehavior {
+    var groupGoals: [SteeringGoal]? {
+        if case .group(let goals) = self { goals } else { nil }
+    }
+}
+
+extension [SteeringGoal] {
+    /// Sets `isEnabled` on every goal called `name`, inside groups too. Returns how many changed.
+    @discardableResult
+    public mutating func setEnabled(_ isEnabled: Bool, named name: String) -> Int {
+        var count = 0
+        for index in indices {
+            if self[index].name == name, self[index].isEnabled != isEnabled {
+                self[index].isEnabled = isEnabled
+                count += 1
+            }
+            if case .group(var goals) = self[index].behavior {
+                let changed = goals.setEnabled(isEnabled, named: name)
+                if changed > 0 {
+                    self[index].behavior = .group(goals)
+                    count += changed
+                }
+            }
+        }
+        return count
+    }
+
+    func first(named name: String) -> SteeringGoal? {
+        for goal in self {
+            if goal.name == name { return goal }
+            if case .group(let goals) = goal.behavior, let found = goals.first(named: name) { return found }
+        }
+        return nil
     }
 }
 
@@ -95,6 +174,22 @@ public struct SteeringComponent: Component, Hashable, Codable, Sendable {
         self.mass = mass
         self.radius = radius
         self.orientsToVelocity = orientsToVelocity
+    }
+
+    /// Switches every goal or group called `name` on or off, wherever it's nested.
+    /// Returns whether any goal changed.
+    ///
+    /// ```swift
+    /// guard.components[SteeringComponent.self]?.setEnabled(false, named: "patrol")
+    /// ```
+    @discardableResult
+    public mutating func setEnabled(_ isEnabled: Bool, named name: String) -> Bool {
+        goals.setEnabled(isEnabled, named: name) > 0
+    }
+
+    /// Whether the first goal or group called `name` is on, or `nil` if there isn't one.
+    public func isEnabled(named name: String) -> Bool? {
+        goals.first(named: name)?.isEnabled
     }
 
     /// The pure agent this component describes, standing at `position`.
@@ -188,12 +283,11 @@ public struct SteeringSystem: System {
         var results: [(Entity, SteeringComponent, SteeringAgent)] = []
         results.reserveCapacity(members.count)
 
-        for (entity, original, start) in members {
-            var steering = original
+        func totalForce(of goals: inout [SteeringGoal], _ entity: Entity, _ start: SteeringAgent) -> SIMD2<Float> {
             var total = SIMD2<Float>.zero
-            for index in steering.goals.indices {
-                let goal = steering.goals[index]
-                guard goal.weight != 0 else { continue }
+            for index in goals.indices {
+                let goal = goals[index]
+                guard goal.isEnabled, goal.weight != 0 else { continue }
                 let force: SIMD2<Float>
                 switch goal.behavior {
                 case .seek(let target):
@@ -212,7 +306,7 @@ public struct SteeringSystem: System {
                     } ?? .zero
                 case .wander(var wander):
                     force = wander.force(for: start, deltaTime: dt, using: &random)
-                    steering.goals[index].behavior = .wander(wander)
+                    goals[index].behavior = .wander(wander)
                 case .separate(let radius, let categories):
                     force = Steering.separate(start, from: neighbors(of: entity, start, radius: radius, categories).map(\.position))
                 case .align(let radius, let categories):
@@ -226,9 +320,23 @@ public struct SteeringSystem: System {
                     force = Steering.stay(start, within: bounds, margin: margin)
                 case .follow(let path, let lookAhead):
                     force = Steering.follow(start, path: path, lookAhead: lookAhead)
+                case .stayOn(let path, let lookAhead):
+                    force = Steering.stay(start, on: path, lookAhead: lookAhead)
+                case .reachSpeed(let speed):
+                    force = Steering.reachSpeed(start, speed)
+                case .group(var inner):
+                    force = totalForce(of: &inner, entity, start)
+                    // Keep nested wander state.
+                    if inner != goals[index].behavior.groupGoals { goals[index].behavior = .group(inner) }
                 }
                 total += force * goal.weight
             }
+            return total
+        }
+
+        for (entity, original, start) in members {
+            var steering = original
+            let total = totalForce(of: &steering.goals, entity, start)
 
             var agent = start
             agent.apply(total, deltaTime: dt)

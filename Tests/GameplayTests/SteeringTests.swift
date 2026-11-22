@@ -314,3 +314,140 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
         #expect(decoded == component)
     }
 }
+
+@Suite struct SteeringAdditionsTests {
+    @Test func reachSpeedSpeedsUpAndSlowsDownWithoutTurning() {
+        var agent = SteeringAgent(velocity: [0, 10], maxSpeed: 100, maxForce: 200)
+        simulate(&agent, steps: 240) { Steering.reachSpeed($0, 60) }
+        #expect(abs(agent.speed - 60) < 0.5)
+        #expect(abs(agent.velocity.x) < 1e-3)
+
+        simulate(&agent, steps: 240) { Steering.reachSpeed($0, 20) }
+        #expect(abs(agent.speed - 20) < 0.5)
+        #expect(agent.velocity.y > 0)
+
+        // Asking for more than the top speed settles at the top speed.
+        simulate(&agent, steps: 240) { Steering.reachSpeed($0, 500) }
+        #expect(abs(agent.speed - 100) < 0.5)
+    }
+
+    @Test func reachSpeedSetsOffAlongXFromRest() {
+        var agent = SteeringAgent(maxSpeed: 50, maxForce: 100)
+        simulate(&agent, steps: 120) { Steering.reachSpeed($0, 30) }
+        #expect(agent.velocity.x > 25 && abs(agent.velocity.y) < 1e-3)
+    }
+
+    @Test func stayOnPathOnlyPushesWhenLeaving() {
+        let path = SteeringPath(points: [[-200, 0], [200, 0]], radius: 10)
+        // Moving along the path: nothing to correct.
+        let along = SteeringAgent(position: [0, 0], velocity: [50, 0], maxSpeed: 100, maxForce: 200)
+        #expect(Steering.stay(along, on: path) == .zero)
+
+        // Drifting off sideways: pushed back toward the line.
+        let drifting = SteeringAgent(position: [0, 5], velocity: [0, 60], maxSpeed: 100, maxForce: 200)
+        #expect(Steering.stay(drifting, on: path).y < 0)
+    }
+
+    @Test func stayOnPathKeepsAWandererClose() {
+        let path = SteeringPath(points: [[-300, 0], [300, 0]], radius: 15)
+        var agent = SteeringAgent(velocity: [40, 30], maxSpeed: 60, maxForce: 150)
+        var wander = Wander(rate: 6)
+        var random = SeededGenerator(seed: 4)
+        var worst: Float = 0
+        for _ in 0..<600 {
+            let force = wander.force(for: agent, deltaTime: 1 / 60, using: &random) * 0.5
+                + Steering.stay(agent, on: path, lookAhead: 0.5) * 3
+            agent.apply(force, deltaTime: 1 / 60)
+            worst = max(worst, abs(agent.position.y))
+        }
+        #expect(worst < 45)
+    }
+}
+
+@MainActor @Suite(.serialized) struct SteeringGoalGroupTests {
+    private func mover(_ goals: [SteeringGoal]) -> (World, Entity) {
+        let world = World()
+        world.addSystem(SteeringSystem.self)
+        let entity = Entity()
+        entity.components.set(SteeringComponent(maxSpeed: 100, maxForce: 200, goals: goals))
+        world.addEntity(entity)
+        return (world, entity)
+    }
+
+    @Test func aGroupAddsItsGoalsScaledByItsWeight() {
+        let (world, entity) = mover([
+            .group("east", weight: 2, [SteeringGoal(.seek(.point([1000, 0])))]),
+        ])
+        for _ in 0..<60 { world.update(deltaTime: 1 / 60) }
+        #expect(entity.position.x > 30 && abs(entity.position.y) < 1e-3)
+    }
+
+    @Test func disabledGoalsAndGroupsDoNothing() {
+        let (world, entity) = mover([
+            SteeringGoal(.seek(.point([0, 1000])), name: "north", isEnabled: false),
+            .group("east", [SteeringGoal(.seek(.point([1000, 0])))]),
+        ])
+        #expect(entity.components[SteeringComponent.self]?.setEnabled(false, named: "east") == true)
+        // Already off: nothing changes.
+        #expect(entity.components[SteeringComponent.self]?.setEnabled(false, named: "east") == false)
+        #expect(entity.components[SteeringComponent.self]?.isEnabled(named: "east") == false)
+        #expect(entity.components[SteeringComponent.self]?.isEnabled(named: "nobody") == nil)
+        for _ in 0..<30 { world.update(deltaTime: 1 / 60) }
+        #expect(entity.position == .zero)
+
+        entity.components[SteeringComponent.self]?.setEnabled(true, named: "north")
+        for _ in 0..<30 { world.update(deltaTime: 1 / 60) }
+        #expect(entity.position.y > 5 && entity.position.x == 0)
+    }
+
+    @Test func goalsNestedInGroupsCanBeSwitched() {
+        let (world, entity) = mover([
+            .group("all", [
+                .group("inner", [SteeringGoal(.reachSpeed(80), name: "cruise")]),
+            ]),
+        ])
+        entity.components[SteeringComponent.self]?.velocity = [1, 0]
+        entity.components[SteeringComponent.self]?.setEnabled(false, named: "cruise")
+        for _ in 0..<30 { world.update(deltaTime: 1 / 60) }
+        #expect(entity.position.x < 1)
+
+        entity.components[SteeringComponent.self]?.setEnabled(true, named: "cruise")
+        for _ in 0..<240 { world.update(deltaTime: 1 / 60) }
+        #expect(abs((entity.components[SteeringComponent.self]?.velocity.x ?? 0) - 80) < 1)
+    }
+
+    @Test func wanderInsideAGroupKeepsItsState() {
+        let world = World()
+        world.random = SeededGenerator(seed: 2)
+        world.addSystem(SteeringSystem.self)
+        let entity = Entity()
+        entity.components.set(SteeringComponent(maxSpeed: 50, maxForce: 100, velocity: [50, 0], goals: [
+            .group("roam", [SteeringGoal(.wander(Wander()))]),
+        ]))
+        world.addEntity(entity)
+        for _ in 0..<60 { world.update(deltaTime: 1 / 60) }
+        guard case .group(let goals) = entity.components[SteeringComponent.self]!.goals[0].behavior,
+              case .wander(let state) = goals[0].behavior
+        else {
+            Issue.record("group lost its wander goal")
+            return
+        }
+        #expect(state.angle != 0)
+    }
+
+    @Test func groupsAndSwitchesAreCodable() throws {
+        let component = SteeringComponent(maxSpeed: 1, maxForce: 2, goals: [
+            .group("flock", weight: 0.5, isEnabled: false, [
+                SteeringGoal(.reachSpeed(3), name: "cruise"),
+                SteeringGoal(.stayOn(SteeringPath(points: [[0, 0], [5, 0]], radius: 2), lookAhead: 1)),
+            ]),
+        ])
+        let decoded = try JSONDecoder().decode(SteeringComponent.self, from: JSONEncoder().encode(component))
+        #expect(decoded == component)
+
+        // Goals saved before names and switches existed still load, switched on.
+        let old = #"{"behavior":{"reachSpeed":{"_0":4}},"weight":1}"#
+        let goal = try JSONDecoder().decode(SteeringGoal.self, from: Data(old.utf8))
+        #expect(goal.isEnabled && goal.name == nil && goal.behavior == .reachSpeed(4))
+    }
+}

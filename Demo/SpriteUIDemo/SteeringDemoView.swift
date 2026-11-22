@@ -4,6 +4,8 @@ import SwiftUI
 /// The Steering milestone: a flock of boids driven by `SteeringSystem`.
 /// Flock: they flock, dodge the rocks and scatter from your finger.
 /// Follow: they circle a closed path. Arrive: they gather where you touch.
+/// Cruise: a switchable "cruise" group (wander at a set speed) kept on a wide
+/// path by `stayOn`; turn it off and a "rest" goal takes over and they slow to a stop.
 struct SteeringDemoView: View {
     @State private var scene = SteeringScene()
     @State private var size = CGSize(width: 400, height: 600)
@@ -45,6 +47,9 @@ struct SteeringDemoView: View {
 
                 HStack {
                     Toggle("Rocks", isOn: $scene.showsRocks)
+                    if scene.mode == .cruise {
+                        Toggle("Cruise", isOn: $scene.cruising)
+                    }
                     Button("Scatter") { scene.scatter() }
                 }
                 .toggleStyle(.button)
@@ -57,6 +62,7 @@ struct SteeringDemoView: View {
         .onChange(of: scene.mode) { scene.applyGoals() }
         .onChange(of: scene.maxSpeed) { scene.applyGoals() }
         .onChange(of: scene.showsRocks) { scene.applyRocks() }
+        .onChange(of: scene.cruising) { scene.applyCruising() }
         .background(Color.black)
         .preferredColorScheme(.dark)
     }
@@ -68,13 +74,14 @@ struct SteeringDemoView: View {
 @Observable
 final class SteeringScene {
     enum Mode: String, CaseIterable {
-        case flock = "Flock", follow = "Follow", arrive = "Arrive"
+        case flock = "Flock", follow = "Follow", arrive = "Arrive", cruise = "Cruise"
 
         var hint: String {
             switch self {
             case .flock: "drag to scare the flock"
             case .follow: "boids circle the path"
             case .arrive: "drag to call them over"
+            case .cruise: "wandering at a set speed, kept on the path"
             }
         }
     }
@@ -86,6 +93,7 @@ final class SteeringScene {
     var mode = Mode.flock
     var maxSpeed: Float = 120
     var showsRocks = true
+    var cruising = true
 
     @ObservationIgnored private var boids: [Entity] = []
     @ObservationIgnored private var rocks: [(entity: Entity, radius: Float)] = []
@@ -148,7 +156,7 @@ final class SteeringScene {
     func moveTarget(to point: SIMD2<Float>) {
         targetPoint = point
         target.position = point
-        if mode != .follow { target.components[SpriteComponent.self]?.opacity = 1 }
+        if mode != .follow, mode != .cruise { target.components[SpriteComponent.self]?.opacity = 1 }
         applyGoals()
     }
 
@@ -179,7 +187,9 @@ final class SteeringScene {
 
     /// Rewrites every boid's goals for the current mode, keeping velocity and wander state.
     func applyGoals() {
-        let goals = goals(for: mode)
+        var goals = goals(for: mode)
+        goals.setEnabled(cruising, named: "cruise")
+        goals.setEnabled(!cruising, named: "rest")
         for boid in boids {
             var steering = boid.components[SteeringComponent.self] ?? makeSteering()
             steering.maxSpeed = maxSpeed
@@ -194,7 +204,17 @@ final class SteeringScene {
             boid.components.set(steering)
         }
         drawPath()
-        if mode == .follow { target.components[SpriteComponent.self]?.opacity = 0 }
+        if mode == .follow || mode == .cruise { target.components[SpriteComponent.self]?.opacity = 0 }
+    }
+
+    /// Switches every boid's "cruise" group on or off without touching its other goals.
+    func applyCruising() {
+        for boid in boids {
+            guard var steering = boid.components[SteeringComponent.self] else { continue }
+            steering.setEnabled(cruising, named: "cruise")
+            steering.setEnabled(!cruising, named: "rest")
+            boid.components.set(steering)
+        }
     }
 
     private func makeSteering() -> SteeringComponent {
@@ -216,7 +236,7 @@ final class SteeringScene {
             ]
         case .follow:
             return [
-                SteeringGoal(.follow(loop, lookAhead: 0.3)),
+                SteeringGoal(.follow(loop(radius: 12), lookAhead: 0.3)),
                 SteeringGoal(.separate(radius: 14), weight: 1.2),
                 avoid,
             ]
@@ -226,11 +246,22 @@ final class SteeringScene {
                 SteeringGoal(.separate(radius: 16), weight: 1.4),
                 avoid, edges,
             ]
+        case .cruise:
+            return [
+                .group("cruise", [
+                    SteeringGoal(.reachSpeed(maxSpeed * 0.6)),
+                    SteeringGoal(.wander(Wander(radius: 25, distance: 40, rate: 5)), weight: 0.8),
+                ]),
+                SteeringGoal(.reachSpeed(0), name: "rest", isEnabled: false),
+                SteeringGoal(.stayOn(loop(radius: 40), lookAhead: 0.4), weight: 2.5),
+                SteeringGoal(.separate(radius: 14), weight: 1.2),
+                avoid,
+            ]
         }
     }
 
     /// A rounded loop inside the view.
-    private var loop: SteeringPath {
+    private func loop(radius: Float) -> SteeringPath {
         let half = (bounds.size / 2) - [50, 70]
         let points = (0..<48).map { i -> SIMD2<Float> in
             let angle = Float(i) / 48 * 2 * .pi
@@ -239,11 +270,11 @@ final class SteeringScene {
             let x = copysign(pow(abs(c), 0.5), c), y = copysign(pow(abs(s), 0.5), s)
             return [x * half.x, y * half.y]
         }
-        return SteeringPath(points: points, radius: 12, isClosed: true)
+        return SteeringPath(points: points, radius: radius, isClosed: true)
     }
 
     private func drawPath() {
-        let points = mode == .follow ? loop.points : []
+        let points = mode == .follow || mode == .cruise ? loop(radius: 12).points : []
         while pathLayer.children.count < points.count {
             pathLayer.addChild(Entity(components: SpriteComponent(color: .white.opacity(0.35), size: [3, 3])))
         }
