@@ -69,14 +69,14 @@ struct EventBus {
     /// add and remove entities without re-entering the bus while it's being mutated.
     mutating func handlers<E: Event>(
         for type: E.Type,
-        source: Entity?
+        sources: [Entity]
     ) -> [@MainActor (any Event) -> Void] {
         let key = ObjectIdentifier(type)
         guard var list = handlers[key] else { return [] }
         list.removeAll { $0.token == nil || $0.token!.isCancelled }
         handlers[key] = list
         return list
-            .filter { $0.entityID == nil || $0.entityID == source?.id }
+            .filter { handler in handler.entityID.map { id in sources.contains { $0.id == id } } ?? true }
             .map(\.call)
     }
 }

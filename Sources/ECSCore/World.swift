@@ -104,7 +104,13 @@ public final class World {
     }
 
     public func publish<E: Event>(_ event: E, from source: Entity? = nil) {
-        for handler in events.handlers(for: E.self, source: source) {
+        publish(event, from: source.map { [$0] } ?? [])
+    }
+
+    /// Publishes an event that involves several entities, such as a contact between two
+    /// bodies. Subscribers on any of them get it, and each subscriber gets it once.
+    public func publish<E: Event>(_ event: E, from sources: [Entity]) {
+        for handler in events.handlers(for: E.self, sources: sources) {
             handler(event)
         }
     }

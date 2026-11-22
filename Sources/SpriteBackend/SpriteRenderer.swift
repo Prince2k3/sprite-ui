@@ -8,7 +8,9 @@ import SwiftUI
 /// 1. `update(_:)` runs the world's systems, then pushes changed components onto nodes,
 ///    turning changes made inside `withAnimation` into `SKAction`s.
 /// 2. SpriteKit evaluates actions and simulates physics.
-/// 3. `didSimulatePhysics()` copies simulation results back into components (later milestone).
+/// 3. `didSimulatePhysics()` copies simulation results back into ``Transform`` and
+///    ``PhysicsBodyComponent`` without marking them changed, then publishes the step's
+///    ``PhysicsEvents``.
 /// 4. SpriteKit renders.
 ///
 /// Component changes are batched: they reach the nodes when ``flush()`` runs, not immediately.
@@ -51,6 +53,12 @@ public final class SpriteRenderer: SKScene {
     public let world: World
 
     private var nodes: [Entity.ID: SKNode] = [:]
+    /// Which entity each node shows, for mapping physics contacts back.
+    private var entityIDs: [ObjectIdentifier: Entity.ID] = [:]
+    /// Entities whose node has a physics body.
+    private var bodies: Set<Entity.ID> = []
+    /// Contacts reported during the current simulation step, published after it.
+    private var contacts: [any Event] = []
     /// Pending changes per entity and component type. A new entry starts whenever the
     /// transaction changes, so a nested `withAnimation(.disabled)` doesn't affect properties
     /// the outer animation changed.
@@ -73,6 +81,8 @@ public final class SpriteRenderer: SKScene {
 
         register(Transform.self, Self.transformBinding)
         register(SpriteComponent.self, Self.spriteBinding)
+        register(PhysicsBodyComponent.self, Self.physicsBinding)
+        physicsWorld.contactDelegate = self
 
         world.observer = self
         for entity in world.entities {
@@ -143,6 +153,82 @@ public final class SpriteRenderer: SKScene {
         let old = applied[entity.id]?[type]
         binding.apply(value, old, node, animator)
         applied[entity.id, default: [:]][type] = value
+        if type == Self.physicsKey {
+            if node.physicsBody != nil { bodies.insert(entity.id) } else { bodies.remove(entity.id) }
+        }
+    }
+
+    // MARK: Physics
+
+    private static let physicsKey = ObjectIdentifier(PhysicsBodyComponent.self)
+    private static let transformKey = ObjectIdentifier(Transform.self)
+
+    /// Copies each dynamic body's position, rotation and velocity back into its entity,
+    /// then publishes the contacts the step reported.
+    public override func didSimulatePhysics() {
+        for id in bodies {
+            guard let node = nodes[id], let body = node.physicsBody, body.isDynamic,
+                  let entity = world.entity(withID: id)
+            else { continue }
+            // A change made during the step (say, by a contact handler) wins over the simulation.
+            let pending = dirty[id]
+            if pending?[Self.transformKey] == nil {
+                var transform = entity.transform
+                transform.translation = [Float(node.position.x), Float(node.position.y)]
+                transform.rotation = Float(node.zRotation)
+                if transform != entity.transform {
+                    entity._setWithoutNotifying(transform)
+                    applied[id, default: [:]][Self.transformKey] = transform
+                }
+            }
+            if pending?[Self.physicsKey] == nil, var physics = entity.components[PhysicsBodyComponent.self] {
+                physics.velocity = [Float(body.velocity.dx), Float(body.velocity.dy)]
+                physics.angularVelocity = Float(body.angularVelocity)
+                if physics != entity.components[PhysicsBodyComponent.self] {
+                    entity._setWithoutNotifying(physics)
+                    applied[id, default: [:]][Self.physicsKey] = physics
+                }
+            }
+        }
+        publishContacts()
+    }
+
+    /// Publishes the queued contacts, skipping any whose entities have left the world.
+    func publishContacts() {
+        guard !contacts.isEmpty else { return }
+        let reported = contacts
+        contacts.removeAll()
+        for event in reported {
+            switch event {
+            case let began as PhysicsEvents.ContactBegan:
+                guard began.entityA.world === world, began.entityB.world === world else { continue }
+                world.publish(began, from: [began.entityA, began.entityB])
+            case let ended as PhysicsEvents.ContactEnded:
+                guard ended.entityA.world === world, ended.entityB.world === world else { continue }
+                world.publish(ended, from: [ended.entityA, ended.entityB])
+            default:
+                break
+            }
+        }
+    }
+
+    /// Queues a contact between two nodes for publishing after the step.
+    func reportContact(between nodeA: SKNode?, and nodeB: SKNode?, began: Bool,
+                       point: CGPoint = .zero, normal: CGVector = .zero, impulse: CGFloat = 0) {
+        guard let nodeA, let nodeB,
+              let idA = entityIDs[ObjectIdentifier(nodeA)], let idB = entityIDs[ObjectIdentifier(nodeB)],
+              let a = world.entity(withID: idA), let b = world.entity(withID: idB)
+        else { return }
+        if began {
+            contacts.append(PhysicsEvents.ContactBegan(
+                entityA: a, entityB: b,
+                point: [Float(point.x), Float(point.y)],
+                normal: [Float(normal.dx), Float(normal.dy)],
+                impulse: Float(impulse)
+            ))
+        } else {
+            contacts.append(PhysicsEvents.ContactEnded(entityA: a, entityB: b))
+        }
     }
 
     // MARK: Running actions (used by Animator)
@@ -323,6 +409,7 @@ extension SpriteRenderer: WorldObserver {
         let node = SKNode()
         node.name = entity.name.isEmpty ? "entity-\(entity.id)" : entity.name
         nodes[entity.id] = node
+        entityIDs[ObjectIdentifier(node)] = entity.id
 
         let parentNode: SKNode = entity.parent.flatMap { nodes[$0.id] } ?? self
         parentNode.addChild(node)
@@ -337,12 +424,16 @@ extension SpriteRenderer: WorldObserver {
     public func world(_ world: World, willRemove entity: Entity) {
         dirty[entity.id] = nil
         applied[entity.id] = nil
+        bodies.remove(entity.id)
         // Completions waiting on this entity's actions run at the next flush, not in the
         // middle of a removal.
         if let actions = running.removeValue(forKey: entity.id) {
             droppedTransactions.append(contentsOf: actions.values.compactMap(\.transaction))
         }
-        nodes.removeValue(forKey: entity.id)?.removeFromParent()
+        if let node = nodes.removeValue(forKey: entity.id) {
+            entityIDs[ObjectIdentifier(node)] = nil
+            node.removeFromParent()
+        }
     }
 
     public func world(
@@ -367,5 +458,20 @@ extension SpriteRenderer: WorldObserver {
               let model = entity.component(forKey: key)
         else { return nil }
         return present(node, model)
+    }
+}
+
+// MARK: - SKPhysicsContactDelegate
+
+// SpriteKit reports contacts on the main thread, during the simulation step.
+
+extension SpriteRenderer: @preconcurrency SKPhysicsContactDelegate {
+    public func didBegin(_ contact: SKPhysicsContact) {
+        reportContact(between: contact.bodyA.node, and: contact.bodyB.node, began: true,
+                      point: contact.contactPoint, normal: contact.contactNormal, impulse: contact.collisionImpulse)
+    }
+
+    public func didEnd(_ contact: SKPhysicsContact) {
+        reportContact(between: contact.bodyA.node, and: contact.bodyB.node, began: false)
     }
 }
