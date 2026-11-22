@@ -285,6 +285,26 @@ public final class SpriteRenderer: SKScene {
 
     // MARK: Running actions (used by Animator)
 
+    private static let animationKeys: [AnimationChannel: String] = [
+        .position: "transform.position", .rotation: "transform.rotation",
+        .scale: "transform.scale", .opacity: "sprite.opacity"
+    ]
+    func isAnimationControlled(_ key: String, entityID: Entity.ID) -> Bool {
+        guard let channel = Self.animationKeys.first(where: { $0.value == key })?.key else { return false }
+        return world.entity(withID: entityID)?.components[PlaybackStorage.self]?.controllers.contains {
+            guard let animation = $0 as? AnimationPlaybackController else { return false }
+            return !animation.isTerminal && animation.resource.channels.contains(channel)
+        } ?? false
+    }
+    func cancelAnimationActions(_ channels: Set<AnimationChannel>, for entity: Entity) {
+        guard let node = node(for: entity) else { return }
+        for channel in channels {
+            guard let key = Self.animationKeys[channel] else { continue }
+            let target = channel == .opacity ? node.childNode(withName: Self.spriteNodeName) : node
+            if let target { cancelAction(key, entityID: entity.id, node: target) }
+        }
+    }
+
     func runAction(_ action: SKAction, key: String, entityID: Entity.ID, node: SKNode, transaction: ActionTransaction, finite: Bool) {
         nextToken += 1
         let token = nextToken

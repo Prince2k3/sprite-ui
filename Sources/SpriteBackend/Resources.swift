@@ -66,18 +66,33 @@ public struct TextureAtlasResource: Sendable {
     }
 }
 
-/// An immutable sprite animation clip. Playback state belongs to a controller.
+/// An immutable sprite or property animation. Compose clips with sequence/group;
+/// playback state belongs to an independent controller on each entity.
 public struct AnimationResource: Hashable, Sendable {
     public let id: UUID
     public let name: String?
+    /// Frame metadata for a direct sprite clip. Composed/property resources have
+    /// an empty array; their internal frame tracks still play normally.
     public let frames: [TextureResource]
+    /// Zero for composed/property resources; use duration to drive playback UI.
     public let framesPerSecond: Double
-    public var duration: TimeInterval { Double(frames.count) / framesPerSecond }
+    public let duration: TimeInterval
+    public let markers: [AnimationMarker]
+    let tracks: [AnimationTrack]
+    var channels: Set<AnimationChannel> { Set(tracks.map(\.channel)) }
+
+    init(name: String?, tracks: [AnimationTrack], duration: TimeInterval, markers: [AnimationMarker] = [], frames: [TextureResource] = [], framesPerSecond: Double = 0) {
+        id = UUID(); self.name = name; self.tracks = tracks; self.duration = duration
+        self.markers = markers; self.frames = frames; self.framesPerSecond = framesPerSecond
+    }
 
     public init(name: String? = nil, frames: [TextureResource], framesPerSecond: Double = 12) throws {
         guard !frames.isEmpty, framesPerSecond.isFinite, framesPerSecond > 0,
               (Double(frames.count) / framesPerSecond).isFinite else { throw ResourceLoadingError.invalidAnimation }
         id = UUID(); self.name = name; self.frames = frames; self.framesPerSecond = framesPerSecond
+        duration = Double(frames.count) / framesPerSecond; markers = []
+        tracks = [AnimationTrack(start: 0, duration: duration, channel: .texture, from: nil,
+            to: .texture(frames.last), curve: .linear, frames: frames, framesPerSecond: framesPerSecond)]
     }
     public static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     public func hash(into hasher: inout Hasher) { hasher.combine(id) }

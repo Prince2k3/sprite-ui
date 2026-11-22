@@ -33,7 +33,7 @@ public struct Animator {
         set: () -> Void
     ) {
         renderer.cancelAction(key, entityID: entityID, node: node)
-        guard let animation else {
+        guard !renderer.isAnimationControlled(key, entityID: entityID), let animation else {
             set()
             return
         }

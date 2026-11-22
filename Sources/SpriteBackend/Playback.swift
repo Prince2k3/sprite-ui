@@ -12,6 +12,9 @@ public enum PlaybackStopReason: Sendable { case user, replaced, removed }
 /// A rejected playback configuration or unavailable audio device.
 public enum PlaybackError: Error, Equatable, Sendable {
     case invalidOptions
+    case invalidSeek, terminalController, missingSprite, dynamicPhysicsBody, invalidAnimationValue
+    /// A single advance would emit over 4,096 markers; seek instead of simulating that gap.
+    case markerEventLimitExceeded
     case audioUnavailable
     /// The audio backend supports combined controller × scene rates from 0.5 to 2.
     /// Unsupported rates fail explicitly, rather than silently losing clock sync.
@@ -37,6 +40,18 @@ public struct PlaybackOptions: Sendable {
 
 /// Typed playback events, also available without a rendering backend.
 public enum PlaybackEvents {
+    /// Markers crossed by normal playback. Seeking never emits markers. The pose
+    /// is sampled at the end of the frame, not at each intermediate marker time.
+    /// At a loop boundary, the previous end precedes the next iteration's start.
+    /// Pausing, seeking, stopping, or recycling during a callback cancels the
+    /// remaining marker/completion deliveries from that advance.
+    public struct MarkerReached: Event {
+        public let entity: Entity
+        public let controller: AnimationPlaybackController
+        public let marker: AnimationMarker
+        /// Zero-based iteration containing this marker.
+        public let iteration: Int
+    }
     public struct Completed: Event { public let entity: Entity; public let controller: PlaybackController }
     public struct Stopped: Event { public let entity: Entity; public let controller: PlaybackController; public let reason: PlaybackStopReason }
     public struct Failed: Event { public let entity: Entity; public let controller: PlaybackController; public let error: PlaybackError }
@@ -56,12 +71,13 @@ public class PlaybackController {
     public private(set) var completedIterations: Int = 0
     public private(set) var error: PlaybackError?
     @ObservationIgnored weak var entity: Entity?
-    private var elapsed: TimeInterval = 0
+    public private(set) var elapsedTime: TimeInterval = 0
+    @ObservationIgnored var playbackRevision: UInt64 = 0
     private var sceneSuspended = true
     private var storedSpeed: Double
     public var speed: Double {
         get { storedSpeed }
-        set { guard newValue.isFinite, newValue > 0 else { return }; storedSpeed = newValue; synchronize() }
+        set { guard newValue.isFinite, newValue > 0 else { return }; storedSpeed = newValue; playbackRevision &+= 1; synchronize() }
     }
     public var isPlaying: Bool {
         state == .playing && !sceneSuspended && entity?.world != nil
@@ -72,73 +88,177 @@ public class PlaybackController {
         self.entity = entity; self.duration = duration; repeatMode = options.repeatMode; storedSpeed = options.speed
         state = options.startsPaused ? .paused : .playing
     }
-    public func pause() { guard state == .playing else { return }; state = .paused; synchronize() }
-    public func resume() { guard state == .paused else { return }; state = .playing; synchronize() }
+    public func pause() { guard state == .playing else { return }; state = .paused; playbackRevision &+= 1; synchronize() }
+    public func resume() { guard state == .paused else { return }; state = .playing; playbackRevision &+= 1; synchronize() }
     public func stop() { stop(reason: .user) }
     func stop(reason: PlaybackStopReason) {
         guard !isTerminal else { return }
-        state = .stopped; terminate()
+        state = .stopped; playbackRevision &+= 1; terminate()
         if let entity, let world = entity.world { world.publish(PlaybackEvents.Stopped(entity: entity, controller: self, reason: reason), from: entity) }
     }
     func fail(_ error: PlaybackError) {
         guard !isTerminal else { return }
-        self.error = error; state = .failed; terminate()
+        self.error = error; state = .failed; playbackRevision &+= 1; terminate()
         if let entity, let world = entity.world { world.publish(PlaybackEvents.Failed(entity: entity, controller: self, error: error), from: entity) }
     }
     func synchronize() {
         guard !isTerminal else { return }
         let suspended = entity?.isActive != true || entity?.world?.isPaused != false || (entity?.world?.timeScale ?? 0) == 0
-        if sceneSuspended != suspended { sceneSuspended = suspended }
+        if sceneSuspended != suspended { sceneSuspended = suspended; playbackRevision &+= 1 }
         do { try apply() } catch { fail((error as? PlaybackError) ?? .audioUnavailable) }
     }
     func apply() throws {}
     func terminate() {}
 
+    var totalDuration: TimeInterval {
+        switch repeatMode { case .once: duration; case .count(let n): duration * Double(n); case .forever: .infinity }
+    }
     private func iterationCount(_ count: Double) -> Int {
-        // Double(Int.max) rounds above the last representable Int on 64-bit.
-        // Saturate before conversion, including enormous forever-loop steps.
         count >= Double(Int.max) ? Int.max : Int(max(0, count))
     }
+    private func setClock(_ time: TimeInterval) {
+        elapsedTime = time
+        if time >= totalDuration {
+            currentTime = duration
+            switch repeatMode {
+            case .once: completedIterations = 1
+            case .count(let count): completedIterations = count
+            case .forever: break
+            }
+        } else {
+            completedIterations = iterationCount(floor(time / duration))
+            currentTime = time.truncatingRemainder(dividingBy: duration)
+        }
+    }
+    /// Samples an absolute elapsed time across all iterations, preserving playing/
+    /// paused state. No markers or completion fire. Seeking to the finite end
+    /// completes on the next playing update (including a zero-delta update).
+    /// Terminal handles cannot be restarted; play the resource for a new handle.
+    public func seek(to time: TimeInterval) throws {
+        guard !isTerminal else { throw PlaybackError.terminalController }
+        guard time.isFinite, time >= 0, time <= totalDuration else { throw PlaybackError.invalidSeek }
+        playbackRevision &+= 1; setClock(time)
+        do {
+            try didSeek(); synchronize()
+            if let error { throw error }
+        } catch {
+            let failure = (error as? PlaybackError) ?? .audioUnavailable
+            fail(failure); throw failure
+        }
+    }
+    func didSeek() throws {}
+    func didAdvance(from: TimeInterval, to: TimeInterval) throws {}
 
     func advance(by delta: TimeInterval) {
         guard state == .playing, delta.isFinite, delta >= 0 else { return }
-        guard let entity, entity.world != nil else { stop(reason: .removed); return }
+        guard let entity, let world = entity.world else { stop(reason: .removed); return }
         guard entity.isActive else { synchronize(); return }
-        let next = elapsed + delta * speed
+        let next = elapsedTime + delta * speed
         guard next.isFinite else { fail(.invalidOptions); return }
-        elapsed = next
-        let iterations: Double
-        switch repeatMode { case .once: iterations = 1; case .count(let n): iterations = Double(n); case .forever: iterations = .infinity }
-        if elapsed >= duration * iterations {
-            currentTime = duration; completedIterations = iterationCount(iterations)
-            synchronize() // present the last sprite frame before delivering completion
-            guard !isTerminal else { return }
-            state = .completed; terminate()
-            if let world = entity.world { world.publish(PlaybackEvents.Completed(entity: entity, controller: self), from: entity) }
-        } else {
-            completedIterations = iterationCount(floor(elapsed / duration))
-            currentTime = elapsed.truncatingRemainder(dividingBy: duration)
-            synchronize()
+        let previous = elapsedTime, revision = playbackRevision, activation = entity.activationRevision
+        setClock(min(next, totalDuration))
+        synchronize()
+        func unchanged() -> Bool {
+            state == .playing && isPlaying && playbackRevision == revision && entity.world === world &&
+                entity.isActive && entity.activationRevision == activation
+        }
+        guard unchanged() else { return }
+        do { try didAdvance(from: previous, to: elapsedTime) }
+        catch { fail((error as? PlaybackError) ?? .invalidAnimationValue); return }
+        guard unchanged() else { return }
+        if elapsedTime >= totalDuration {
+            state = .completed; playbackRevision &+= 1; terminate()
+            world.publish(PlaybackEvents.Completed(entity: entity, controller: self), from: entity)
         }
     }
 }
 
-/// Controls one entity's sprite clip. Starting another clip on that entity
-/// replaces it; clips on other entities keep independent playback positions.
+/// Controls a reusable sprite/property timeline. Clips on independent properties
+/// coexist. Starting an overlapping clip replaces the entire older controller.
+/// Parent-relative transforms and opacity are sampled directly into components;
+/// `withAnimation` never adds a second easing pass on owned properties. External
+/// edits to an owned property are overwritten on the next sample; stop first to
+/// hand that property back. Dynamic physics bodies reject transform tracks.
 @MainActor
 public final class AnimationPlaybackController: PlaybackController {
     public let resource: AnimationResource
-    init(entity: Entity, resource: AnimationResource, options: PlaybackOptions) {
-        self.resource = resource
+    let baseline: AnimationPose
+    let resolvedTracks: [AnimationTrack]
+    private var initialMarkersPending = true
+
+    init(entity: Entity, resource: AnimationResource, options: PlaybackOptions, baseline: AnimationPose) {
+        self.resource = resource; self.baseline = baseline
+        var last: [AnimationChannel: AnimationValue] = [:]
+        resolvedTracks = resource.tracks.map { original in
+            var track = original
+            track.from = original.from ?? last[track.channel] ?? baseline.value(for: track.channel)
+            last[track.channel] = track.to
+            return track
+        }
         super.init(entity: entity, duration: resource.duration, options: options)
     }
     override func apply() throws {
-        guard let entity, var sprite = entity.components[SpriteComponent.self] else { stop(reason: .removed); return }
-        let frame = min(Int(min(currentTime * resource.framesPerSecond, Double(resource.frames.count - 1))), resource.frames.count - 1)
-        let texture = resource.frames[frame]
-        if sprite.texture != texture {
-            sprite.texture = texture
-            entity.components.set(sprite)
+        guard let entity else { return }
+        let transformChannels: Set<AnimationChannel> = [.position, .rotation, .scale]
+        if !resource.channels.isDisjoint(with: transformChannels), entity.components[PhysicsBodyComponent.self]?.isDynamic == true {
+            throw PlaybackError.dynamicPhysicsBody
+        }
+        var values = Dictionary(uniqueKeysWithValues: resource.channels.map { ($0, baseline.value(for: $0)) })
+        for track in resolvedTracks where currentTime >= track.start { values[track.channel] = try track.value(at: currentTime) }
+        var transform = entity.transform
+        var sprite = entity.components[SpriteComponent.self]
+        for (channel, value) in values {
+            switch (channel, value) {
+            case (.position, .vector(let v)): transform.translation = v
+            case (.rotation, .scalar(let v)): transform.rotation = v
+            case (.scale, .vector(let v)): transform.scale = v
+            case (.opacity, .scalar(let v)):
+                guard sprite != nil else { throw PlaybackError.missingSprite }
+                sprite?.opacity = min(1, max(0, v))
+            case (.texture, .texture(let texture)):
+                guard sprite != nil else { throw PlaybackError.missingSprite }
+                sprite?.texture = texture
+                if texture == nil { sprite?.image = baseline.sprite?.image; sprite?.imageName = baseline.sprite?.imageName }
+            default: throw PlaybackError.invalidAnimationValue
+            }
+        }
+        // Sampling must remain direct even when play/seek is called inside an
+        // outer withAnimation transaction. Untouched component fields are kept.
+        ActionTransaction.perform(nil, completion: nil) {
+            if transform != entity.transform { entity.transform = transform }
+            if let sprite, sprite != entity.components[SpriteComponent.self] { entity.components.set(sprite) }
+        }
+    }
+    override func didSeek() { initialMarkersPending = false }
+    override func didAdvance(from lower: TimeInterval, to upper: TimeInterval) throws {
+        let includeZero = initialMarkersPending; initialMarkersPending = false
+        guard !resource.markers.isEmpty, let entity, let world = entity.world else { return }
+        let first = floor(lower / duration), last = floor(upper / duration)
+        guard last < Double(Int.max), last - first <= 4096 else { throw PlaybackError.markerEventLimitExceeded }
+        let lastIteration: Int
+        switch repeatMode {
+        case .once: lastIteration = min(Int(last), 0)
+        case .count(let count): lastIteration = min(Int(last), count - 1)
+        case .forever: lastIteration = Int(last)
+        }
+        var events: [(Double, Int, Int, AnimationMarker)] = []
+        if Int(first) <= lastIteration {
+            for iteration in Int(first)...lastIteration {
+                for (index, marker) in resource.markers.enumerated() {
+                    let time = Double(iteration) * duration + marker.time
+                    if (time > lower || (includeZero && time == 0)) && time <= upper {
+                        events.append((time, iteration, index, marker))
+                        guard events.count <= 4096 else { throw PlaybackError.markerEventLimitExceeded }
+                    }
+                }
+            }
+        }
+        events.sort { a, b in a.0 == b.0 ? (a.1 == b.1 ? a.2 < b.2 : a.1 < b.1) : a.0 < b.0 }
+        let revision = playbackRevision, activation = entity.activationRevision
+        for (_, iteration, _, marker) in events {
+            guard state == .playing, isPlaying, playbackRevision == revision, entity.isActive,
+                  entity.world === world, entity.activationRevision == activation else { return }
+            world.publish(PlaybackEvents.MarkerReached(entity: entity, controller: self, marker: marker, iteration: iteration), from: entity)
         }
     }
 }
@@ -147,7 +267,10 @@ public final class AnimationPlaybackController: PlaybackController {
 protocol AudioVoice: AnyObject {
     func synchronize(time: Double, playing: Bool, rate: Double, volume: Float, pan: Float, looping: Bool) throws
     func stop()
+    func seek(to time: Double)
 }
+
+extension AudioVoice { func seek(to time: Double) {} }
 
 @MainActor
 final class PlayerAudioVoice: AudioVoice {
@@ -166,6 +289,7 @@ final class PlayerAudioVoice: AudioVoice {
         if !player.isPlaying, !player.play() { throw PlaybackError.audioUnavailable }
     }
     func stop() { player.stop() }
+    func seek(to time: Double) { player.currentTime = min(time, player.duration) }
 }
 
 /// Controls one sound, independently of other sounds on the same entity.
@@ -195,6 +319,7 @@ public final class AudioPlaybackController: PlaybackController {
         if isPlaying && !(0.5...2).contains(rate) { throw PlaybackError.unsupportedAudioRate(rate) }
         try voice.synchronize(time: currentTime, playing: isPlaying, rate: rate, volume: gain, pan: pan, looping: repeatMode != .once)
     }
+    override func didSeek() { voice.seek(to: currentTime) }
     override func terminate() { voice.stop() }
 }
 
@@ -204,16 +329,27 @@ struct PlaybackStorage: Component {
 }
 
 extension Entity {
-    /// Starts a sprite clip and returns its controller. A renderer installs the
+    /// Starts a sprite or composed property clip and returns its controller. A renderer installs the
     /// playback system automatically; attached headless playback installs it too.
     @discardableResult
     public func playAnimation(_ resource: AnimationResource, options: PlaybackOptions = .init()) throws -> AnimationPlaybackController {
         try options.validate(duration: resource.duration)
-        // Snapshot first: stopped-event handlers may start another animation.
-        let previous = components[PlaybackStorage.self]?.controllers.compactMap { $0 as? AnimationPlaybackController } ?? []
-        if components[SpriteComponent.self] == nil { components.set(SpriteComponent(texture: resource.frames[0])) }
-        let controller = AnimationPlaybackController(entity: self, resource: resource, options: options)
+        let channels = resource.channels
+        if !channels.isDisjoint(with: [.position, .rotation, .scale]), components[PhysicsBodyComponent.self]?.isDynamic == true {
+            throw PlaybackError.dynamicPhysicsBody
+        }
+        let firstFrame = resource.tracks.first(where: { $0.channel == .texture })?.frames.first
+        var sprite = presentation[SpriteComponent.self]
+        if sprite == nil, let firstFrame { sprite = SpriteComponent(texture: firstFrame) }
+        if (channels.contains(.opacity) || channels.contains(.texture)), sprite == nil { throw PlaybackError.missingSprite }
+        let baseline = AnimationPose(transform: presentation.transform, sprite: sprite)
+        guard channels.allSatisfy({ baseline.value(for: $0).isFinite }) else { throw PlaybackError.invalidAnimationValue }
+        let previous = components[PlaybackStorage.self]?.controllers.compactMap { $0 as? AnimationPlaybackController }
+            .filter { !$0.resource.channels.isDisjoint(with: channels) } ?? []
+        if components[SpriteComponent.self] == nil, let sprite { components.set(sprite) }
+        let controller = AnimationPlaybackController(entity: self, resource: resource, options: options, baseline: baseline)
         addPlayback(controller)
+        (world?.observer as? SpriteRenderer)?.cancelAnimationActions(channels, for: self)
         controller.synchronize()
         for previous in previous { previous.stop(reason: .replaced) }
         return controller
@@ -253,9 +389,13 @@ public struct PlaybackSystem: System {
     private let changes: EventSubscription
     private let removals: EventSubscription
     private let activations: EventSubscription
+    private let additions: EventSubscription
     private static let query = EntityQuery(where: .has(PlaybackStorage.self))
 
     public init(world: World) {
+        additions = world.subscribe(to: WorldEvents.DidAddEntity.self) { event in
+            for controller in event.entity.components[PlaybackStorage.self]?.controllers ?? [] { controller.synchronize() }
+        }
         changes = world.subscribe(to: WorldEvents.SimulationDidChange.self) { event in
             for entity in event.world.performQuery(EntityQuery(where: .has(PlaybackStorage.self), includingDisabled: true)) {
                 for controller in entity.components[PlaybackStorage.self]?.controllers ?? [] { controller.synchronize() }

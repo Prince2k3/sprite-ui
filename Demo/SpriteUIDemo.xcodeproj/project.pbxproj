@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */; };
+		166892C6A66777F5549ACE2A /* TimelineDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E29CACFB77DBDBD3AD7A8026 /* TimelineDemoView.swift */; };
 		34BC0125BB63B500F46459E3 /* PrefabDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A07FC6D53E7ACB7F7547F5 /* PrefabDemoView.swift */; };
 		399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */; };
 		48003CA6F0303ECCC1BF5F6E /* Level.sks in Resources */ = {isa = PBXBuildFile; fileRef = 02AEA6150EF96D3BD54FB217 /* Level.sks */; };
@@ -67,6 +68,7 @@
 		D7386C3C0BCBEF0A3A80FFAA /* thud.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = thud.wav; sourceTree = "<group>"; };
 		E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileMapDemoView.swift; sourceTree = "<group>"; };
 		E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateMachineDemoView.swift; sourceTree = "<group>"; };
+		E29CACFB77DBDBD3AD7A8026 /* TimelineDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineDemoView.swift; sourceTree = "<group>"; };
 		EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Dungeon.sks; sourceTree = "<group>"; };
 		ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObstacleDemoView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -139,6 +141,7 @@
 				7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */,
 				D7386C3C0BCBEF0A3A80FFAA /* thud.wav */,
 				E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */,
+				E29CACFB77DBDBD3AD7A8026 /* TimelineDemoView.swift */,
 			);
 			path = SpriteUIDemo;
 			sourceTree = "<group>";
@@ -240,6 +243,7 @@
 				7EB43AEF065D6756EB90E8CE /* SteeringDemoView.swift in Sources */,
 				4F6ECCF820B7267C6A46F7EE /* StrategistDemoView.swift in Sources */,
 				CBB78677B4DAD6DADA4850F2 /* TileMapDemoView.swift in Sources */,
+				166892C6A66777F5549ACE2A /* TimelineDemoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
