@@ -194,16 +194,19 @@ extension SpriteRenderer {
         defer { if node.physicsBody != nil { bodies.insert(entity.id) } else { bodies.remove(entity.id) } }
         let collider = entity.components[CollisionComponent.self]
         guard let model, collider?.isEnabled != false else {
+            removePhysicsJoints(involving: [entity.id])
             node.physicsBody = nil; physicsShapes[entity.id] = nil; return
         }
         let shape = collider?.shape ?? model.shape, offset = collider?.offset ?? .zero
         guard shape.isValid, offset.x.isFinite, offset.y.isFinite else {
+            removePhysicsJoints(involving: [entity.id])
             node.physicsBody = nil; physicsShapes[entity.id] = nil; return
         }
         let signature = PhysicsShapeConfiguration(shape: shape, offset: offset)
         let existing = node.physicsBody
         let rebuild = existing == nil || physicsShapes[entity.id] != signature
         if rebuild {
+            removePhysicsJoints(involving: [entity.id])
             node.physicsBody = Self.makeBody(shape, offset: offset)
             physicsShapes[entity.id] = signature
         }

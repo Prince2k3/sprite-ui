@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// Frame order:
 /// 1. `update(_:)` runs update events and simulation systems, then pushes changed components onto nodes,
-///    turning changes made inside `withAnimation` into `SKAction`s.
+///    turning changes made inside `withAnimation` into `SKAction`s, then resolves joints after all bodies exist.
 /// 2. SpriteKit evaluates actions and simulates physics.
 /// 3. `didSimulatePhysics()` copies simulation results back into ``Transform`` and
 ///    ``PhysicsBodyComponent`` without marking them changed, then publishes the step's
@@ -59,6 +59,8 @@ public final class SpriteRenderer: SKScene {
     private var entityIDs: [ObjectIdentifier: Entity.ID] = [:]
     /// Entities whose node has a physics body.
     var bodies: Set<Entity.ID> = []
+    var jointEntries: [Entity.ID: PhysicsJointEntry] = [:]
+    var jointStatuses: [Entity.ID: PhysicsJointStatus] = [:]
     var physicsShapes: [Entity.ID: PhysicsShapeConfiguration] = [:]
     /// Contacts reported during the current simulation step, published after it.
     private var contacts: [any Event] = []
@@ -112,6 +114,7 @@ public final class SpriteRenderer: SKScene {
             entity.visit { self.world(world, didAdd: $0) }
         }
         worldSimulationDidChange(world)
+        synchronizePhysicsJoints()
     }
 
     @available(*, unavailable)
@@ -158,8 +161,8 @@ public final class SpriteRenderer: SKScene {
         flush()
     }
 
-    /// Pushes every pending component change onto its node, then lets transactions
-    /// that started no actions complete.
+    /// Pushes pending component changes, resolves body connections, then lets
+    /// transactions that started no actions complete.
     public func flush() {
         if !dirty.isEmpty {
             let pending = dirty
@@ -173,6 +176,7 @@ public final class SpriteRenderer: SKScene {
                 }
             }
         }
+        synchronizePhysicsJoints()
         if !droppedTransactions.isEmpty {
             let dropped = droppedTransactions
             droppedTransactions.removeAll()
@@ -471,6 +475,10 @@ extension SpriteRenderer: WorldObserver {
     }
 
     public func world(_ world: World, willRemove entity: Entity) {
+        var subtree: Set<Entity.ID> = []
+        entity.visit { subtree.insert($0.id) }
+        removePhysicsJoints(involving: subtree)
+        jointStatuses[entity.id] = nil
         dirty[entity.id] = nil
         applied[entity.id] = nil
         bodies.remove(entity.id)
