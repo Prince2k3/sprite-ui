@@ -2,6 +2,12 @@
 import SpriteKit
 import SwiftUI
 
+public enum RenderingEvents {
+    /// Presented transforms are current, after actions, physics, cameras and the
+    /// final component flush. Also delivered while simulation is paused.
+    public struct DidUpdate: Event { public let scene: World }
+}
+
 /// The SpriteKit side of a ``World``: one `SKNode` per entity, kept in sync each frame.
 ///
 /// Frame order:
@@ -166,6 +172,7 @@ public final class SpriteRenderer: SKScene {
         currentFrame = nil
         if !world.isPaused, world.timeScale > 0 { updateCameras(deltaTime: lastDeltaTime, time: simulationTime) }
         flush()
+        world.publish(RenderingEvents.DidUpdate(scene: world))
     }
 
     /// Pushes pending component changes, resolves body connections, then lets

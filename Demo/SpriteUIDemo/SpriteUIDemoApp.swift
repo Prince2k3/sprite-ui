@@ -20,6 +20,7 @@ struct SpriteUIDemoApp: App {
                 Tab("Physics", systemImage: "circle.bottomhalf.filled") { PhysicsDemoView() }
                 Tab("Scenes", systemImage: "square.stack.3d.up") { SceneDemoView() }
                 Group {
+                    Tab("Attachments", systemImage: "text.bubble") { AttachmentDemoView() }
                     Tab("Timelines", systemImage: "timeline.selection") { TimelineDemoView() }
                     Tab("Pooling", systemImage: "arrow.triangle.2.circlepath") { PoolingDemoView() }
                     Tab("Prefabs", systemImage: "square.on.square") { PrefabDemoView() }

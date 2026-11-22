@@ -254,6 +254,21 @@ extension SpriteRenderer {
         return [Float(point.x), Float(point.y)]
     }
 
+    /// Projects a scene point (nil reference) or an entity-local point into the
+    /// view's top-left coordinate space, using presented nodes and camera shake.
+    /// Returns nil for a foreign/detached entity or a nonfinite conversion.
+    public func viewPoint(from point: SIMD2<Float>, relativeTo entity: Entity? = nil) -> CGPoint? {
+        guard point.x.isFinite, point.y.isFinite else { return nil }
+        var native = CGPoint(x: CGFloat(point.x), y: CGFloat(point.y))
+        if let entity {
+            guard entity.world === world, let node = node(for: entity) else { return nil }
+            native = node.convert(native, to: self)
+        }
+        if let camera { native = camera.convert(native, from: self) }
+        let result = CGPoint(x: native.x + size.width / 2, y: size.height / 2 - native.y)
+        return result.x.isFinite && result.y.isFinite ? result : nil
+    }
+
 }
 
 extension CameraComponent: EntityReferencingComponent {
