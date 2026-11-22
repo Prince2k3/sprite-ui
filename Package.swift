@@ -9,6 +9,7 @@ let package = Package(
         .library(name: "SpriteUI", targets: ["SpriteUI"]),
         .library(name: "ECSCore", targets: ["ECSCore"]),
         .library(name: "Gameplay", targets: ["Gameplay"]),
+        .library(name: "DemoBotsGame", targets: ["DemoBotsGame"]),
     ],
     targets: [
         // Pure Swift ECS: Entity, Component, System, queries, events. No SpriteKit.
@@ -29,10 +30,12 @@ let package = Package(
 
         // Umbrella that re-exports the public modules.
         .target(name: "SpriteUI", dependencies: ["ECSCore", "SpriteBackend", "GameUI", "Gameplay", "GameplayECS"]),
+        .target(name: "DemoBotsGame", dependencies: ["SpriteUI"], path: "Examples/DemoBots/Game", resources: [.process("Resources")]),
 
         .testTarget(name: "ECSCoreTests", dependencies: ["ECSCore"]),
         .testTarget(name: "GameplayTests", dependencies: ["Gameplay", "GameplayECS", "ECSCore"]),
         .testTarget(name: "SpriteBackendTests", dependencies: ["ECSCore", "SpriteBackend"]),
         .testTarget(name: "SpriteUITests", dependencies: ["SpriteUI"]),
+        .testTarget(name: "DemoBotsTests", dependencies: ["DemoBotsGame"]),
     ]
 )
