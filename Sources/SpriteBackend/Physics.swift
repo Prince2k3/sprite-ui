@@ -1,31 +1,10 @@
 @_spi(Backend) import ECSCore
 import SpriteKit
 
-/// The outline of a ``PhysicsBodyComponent``, in the entity's own space.
-public enum PhysicsShape: Hashable, Sendable, Codable {
-    case circle(radius: Float)
-    /// A rectangle of `size` centered on the entity.
-    case rectangle(size: SIMD2<Float>)
-    /// A convex polygon, counterclockwise.
-    case polygon([SIMD2<Float>])
-    /// A closed outline with no inside, such as the walls of a room. Always static.
-    case edgeLoop([SIMD2<Float>])
-    /// An open run of edges, such as the ground. Always static.
-    case edgeChain([SIMD2<Float>])
+@_exported import Gameplay
 
-    /// The outline of a rectangle of `size` centered on the entity, as an edge loop.
-    public static func edgeLoop(rectangle size: SIMD2<Float>) -> PhysicsShape {
-        let half = size / 2
-        return .edgeLoop([[-half.x, -half.y], [half.x, -half.y], [half.x, half.y], [-half.x, half.y]])
-    }
-
-    var isEdge: Bool {
-        switch self {
-        case .edgeLoop, .edgeChain: true
-        default: false
-        }
-    }
-}
+/// The shared collision outline, retained under its original physics API name.
+public typealias PhysicsShape = CollisionShape
 
 /// Makes an entity a rigid body that SpriteKit simulates, in place of setting
 /// `SKNode.physicsBody` by hand.
@@ -181,20 +160,22 @@ extension SpriteRenderer {
         set { world.physics.gravity = newValue }
     }
 
-    static func makeBody(_ shape: PhysicsShape) -> SKPhysicsBody {
+    static func makeBody(_ shape: PhysicsShape, offset: SIMD2<Float> = .zero) -> SKPhysicsBody {
         func path(_ points: [SIMD2<Float>], closed: Bool) -> CGPath {
             let path = CGMutablePath()
-            path.addLines(between: points.map { CGPoint(x: CGFloat($0.x), y: CGFloat($0.y)) })
+            let points = closed && points.count > 1 && points.first == points.last ? Array(points.dropLast()) : points
+            path.addLines(between: points.map { CGPoint(x: CGFloat($0.x + offset.x), y: CGFloat($0.y + offset.y)) })
             if closed { path.closeSubpath() }
             return path
         }
         switch shape {
         case .circle(let radius):
-            return SKPhysicsBody(circleOfRadius: CGFloat(radius))
+            return SKPhysicsBody(circleOfRadius: CGFloat(radius), center: CGPoint(x: CGFloat(offset.x), y: CGFloat(offset.y)))
         case .rectangle(let size):
-            return SKPhysicsBody(rectangleOf: CGSize(width: CGFloat(size.x), height: CGFloat(size.y)))
+            return SKPhysicsBody(rectangleOf: CGSize(width: CGFloat(size.x), height: CGFloat(size.y)), center: CGPoint(x: CGFloat(offset.x), y: CGFloat(offset.y)))
         case .polygon(let points):
-            return SKPhysicsBody(polygonFrom: path(points, closed: true))
+            let area = points.indices.reduce(0.0) { $0 + Double(points[$1].x) * Double(points[($1 + 1) % points.count].y) - Double(points[$1].y) * Double(points[($1 + 1) % points.count].x) }
+            return SKPhysicsBody(polygonFrom: path(area < 0 ? Array(points.reversed()) : points, closed: true))
         case .edgeLoop(let points):
             return SKPhysicsBody(edgeLoopFrom: path(points, closed: true))
         case .edgeChain(let points):
@@ -203,48 +184,47 @@ extension SpriteRenderer {
     }
 
     static let physicsBinding = Binding<PhysicsBodyComponent>(
-        apply: { new, old, node, _ in
-            guard let new else {
-                node.physicsBody = nil
-                return
-            }
-            var old = old
-            if old?.shape != new.shape || node.physicsBody == nil {
-                let previous = node.physicsBody
-                node.physicsBody = makeBody(new.shape)
-                if let previous, old != nil {
-                    // A new shape keeps the body's motion.
-                    node.physicsBody?.velocity = previous.velocity
-                    node.physicsBody?.angularVelocity = previous.angularVelocity
-                }
-                old = nil
-            }
-            guard let body = node.physicsBody else { return }
-
-            body.isDynamic = new.isDynamic
-            if let mass = new.mass {
-                body.mass = CGFloat(mass)
-            } else {
-                body.density = CGFloat(new.density)
-            }
-            body.friction = CGFloat(new.friction)
-            body.restitution = CGFloat(new.restitution)
-            body.linearDamping = CGFloat(new.linearDamping)
-            body.angularDamping = CGFloat(new.angularDamping)
-            body.affectedByGravity = new.affectedByGravity
-            body.allowsRotation = new.allowsRotation
-            body.usesPreciseCollisionDetection = new.usesPreciseCollisionDetection
-            body.categoryBitMask = new.categoryBitMask
-            body.collisionBitMask = new.collisionBitMask
-            body.contactTestBitMask = new.contactTestBitMask
-            // Velocity is written only when the model changed it, so copied-back values
-            // don't fight the simulation.
-            if old?.velocity != new.velocity {
-                body.velocity = CGVector(dx: CGFloat(new.velocity.x), dy: CGFloat(new.velocity.y))
-            }
-            if old?.angularVelocity != new.angularVelocity {
-                body.angularVelocity = CGFloat(new.angularVelocity)
-            }
+        apply: { new, old, node, animator in
+            guard let entity = animator.renderer.world.entity(withID: animator.entityID) else { return }
+            animator.renderer.applyPhysics(new, previous: old, entity: entity, node: node)
         }
     )
+
+    func applyPhysics(_ model: PhysicsBodyComponent?, previous: PhysicsBodyComponent?, entity: Entity, node: SKNode) {
+        defer { if node.physicsBody != nil { bodies.insert(entity.id) } else { bodies.remove(entity.id) } }
+        let collider = entity.components[CollisionComponent.self]
+        guard let model, collider?.isEnabled != false else {
+            node.physicsBody = nil; physicsShapes[entity.id] = nil; return
+        }
+        let shape = collider?.shape ?? model.shape, offset = collider?.offset ?? .zero
+        guard shape.isValid, offset.x.isFinite, offset.y.isFinite else {
+            node.physicsBody = nil; physicsShapes[entity.id] = nil; return
+        }
+        let signature = PhysicsShapeConfiguration(shape: shape, offset: offset)
+        let existing = node.physicsBody
+        let rebuild = existing == nil || physicsShapes[entity.id] != signature
+        if rebuild {
+            node.physicsBody = Self.makeBody(shape, offset: offset)
+            physicsShapes[entity.id] = signature
+        }
+        guard let body = node.physicsBody else { return }
+        body.isDynamic = model.isDynamic && !shape.isEdge
+        if let mass = model.mass { body.mass = CGFloat(mass) } else { body.density = CGFloat(model.density) }
+        body.friction = CGFloat(model.friction); body.restitution = CGFloat(model.restitution)
+        body.linearDamping = CGFloat(model.linearDamping); body.angularDamping = CGFloat(model.angularDamping)
+        body.affectedByGravity = model.affectedByGravity; body.allowsRotation = model.allowsRotation
+        body.usesPreciseCollisionDetection = model.usesPreciseCollisionDetection
+        body.categoryBitMask = collider?.filter.group.rawValue ?? model.categoryBitMask
+        body.collisionBitMask = collider?.filter.mask.rawValue ?? model.collisionBitMask
+        body.contactTestBitMask = model.contactTestBitMask
+        if let existing, rebuild {
+            body.velocity = existing.velocity; body.angularVelocity = existing.angularVelocity
+        }
+        if existing == nil || previous?.velocity != model.velocity {
+            body.velocity = CGVector(dx: CGFloat(model.velocity.x), dy: CGFloat(model.velocity.y))
+        }
+        if existing == nil || previous?.angularVelocity != model.angularVelocity { body.angularVelocity = CGFloat(model.angularVelocity) }
+    }
 }
+
+struct PhysicsShapeConfiguration: Equatable { let shape: CollisionShape; let offset: SIMD2<Float> }

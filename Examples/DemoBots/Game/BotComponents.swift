@@ -141,3 +141,9 @@ enum DemoBotsResources {
         return Float(names.firstIndex(of: compass) ?? 0) * .pi / 4
     }
 }
+
+// Separate query categories keep scenery, actors and decorative sprites distinct.
+enum BotCollisionGroups {
+    static let walls = CollisionGroup(rawValue: 1 << 8)
+    static let actors = CollisionGroup(rawValue: 1 << 9)
+}

@@ -93,6 +93,17 @@ import Testing
         #expect(capture.resolve(3, start: CGPoint(x: 50, y: 100), host: host, resolver: { $0 }) == nil)
     }
 
+    @Test func disablingAColliderCancelsAnExistingCapture() {
+        let (host, a, _) = host()
+        a.components.set(CollisionComponent(shape: .circle(radius: 20)))
+        host.renderer.flush()
+        host.beginInput(at: CGPoint(x: 50, y: 100))
+        let capture = TargetedInputCapture<Int>()
+        #expect(capture.resolve(1, start: CGPoint(x: 50, y: 100), host: host, resolver: { $0 })?.entity === a)
+        a.components[CollisionComponent.self]?.isEnabled = false
+        #expect(capture.resolve(2, start: CGPoint(x: 50, y: 100), host: host, resolver: { $0 }) == nil)
+    }
+
     @Test func cancellationDoesNotPoisonTheNextGesture() {
         let (host, a, _) = host()
         let id = host.beginInput(at: CGPoint(x: 50, y: 100))

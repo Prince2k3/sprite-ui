@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */; };
+		399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */; };
 		48003CA6F0303ECCC1BF5F6E /* Level.sks in Resources */ = {isa = PBXBuildFile; fileRef = 02AEA6150EF96D3BD54FB217 /* Level.sks */; };
 		4DF5A9D126A647164D9F97B0 /* SceneDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D200C57D852A152275BB8377 /* SceneDemoView.swift */; };
 		4F6ECCF820B7267C6A46F7EE /* StrategistDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */; };
@@ -39,6 +40,7 @@
 		336679CC6AC0F80F32FB81A4 /* playback-demo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "playback-demo.wav"; sourceTree = "<group>"; };
 		363FD31E7C468C0C2080419D /* SteeringDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteeringDemoView.swift; sourceTree = "<group>"; };
 		3E7FA495E00535524F68A83E /* swiftui-ecs */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "swiftui-ecs"; path = ..; sourceTree = SOURCE_ROOT; };
+		4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollisionDemoView.swift; sourceTree = "<group>"; };
 		4D6F537FD724A2F0E44CE0F5 /* ResourcesDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourcesDemoView.swift; sourceTree = "<group>"; };
 		4E6B60BFB5AC5EA7E1A86B4C /* Runner.atlas */ = {isa = PBXFileReference; lastKnownFileType = folder.skatlas; path = Runner.atlas; sourceTree = "<group>"; };
 		53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathfindingDemoView.swift; sourceTree = "<group>"; };
@@ -101,6 +103,7 @@
 			children = (
 				95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */,
 				AD4B56781DDCE0AD924A5FAD /* coin.wav */,
+				4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */,
 				1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */,
 				5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */,
 				EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */,
@@ -201,6 +204,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DF0D389E25A50C55302D74CD /* APIConsolidationDemoView.swift in Sources */,
+				399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */,
 				D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */,
 				5426761EF954EE8084C185FA /* DemoView.swift in Sources */,
 				AFE3EB6EC6605EBA36A44F3B /* NoiseDemoView.swift in Sources */,

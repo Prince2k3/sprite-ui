@@ -58,7 +58,8 @@ public final class SpriteRenderer: SKScene {
     /// Which entity each node shows, for mapping physics contacts back.
     private var entityIDs: [ObjectIdentifier: Entity.ID] = [:]
     /// Entities whose node has a physics body.
-    private var bodies: Set<Entity.ID> = []
+    var bodies: Set<Entity.ID> = []
+    var physicsShapes: [Entity.ID: PhysicsShapeConfiguration] = [:]
     /// Contacts reported during the current simulation step, published after it.
     private var contacts: [any Event] = []
     /// Pending changes per entity and component type. A new entry starts whenever the
@@ -90,6 +91,7 @@ public final class SpriteRenderer: SKScene {
         register(Transform.self, Self.transformBinding)
         register(SpriteComponent.self, Self.spriteBinding)
         register(PhysicsBodyComponent.self, Self.physicsBinding)
+        register(CollisionComponent.self, Self.collisionBinding)
         register(CameraComponent.self, Self.cameraBinding)
         register(TileMapComponent.self, Self.tileMapBinding)
         register(ParticleEmitterComponent.self, Self.particleBinding)
@@ -472,6 +474,7 @@ extension SpriteRenderer: WorldObserver {
         dirty[entity.id] = nil
         applied[entity.id] = nil
         bodies.remove(entity.id)
+        physicsShapes[entity.id] = nil
         // Completions waiting on this entity's actions run at the next flush, not in the
         // middle of a removal.
         if let actions = running.removeValue(forKey: entity.id) {

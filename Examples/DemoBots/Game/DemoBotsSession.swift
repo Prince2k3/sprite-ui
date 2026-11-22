@@ -118,6 +118,7 @@ public final class DemoBotsSession {
                 for entity in obstacleLayer.children {
                     guard let sprite = entity.components[SpriteComponent.self], let size = sprite.size else { continue }
                     entity.components.set(PolygonObstacleComponent(rectangle: size))
+                    entity.components.set(CollisionComponent(shape: .rectangle(size: size), filter: .init(group: BotCollisionGroups.walls)))
                     if sprite.imageName == nil { entity.components[SpriteComponent.self]?.opacity = 0 }
                 }
             }
@@ -231,6 +232,7 @@ public final class DemoBotsSession {
         let data = BotComponent(kind: kind, heading: heading, previousPosition: point)
         let entity = Entity(components: data, SteeringComponent(maxSpeed: 210, maxForce: 900, radius: 25), SpatialIndexComponent())
         entity.position = point
+        entity.components.set(CollisionComponent(shape: .circle(radius: 25), filter: .init(group: BotCollisionGroups.actors)))
         let body = Entity(name: "body", components: SpriteComponent(imageName: "PlayerBot", size: [120, 120]))
         body.position = [0, 25]; entity.addChild(body)
         let shadow = Entity(name: "shadow", components: SpriteComponent(imageName: kind == .player ? "PlayerBotShadow" : "GroundBotShadow", size: [80, 32], opacity: 0.6))
@@ -335,32 +337,38 @@ public final class DemoBotsSession {
         bot.components.set(steering)
     }
 
+    func hasLineOfSight(from start: SIMD2<Float>, to end: SIMD2<Float>) -> Bool {
+        world?.raycast(from: start, to: end, filter: .init(mask: BotCollisionGroups.walls)).isEmpty == true
+    }
+
+    func actors(near position: SIMD2<Float>, radius: Float, excluding: Set<Entity.ID> = []) -> [Entity] {
+        world?.overlaps(shape: .circle(radius: radius), transform: .init(tx: position.x, ty: position.y),
+                        filter: .init(mask: BotCollisionGroups.actors, excluding: excluding)).map(\.entity) ?? []
+    }
+
     func nearestBad(to position: SIMD2<Float>, range: Float, visible: Bool) -> Entity? {
-        bots.filter {
+        actors(near: position, radius: range).filter {
             $0.components[BotComponent.self]?.isBad == true && simd_distance(position, $0.position) <= range &&
-                (!visible || navigation?.isClear(from: position, to: $0.position) == true)
+                (!visible || hasLineOfSight(from: position, to: $0.position))
         }.min { simd_distance_squared(position, $0.position) < simd_distance_squared(position, $1.position) }
     }
 
     func applyBeam(deltaTime dt: Float) {
         guard beam.active, let player, let info = player.components[BotComponent.self] else { hideBeam(); return }
         let direction = SIMD2<Float>(cos(info.heading), sin(info.heading))
-        let target = bots.filter { bot in
+        let target = actors(near: player.position, radius: 300, excluding: [player.id]).filter { bot in
             guard bot.components[BotComponent.self]?.isBad == true else { return false }
             let delta = bot.position - player.position
             let distance = simd_length(delta)
             return distance <= 300 && (distance < 50 || simd_dot(delta / max(distance, 1), direction) >= cos(.pi / 8)) &&
-                navigation?.isClear(from: player.position, to: bot.position) == true
+                hasLineOfSight(from: player.position, to: bot.position)
         }.min { simd_distance_squared(player.position, $0.position) < simd_distance_squared(player.position, $1.position) }
         let origin = player.position + SIMD2<Float>(0, 60)
         var end = target.map { $0.position + SIMD2<Float>(0, 50) } ?? (origin + direction * 300)
-        if target == nil, let navigation {
-            // Empty beams stop at walls too.
-            for distance in stride(from: Float(10), through: 300, by: 10) {
-                if !navigation.isClear(from: player.position, to: player.position + direction * distance) {
-                    end = origin + direction * max(0, distance - 10); break
-                }
-            }
+        if target == nil, let hit = world?.raycast(from: player.position, to: player.position + direction * 300,
+                                                  filter: .init(mask: BotCollisionGroups.walls)).first {
+            // Query in the ground plane, then lift the drawn beam to emitter height.
+            end = hit.position + SIMD2<Float>(0, 60)
         }
         for (index, line) in beamLines.enumerated() {
             let fractionA = Float(index / 2) / 2
@@ -418,7 +426,7 @@ public final class DemoBotsSession {
         for bot in bots {
             guard var info = bot.components[BotComponent.self], info.isBad, info.attackCooldown <= 0, bot.state(BotMode.self) != .zapped else { continue }
             let victims = bots.filter { $0.components[BotComponent.self]?.isBad == false } + (playerCharge.recharging ? [] : [player])
-            guard let victim = victims.first(where: { simd_distance(bot.position, $0.position) < 68 && navigation.isClear(from: bot.position, to: $0.position) }) else { continue }
+            guard let victim = victims.first(where: { simd_distance(bot.position, $0.position) < 68 && hasLineOfSight(from: bot.position, to: $0.position) }) else { continue }
             info.attackCooldown = info.kind == .flying ? 3 : 1.5
             bot.components.set(info)
             if info.kind == .flying {

@@ -17,6 +17,7 @@ extension SpriteRenderer {
     public nonisolated static func registerComponents() {
         SpriteComponent.registerComponent()
         PhysicsBodyComponent.registerComponent()
+        CollisionComponent.registerComponent()
         CameraComponent.registerComponent()
         LifetimeComponent.registerComponent()
         SceneComponent.registerComponent()

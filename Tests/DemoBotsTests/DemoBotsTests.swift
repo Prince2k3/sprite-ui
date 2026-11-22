@@ -121,14 +121,34 @@ import Testing
     }
 
     @Test func beamCannotPassThroughAWallOrShootBehindItsAim() {
-        let (game, _, player, bot) = fixture()
+        let (game, world, player, bot) = fixture()
         game.beam.active = true
-        game.navigation = BotNavigation(bounds: BoundingBox(min: [-500, -500], max: [500, 500]), obstacles: [PolygonObstacle(center: [75, 0], size: [15, 200])])
+        let wall = Entity(components: CollisionComponent(shape: .rectangle(size: [15, 200]), filter: .init(group: BotCollisionGroups.walls)))
+        wall.position = [75, 0]; world.addEntity(wall)
+        #expect(!game.hasLineOfSight(from: player.position, to: bot.position))
         game.applyBeam(deltaTime: 1)
         #expect(bot.components[BotComponent.self]?.corruption == 100)
-        game.navigation = BotNavigation(bounds: BoundingBox(min: [-500, -500], max: [500, 500]), obstacles: [])
+        wall.removeFromParent()
+        #expect(game.hasLineOfSight(from: player.position, to: bot.position))
         player.components[BotComponent.self]?.heading = .pi
         game.applyBeam(deltaTime: 1)
+        #expect(bot.components[BotComponent.self]?.corruption == 100)
+    }
+
+    @Test func emptyBeamStopsAtTheExactSceneQueryHit() {
+        let (game, world, _, bot) = fixture()
+        let wall = Entity(components: CollisionComponent(shape: .rectangle(size: [2, 200]), filter: .init(group: BotCollisionGroups.walls)))
+        wall.position = [75, 0]; world.addEntity(wall)
+        game.beamLines = (0..<4).map { _ in
+            let line = Entity(components: SpriteComponent(color: .cyan, size: [1, 1]))
+            world.addEntity(line); return line
+        }
+        game.beam.active = true
+        game.applyBeam(deltaTime: 0.1)
+        let last = game.beamLines[2]
+        let length = last.components[SpriteComponent.self]!.size!.x
+        let end = last.position + SIMD2<Float>(cos(last.rotation), sin(last.rotation)) * length / 2
+        #expect(abs(end.x - 74) < 0.001 && abs(end.y - 60) < 0.001)
         #expect(bot.components[BotComponent.self]?.corruption == 100)
     }
 

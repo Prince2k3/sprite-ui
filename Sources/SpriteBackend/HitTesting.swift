@@ -2,44 +2,46 @@ import ECSCore
 import SpriteKit
 
 extension SpriteRenderer {
-    /// Entities whose sprite contains a point in scene coordinates, front-most first.
-    ///
-    /// Uses what's on screen, so an entity mid-animation is hit where it's drawn.
-    /// Rotation and scale are respected; transparent pixels are not ignored.
-    public func entities(at scenePoint: CGPoint) -> [Entity] {
+    /// Entities hit by a displayed point, front-most first. Explicit collision
+    /// shapes can be invisible; physics shapes are used when no collider is set.
+    /// Sprite bounds remain a compatibility fallback for hierarchies without a
+    /// collider. A collider on an ancestor suppresses implicit child sprite bounds,
+    /// while children with their own colliders remain independent targets.
+    /// Uses displayed transforms, including camera-independent animation poses.
+    public func entities(at scenePoint: CGPoint, filter: CollisionQueryFilter = .init()) -> [Entity] {
         var hits: [(entity: Entity, z: CGFloat, order: Int)] = []
         var order = 0
-        func visit(_ entity: Entity, parentZ: CGFloat) {
-            guard let node = node(for: entity) else { return }
+        func visit(_ entity: Entity, parentZ: CGFloat, hasColliderAncestor: Bool) {
+            guard let node = node(for: entity), !node.isHidden else { return }
             let z = parentZ + node.zPosition
-            if !node.isHidden,
-               let sprite = node.childNode(withName: Self.spriteNodeName) as? SKSpriteNode,
-               sprite.alpha > 0 {
-                let local = sprite.convert(scenePoint, from: self)
-                let bounds = CGRect(
-                    x: -sprite.size.width * sprite.anchorPoint.x,
-                    y: -sprite.size.height * sprite.anchorPoint.y,
-                    width: sprite.size.width,
-                    height: sprite.size.height
-                )
-                if bounds.contains(local) {
-                    hits.append((entity, z + sprite.zPosition, order))
+            let collider = entity.queryCollider
+            if let collider {
+                if collider.isEnabled, filter.includes(entity, filter: collider.filter) {
+                    let matrix = displayedCollisionMatrix(for: node) * AffineTransform2D(tx: collider.offset.x, ty: collider.offset.y)
+                    let geometry = collisionGeometry(shape: collider.shape, matrix: matrix)
+                    if CollisionGeometry.contains([Float(scenePoint.x), Float(scenePoint.y)], in: geometry) {
+                        hits.append((entity, z, order))
+                    }
                 }
+            } else if !hasColliderAncestor, filter.includes(entity, filter: .init()),
+                      let sprite = node.childNode(withName: Self.spriteNodeName) as? SKSpriteNode, sprite.alpha > 0 {
+                let local = sprite.convert(scenePoint, from: self)
+                let bounds = CGRect(x: -sprite.size.width * sprite.anchorPoint.x, y: -sprite.size.height * sprite.anchorPoint.y,
+                                    width: sprite.size.width, height: sprite.size.height)
+                if bounds.contains(local) { hits.append((entity, z + sprite.zPosition, order)) }
             }
             order += 1
-            guard !node.isHidden else { return }
-            for child in entity.children { visit(child, parentZ: z) }
+            for child in entity.children { visit(child, parentZ: z, hasColliderAncestor: hasColliderAncestor || collider != nil) }
         }
-        for entity in world.entities { visit(entity, parentZ: 0) }
-
-        // Higher z draws on top; among equal z, later in the tree draws on top.
-        return hits
-            .sorted { ($0.z, $0.order) > ($1.z, $1.order) }
-            .map(\.entity)
+        if node(for: world.root)?.isHidden != true {
+            for entity in world.entities { visit(entity, parentZ: 0, hasColliderAncestor: false) }
+        }
+        return hits.sorted { ($0.z, $0.order) > ($1.z, $1.order) }.map(\.entity)
     }
 
-    /// The front-most entity at a scene point that accepts targeted input.
-    public func inputTarget(at scenePoint: CGPoint) -> Entity? {
-        entities(at: scenePoint).first { $0.isInputTarget }
+    /// The front-most hit entity with an enabled InputTargetComponent on itself
+    /// or an ancestor. Collision and query filters are independent of rendering.
+    public func inputTarget(at scenePoint: CGPoint, filter: CollisionQueryFilter = .init()) -> Entity? {
+        entities(at: scenePoint, filter: filter).first { $0.isInputTarget }
     }
 }

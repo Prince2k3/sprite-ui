@@ -5,7 +5,8 @@
 /// its children become targets too. A descendant with its own component overrides it,
 /// so `InputTargetComponent(isEnabled: false)` opts a child out.
 ///
-/// The shape that's hit-tested is the entity's sprite.
+/// The backend uses explicit collision shapes, then physics shapes. Sprite bounds
+/// remain a compatibility fallback for hierarchies without a collider.
 public struct InputTargetComponent: Component, Equatable, Sendable, Codable {
     public var isEnabled: Bool
 

@@ -23,7 +23,7 @@ let package = Package(
         .target(name: "GameplayECS", dependencies: ["ECSCore", "Gameplay"]),
 
         // SpriteKit backend: mirrors entities onto SKNodes and drives the frame loop.
-        .target(name: "SpriteBackend", dependencies: ["ECSCore"]),
+        .target(name: "SpriteBackend", dependencies: ["ECSCore", "Gameplay"]),
 
         // SwiftUI host (RealityView-style GameView).
         .target(name: "GameUI", dependencies: ["ECSCore", "SpriteBackend"]),

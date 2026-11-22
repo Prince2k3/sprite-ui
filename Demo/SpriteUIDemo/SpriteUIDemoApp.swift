@@ -19,6 +19,7 @@ struct SpriteUIDemoApp: App {
                 }
                 Tab("Physics", systemImage: "circle.bottomhalf.filled") { PhysicsDemoView() }
                 Tab("Scenes", systemImage: "square.stack.3d.up") { SceneDemoView() }
+                Tab("Collision", systemImage: "scope") { CollisionDemoView() }
                 Tab("Resources", systemImage: "play.square.stack") { ResourcesDemoView() }
                 Tab("API", systemImage: "square.stack.3d.down.right") { APIConsolidationDemoView() }
                 Tab("Tiles", systemImage: "square.grid.3x3") { TileMapDemoView() }
