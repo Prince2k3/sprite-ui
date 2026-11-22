@@ -1,0 +1,23 @@
+name: SpriteUIDemo
+options:
+  bundleIdPrefix: dev.spriteui
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  SpriteUI:
+    path: ..
+targets:
+  SpriteUIDemo:
+    type: application
+    platform: iOS
+    sources: [SpriteUIDemo]
+    dependencies:
+      - package: SpriteUI
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.spriteui.demo
+        TARGETED_DEVICE_FAMILY: "1,2"
