@@ -146,6 +146,39 @@ public enum Steering {
         return side * (away * agent.maxForce * (1 + urgency)) - heading * (agent.maxForce * urgency * 0.5)
     }
 
+    /// Steer clear of polygon walls, looking `lookAhead` seconds ahead.
+    ///
+    /// When where the agent is headed comes within its radius of a polygon, it
+    /// turns away from the nearest point on the wall, harder the deeper it would
+    /// go. An agent already overlapping a wall is pushed straight out.
+    public static func avoid(
+        _ agent: SteeringAgent,
+        polygons: some Sequence<PolygonObstacle>,
+        lookAhead: Float = 0.5
+    ) -> SIMD2<Float> {
+        var push = SIMD2<Float>.zero
+        let probe = agent.predictedPosition(after: lookAhead)
+        let reach = max(agent.radius, 1)
+        for polygon in polygons {
+            // Skip polygons nowhere near the agent or where it's going.
+            let range = agent.radius + agent.speed * lookAhead + reach
+            guard polygon.boundingBox.distanceSquared(to: agent.position) < range * range else { continue }
+
+            for point in [agent.position, probe] {
+                let wall = polygon.closestPoint(to: point)
+                let inside = polygon.contains(point)
+                let gap = magnitude(point - wall) * (inside ? -1 : 1)
+                guard gap < agent.radius else { continue }
+                var away = inside ? wall - point : point - wall
+                if away == .zero { away = -(agent.heading ?? [1, 0]) }
+                // 0 just touching, 1 at the wall, more past it.
+                let depth = (agent.radius - gap) / reach
+                push += normalized(away) * agent.maxForce * min(depth, 2)
+            }
+        }
+        return clampedLength(push, max: agent.maxForce * 2)
+    }
+
     /// Turn back toward the inside when within `margin` of the edge of `bounds`.
     public static func stay(_ agent: SteeringAgent, within bounds: BoundingBox, margin: Float = 0) -> SIMD2<Float> {
         var desired = agent.velocity

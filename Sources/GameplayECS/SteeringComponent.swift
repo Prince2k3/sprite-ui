@@ -29,7 +29,8 @@ public enum SteeringBehavior: Hashable, Codable, Sendable {
     case align(radius: Float, categories: SpatialCategories = .all)
     /// Move toward the center of steered neighbors in `categories` within `radius`.
     case cohere(radius: Float, categories: SpatialCategories = .all)
-    /// Swerve around entities with a ``SteeringObstacleComponent``.
+    /// Swerve around entities with a ``SteeringObstacleComponent`` or a
+    /// ``PolygonObstacleComponent``.
     case avoidObstacles(lookAhead: Float = 1)
     /// Turn back inside a scene-space box when within `margin` of its edge.
     case stayWithin(BoundingBox, margin: Float = 0)
@@ -145,6 +146,14 @@ public struct SteeringSystem: System {
         }
         guard !members.isEmpty else { return }
 
+        var polygons: [PolygonObstacle]?
+        func allPolygons() -> [PolygonObstacle] {
+            if let polygons { return polygons }
+            let found = world.polygonObstacles
+            polygons = found
+            return found
+        }
+
         var obstacles: [CircleObstacle]?
         func allObstacles() -> [CircleObstacle] {
             if let obstacles { return obstacles }
@@ -212,6 +221,7 @@ public struct SteeringSystem: System {
                     force = Steering.cohere(start, with: neighbors(of: entity, start, radius: radius, categories).map(\.position))
                 case .avoidObstacles(let lookAhead):
                     force = Steering.avoid(start, obstacles: allObstacles(), lookAhead: lookAhead)
+                        + Steering.avoid(start, polygons: allPolygons(), lookAhead: min(lookAhead, 0.5))
                 case .stayWithin(let bounds, let margin):
                     force = Steering.stay(start, within: bounds, margin: margin)
                 case .follow(let path, let lookAhead):

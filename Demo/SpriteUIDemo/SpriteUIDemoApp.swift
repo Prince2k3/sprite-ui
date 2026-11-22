@@ -14,6 +14,7 @@ struct SpriteUIDemoApp: App {
                 Tab("Noise", systemImage: "cloud") { NoiseDemoView() }
                 Tab("Decisions", systemImage: "questionmark.diamond") { DecisionDemoView() }
                 Tab("Strategists", systemImage: "circle.grid.3x3.fill") { StrategistDemoView() }
+                Tab("Obstacles", systemImage: "square.on.square.dashed") { ObstacleDemoView() }
             }
         }
     }
