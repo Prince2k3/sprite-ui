@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Every entity has a `Transform`. The world origin is the center of the view,
 /// +x is right and +y is up.
-public struct Transform: Component, Equatable, Sendable {
+public struct Transform: Component, Equatable, Sendable, Codable {
     public var translation: SIMD2<Float>
     /// Counter-clockwise rotation in radians.
     public var rotation: Float

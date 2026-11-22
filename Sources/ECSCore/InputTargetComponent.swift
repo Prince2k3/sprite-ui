@@ -6,7 +6,7 @@
 /// so `InputTargetComponent(isEnabled: false)` opts a child out.
 ///
 /// The shape that's hit-tested is the entity's sprite.
-public struct InputTargetComponent: Component, Equatable, Sendable {
+public struct InputTargetComponent: Component, Equatable, Sendable, Codable {
     public var isEnabled: Bool
 
     public init(isEnabled: Bool = true) {

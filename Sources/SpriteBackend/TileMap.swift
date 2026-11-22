@@ -20,7 +20,7 @@ import SwiftUI
 /// let space = map.gridSpace(at: floor.scenePosition)
 /// let path = graph.findPath(from: space.point(at: start), to: space.point(at: goal))
 /// ```
-public struct TileMapComponent: Component, Equatable, Sendable {
+public struct TileMapComponent: Component, Equatable, Sendable, Codable {
     /// One kind of tile: what it looks like and what the editor said about it.
     public struct Tile: Equatable, Sendable {
         /// The tile group's name in the editor, such as "Grass".

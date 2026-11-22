@@ -3,7 +3,7 @@ import SpriteKit
 import SwiftUI
 
 /// A value from a node's User Data in Xcode's scene editor.
-public enum SceneValue: Hashable, Sendable {
+public enum SceneValue: Hashable, Sendable, Codable {
     case bool(Bool)
     case int(Int)
     case double(Double)
@@ -48,7 +48,7 @@ public enum SceneValue: Hashable, Sendable {
 }
 
 /// The User Data a node had in the scene editor, kept on the entity loaded from it.
-public struct SceneUserDataComponent: Component, Equatable, Sendable {
+public struct SceneUserDataComponent: Component, Equatable, Sendable, Codable {
     public var values: [String: SceneValue]
 
     public init(_ values: [String: SceneValue] = [:]) {

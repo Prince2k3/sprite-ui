@@ -2,7 +2,7 @@
 import SpriteKit
 
 /// The outline of a ``PhysicsBodyComponent``, in the entity's own space.
-public enum PhysicsShape: Hashable, Sendable {
+public enum PhysicsShape: Hashable, Sendable, Codable {
     case circle(radius: Float)
     /// A rectangle of `size` centered on the entity.
     case rectangle(size: SIMD2<Float>)
@@ -46,7 +46,7 @@ public enum PhysicsShape: Hashable, Sendable {
 /// Contacts are published as ``PhysicsEvents/ContactBegan`` and
 /// ``PhysicsEvents/ContactEnded`` for bodies whose ``contactTestBitMask`` matches the
 /// other's ``categoryBitMask``.
-public struct PhysicsBodyComponent: Component, Equatable, Sendable {
+public struct PhysicsBodyComponent: Component, Equatable, Sendable, Codable {
     public var shape: PhysicsShape
     /// Whether forces, gravity and collisions move the body. Static bodies only get in the way.
     public var isDynamic: Bool

@@ -25,6 +25,14 @@ open class Entity: Identifiable {
         storage[Transform.componentID] = Transform.identity
     }
 
+    /// An entity that takes over an ID saved in a snapshot. Later entities get higher IDs.
+    init(restoringID id: ID) {
+        self.id = id
+        Entity.nextID = max(Entity.nextID, id &+ 1)
+        name = ""
+        storage[Transform.componentID] = Transform.identity
+    }
+
     public convenience init(name: String = "", components: [any Component]) {
         self.init()
         self.name = name

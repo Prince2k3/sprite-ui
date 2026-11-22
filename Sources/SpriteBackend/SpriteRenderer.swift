@@ -85,6 +85,7 @@ public final class SpriteRenderer: SKScene {
         scaleMode = .resizeFill
         backgroundColor = .black
 
+        Self.registerComponents()
         register(Transform.self, Self.transformBinding)
         register(SpriteComponent.self, Self.spriteBinding)
         register(PhysicsBodyComponent.self, Self.physicsBinding)

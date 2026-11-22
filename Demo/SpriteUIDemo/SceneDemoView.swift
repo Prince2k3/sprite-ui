@@ -13,6 +13,10 @@ import SwiftUI
 /// The Particles and audio milestone: each ball has a `ContactEffectComponent`, so a hard
 /// hit throws sparks and thuds, more the harder it lands. A collected coin bursts into
 /// gold sparks with a chime, and the ball the camera follows trails smoke.
+///
+/// The Save and load milestone: Save writes a snapshot of the world (the level, the
+/// balls in flight with their velocities, the camera and the score) to a JSON file in
+/// Documents, and Load puts it all back, even after the app is relaunched.
 struct SceneDemoView: View {
     @State private var scene = LevelScene()
     @State private var pinchStart: Float?
@@ -47,16 +51,31 @@ struct SceneDemoView: View {
                 .padding(.top, 8)
         }
         .overlay(alignment: .bottom) {
-            HStack {
-                Button("Spawn") { scene.dropAtSpawn() }
-                Button("Fit") { scene.fit() }
-                Button("Reload") { scene.reload() }
-                Button("Clear") { scene.clearBalls() }
+            VStack {
+                HStack {
+                    Button("Save") { scene.save() }
+                    Button("Load") { scene.load() }
+                        .disabled(!scene.hasSave)
+                }
+                HStack {
+                    Button("Spawn") { scene.dropAtSpawn() }
+                    Button("Fit") { scene.fit() }
+                    Button("Reload") { scene.reload() }
+                    Button("Clear") { scene.clearBalls() }
+                }
             }
             .buttonStyle(.bordered)
             .tint(.orange)
             .font(.footnote)
             .padding(.bottom, 40)
+        }
+        .overlay(alignment: .top) {
+            if let message = scene.message {
+                Text(message)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 36)
+            }
         }
         .background(scene.background)
         .preferredColorScheme(.dark)
@@ -66,13 +85,18 @@ struct SceneDemoView: View {
 // MARK: Components from User Data
 
 /// Made from a node's `coin` User Data: how many points it's worth.
-struct CoinComponent: Component {
+struct CoinComponent: Component, Codable {
     var points: Int
 }
 
 /// Made from a node's `spin` User Data: radians per second.
-struct SpinComponent: Component {
+struct SpinComponent: Component, Codable {
     var speed: Float
+}
+
+/// The score so far, kept on the level so it's saved with it.
+struct ScoreComponent: Component, Codable {
+    var points: Int
 }
 
 // MARK: Scene
@@ -88,13 +112,18 @@ final class LevelScene {
 
     private(set) var summary = "loading"
     private(set) var background = Color.black
+    /// What the last save or load did.
+    private(set) var message: String?
+    private(set) var hasSave = FileManager.default.fileExists(atPath: LevelScene.saveURL.path)
+
+    /// Where Save writes the world.
+    static let saveURL = URL.documentsDirectory.appending(path: "level-save.json")
 
     @ObservationIgnored private var world: World?
     @ObservationIgnored private var renderer: SpriteRenderer?
     @ObservationIgnored private var camera: Entity?
     @ObservationIgnored private var level: Entity?
     @ObservationIgnored private var balls: [Entity] = []
-    @ObservationIgnored private var points = 0
     @ObservationIgnored private var subscriptions: [EventSubscription] = []
     @ObservationIgnored private var generator = SeededGenerator(seed: 11)
 
@@ -111,6 +140,10 @@ final class LevelScene {
     }()
 
     func build(in content: GameViewContent) {
+        // Lets snapshots save the game's own components.
+        CoinComponent.registerComponent(named: "coin")
+        SpinComponent.registerComponent(named: "spin")
+        ScoreComponent.registerComponent(named: "score")
         world = content.world
         renderer = content.renderer
         let camera = Entity(name: "camera", components: CameraComponent(zoom: 1, smoothing: 0.25, maxShake: 18))
@@ -129,12 +162,12 @@ final class LevelScene {
     func reload() {
         if let level { world?.removeEntity(level) }
         clearBalls()
-        points = 0
         do {
             let level = try Self.loader.load(named: "Level")
             if let scene = level.components[SceneComponent.self] { background = scene.backgroundColor }
             world?.addEntity(level)
             self.level = level
+            level.components.set(ScoreComponent(points: 0))
             if let scene = level.components[SceneComponent.self] {
                 // A loaded scene is centered on the origin, whatever its anchor point.
                 camera?.components[CameraComponent.self]?.bounds = .init(center: .zero, size: scene.size)
@@ -175,10 +208,7 @@ final class LevelScene {
             collisionBitMask: ~Self.coinCategory,
             contactTestBitMask: Self.coinCategory | Self.solidCategory
         ))
-        ball.components.set(ContactEffectComponent(
-            particles: .sparks(color: Self.colors[balls.count % Self.colors.count]),
-            count: 14, sound: Self.thud, minimumImpulse: 3
-        ))
+        addEffects(to: ball, color: Self.colors[balls.count % Self.colors.count])
         // Only the ball being followed trails smoke.
         balls.last?.components[ParticleEmitterComponent.self] = nil
         ball.components.set(ParticleEmitterComponent.smoke(color: .white.opacity(0.5)))
@@ -186,6 +216,47 @@ final class LevelScene {
         world?.addEntity(ball)
         camera?.components[CameraComponent.self]?.target = .entity(ball.id)
         updateSummary()
+    }
+
+    // MARK: Save and load
+
+    /// Writes the whole world to ``saveURL``, leaving out sparks that are about to vanish.
+    func save() {
+        guard let world else { return }
+        do {
+            let snapshot = world.snapshot(including: { $0.name != "one-shot" })
+            try snapshot.write(to: Self.saveURL)
+            hasSave = true
+            let size = (try? Self.saveURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            message = "saved \(snapshot.entityCount) entities · \(size / 1024) KB · \(points) pts"
+        } catch {
+            message = "couldn't save: \(error.localizedDescription)"
+        }
+    }
+
+    /// Replaces the world with the last save. Balls keep flying the way they were, and the
+    /// camera still follows the same one, because restored entities keep their IDs.
+    func load() {
+        guard let world else { return }
+        do {
+            let snapshot = try WorldSnapshot(contentsOf: Self.saveURL)
+            world.restore(snapshot)
+            camera = world.entities.first { $0.name == "camera" }
+            level = world.entities.first { $0.components.has(SceneComponent.self) }
+            balls = world.entities.filter { $0.name == "ball" }
+            // Effects aren't saved: put the sparks and the smoke trail back.
+            let followed: Entity.ID? = if case .entity(let id) = camera?.components[CameraComponent.self]?.target { id } else { nil }
+            for (index, ball) in balls.enumerated() {
+                addEffects(to: ball, color: Self.colors[index % Self.colors.count])
+                if ball.id == followed {
+                    ball.components.set(ParticleEmitterComponent.smoke(color: .white.opacity(0.5)))
+                }
+            }
+            message = "loaded \(snapshot.entityCount) entities · \(points) pts"
+            updateSummary()
+        } catch {
+            message = "couldn't load: \(error.localizedDescription)"
+        }
     }
 
     /// How much the camera magnifies, kept between showing most of the level and 3×.
@@ -222,6 +293,17 @@ final class LevelScene {
     }
 
     // MARK: Private
+
+    private var points: Int {
+        get { level?.components[ScoreComponent.self]?.points ?? 0 }
+        set { level?.components[ScoreComponent.self]?.points = newValue }
+    }
+
+    private func addEffects(to ball: Entity, color: Color) {
+        ball.components.set(ContactEffectComponent(
+            particles: .sparks(color: color), count: 14, sound: Self.thud, minimumImpulse: 3
+        ))
+    }
 
     private func contact(_ contact: PhysicsEvents.ContactBegan) {
         // A hard landing shakes the view, more the harder it hit.
