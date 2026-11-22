@@ -63,4 +63,13 @@ extension World {
     public func obstacleGraph(bufferRadius: Float) -> ObstacleGraph {
         ObstacleGraph(obstacles: polygonObstacles, bufferRadius: bufferRadius)
     }
+
+    /// The floor inside `bounds` around every ``PolygonObstacleComponent`` in the
+    /// world, for units of radius `bufferRadius`, like `GKMeshGraph`.
+    ///
+    /// It's a snapshot: make a new one after obstacles move, or set its
+    /// ``NavigationMesh/obstacles`` to ``polygonObstacles``.
+    public func navigationMesh(bounds: BoundingBox, bufferRadius: Float) -> NavigationMesh {
+        NavigationMesh(bounds: bounds, obstacles: polygonObstacles, bufferRadius: bufferRadius)
+    }
 }

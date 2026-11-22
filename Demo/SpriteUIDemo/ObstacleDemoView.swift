@@ -1,10 +1,11 @@
 import SpriteUI
 import SwiftUI
 
-/// The Obstacles milestone: a room of polygon walls and an `ObstacleGraph` around them.
-/// Tap anywhere to send the unit there: it plans a path around the padded walls
-/// (orange), shown with the corner graph (blue), and steers along it. The radius
-/// slider re-pads everything; at larger sizes the narrow gap at the bottom closes.
+/// The Obstacles and NavigationMesh milestones: a room of polygon walls, with
+/// either an `ObstacleGraph` or a `NavigationMesh` around them. Tap anywhere to
+/// send the unit there: it plans a path around the padded walls (orange), shown
+/// with the corner graph or the mesh's triangles (blue), and steers along it. The
+/// radius slider re-pads everything; at larger sizes the narrow gap at the bottom closes.
 struct ObstacleDemoView: View {
     @State private var scene = ObstacleScene()
     @State private var size = CGSize(width: 400, height: 600)
@@ -35,8 +36,12 @@ struct ObstacleDemoView: View {
                     Slider(value: $scene.unitRadius, in: 4...24, step: 1)
                     Text("\(Int(scene.unitRadius))").font(.footnote.monospacedDigit()).frame(width: 28)
                 }
+                Picker("Planner", selection: $scene.planner) {
+                    ForEach(ObstacleScene.Planner.allCases, id: \.self) { Text($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
                 HStack {
-                    Toggle("Graph", isOn: $scene.showsGraph)
+                    Toggle("Show", isOn: $scene.showsGraph)
                     Button("Move crate") { scene.moveCrate() }
                 }
                 .toggleStyle(.button)
@@ -48,6 +53,7 @@ struct ObstacleDemoView: View {
         }
         .onChange(of: scene.unitRadius) { scene.resizeUnit() }
         .onChange(of: scene.showsGraph) { scene.redraw() }
+        .onChange(of: scene.planner) { scene.rebuildGraph() }
         .background(Color.black)
         .preferredColorScheme(.dark)
     }
@@ -59,12 +65,16 @@ struct ObstacleDemoView: View {
 @Observable
 final class ObstacleScene {
     // Reactions live in the view's `onChange`, not `didSet` (see MazeScene).
+    enum Planner: String, CaseIterable { case graph = "Obstacle graph", mesh = "Navigation mesh" }
+
     var unitRadius: Float = 10
+    var planner = Planner.graph
     var showsGraph = true
     private(set) var summary = "tap to send the unit"
 
     @ObservationIgnored private var world: World?
     @ObservationIgnored private var graph = ObstacleGraph()
+    @ObservationIgnored private var mesh = NavigationMesh(bounds: ObstacleScene.room)
     @ObservationIgnored private var goal: SIMD2<Float>?
     @ObservationIgnored private var path: [SIMD2<Float>] = []
     @ObservationIgnored private var walls: [Entity] = []
@@ -77,6 +87,8 @@ final class ObstacleScene {
     @ObservationIgnored private let unit = Entity(name: "unit")
 
     private static let wallColor = Color(white: 0.55)
+    /// The floor inside the outer walls.
+    private static let room = BoundingBox(center: .zero, size: [348, 512])
     private static let crateSpots: [(SIMD2<Float>, Float)] = [([90, 30], .pi / 5), ([10, 200], 0), ([-110, -60], .pi / 8)]
     private static let disc = SpriteImage.disc(diameter: 64)
 
@@ -148,7 +160,10 @@ final class ObstacleScene {
     func redraw() {
         var segments: [(SIMD2<Float>, SIMD2<Float>, Color, Float)] = []
         if showsGraph {
-            for (a, b) in graph.connections { segments.append((a, b, .blue.opacity(0.45), 1)) }
+            switch planner {
+            case .graph: for (a, b) in graph.connections { segments.append((a, b, .blue.opacity(0.45), 1)) }
+            case .mesh: for (a, b) in mesh.edges { segments.append((a, b, .blue.opacity(0.6), 1)) }
+            }
             for padded in graph.paddedObstacles {
                 for (a, b) in padded.edges { segments.append((a, b, .orange.opacity(0.8), 1.5)) }
             }
@@ -189,18 +204,24 @@ final class ObstacleScene {
     }
 
     /// A little more padding than the unit's radius, so steering has room to wobble.
-    private func rebuildGraph() {
+    func rebuildGraph() {
         guard let world else { return }
-        graph = world.obstacleGraph(bufferRadius: unitRadius + 2)
+        let padding = unitRadius + 2
+        graph = world.obstacleGraph(bufferRadius: padding)
+        if planner == .mesh {
+            mesh = world.navigationMesh(bounds: Self.room, bufferRadius: padding)
+        }
         replan()
     }
 
     private func replan() {
         guard let goal else { return redraw() }
         let start = unit.position
-        guard let route = graph.findPath(from: start, to: goal) else {
+        let route = planner == .graph ? graph.findPath(from: start, to: goal) : mesh.findPath(from: start, to: goal)
+        guard let route else {
             path = []
-            summary = graph.isWalkable(goal) ? "no way there" : "too close to a wall"
+            let walkable = planner == .graph ? graph.isWalkable(goal) : mesh.isWalkable(goal)
+            summary = walkable ? "no way there" : "too close to a wall"
             setGoals([.init(.arrive(.point(start), slowingRadius: 30))])
             return redraw()
         }
@@ -209,7 +230,8 @@ final class ObstacleScene {
             let d = pair.1 - pair.0
             return total + (d.x * d.x + d.y * d.y).squareRoot()
         }
-        summary = "\(route.count - 2) corners · \(Int(length)) pt · \(graph.nodes.count) nodes"
+        let size = planner == .graph ? "\(graph.nodes.count) nodes" : "\(mesh.triangles.count) triangles"
+        summary = "\(max(route.count - 2, 0)) corners · \(Int(length)) pt · \(size)"
         setGoals([
             .init(.follow(SteeringPath(points: route, radius: 4), lookAhead: 0.25)),
             .init(.avoidObstacles(lookAhead: 0.4), weight: 1.5),
