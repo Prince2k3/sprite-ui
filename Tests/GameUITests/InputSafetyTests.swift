@@ -5,6 +5,24 @@ import SwiftUI
 import Testing
 
 @MainActor @Suite struct InputSafetyTests {
+    @Test func disablingATargetDoesNotDisableIndependentGameActions() {
+        let (host, entity, _) = host()
+        let fire = InputAction("fire")
+        let input = InputController(contexts: [.init(name: "play", bindings: [
+            .init(fire, control: .key("space"))
+        ])])
+        host.actionInput = input
+        entity.components[InputTargetComponent.self]?.isEnabled = false
+        let point = CGPoint(x: 50, y: 100)
+        host.beginInput(at: point)
+        #expect(TargetedInputCapture<Int>().resolve(1, start: point, host: host, resolver: { $0 }) == nil)
+        input.setValue(.button(true), for: .key("space"), device: .keyboard)
+        #expect(input.value(for: fire).isPressed)
+        host.cancelInputs()
+        #expect(host.inputContacts.isEmpty)
+        #expect(input.state(for: fire).phase == .cancelled)
+    }
+
     @Test func disablingAndReenablingCannotDeliverAnOldContactToAReusedEntity() {
         let (host, a, _) = host()
         let point = CGPoint(x: 50, y: 100)

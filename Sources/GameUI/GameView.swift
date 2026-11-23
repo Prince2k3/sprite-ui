@@ -201,6 +201,7 @@ final class GameHost {
 
     var viewFrame = CGRect.zero
     let inputHostID = UUID()
+    weak var actionInput: InputController?
     var nextInputID: UInt64 = 0
     var inputContacts: [UInt64: InputContact] = [:]
     var mouseContact: UInt64?

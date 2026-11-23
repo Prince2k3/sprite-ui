@@ -46,6 +46,7 @@ extension GameHost {
     func cancelInputs() {
         for contact in inputContacts.values { contact.cancelled = true }
         inputContacts.removeAll()
+        actionInput?.cancelAll()
     }
     func contact(startingAt start: CGPoint?, after completedID: UInt64 = 0) -> InputContact? {
         let now = ProcessInfo.processInfo.systemUptime

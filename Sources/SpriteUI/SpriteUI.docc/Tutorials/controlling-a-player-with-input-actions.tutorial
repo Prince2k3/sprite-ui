@@ -1,0 +1,67 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Controlling a player with input actions") {
+        Drive a player with on-screen buttons, poll held movement in a system, and add focused keyboard, pointer, and controller bindings to the same actions.
+
+        @Image(source: "spriteui-input-actions.svg", alt: "On-screen controls and optional hardware feed shared Move and Fire actions, then a system moves a cyan player.")
+    }
+
+    @Section(title: "Resolve on-screen controls into actions") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to the SpriteUI package product. The scene setup from <doc:creating-your-first-scene> is useful background, but this tutorial stands alone. No physical keyboard, gamepad, image assets, or changes to your app entry point are required.
+
+            Each resource is the complete replacement for `ContentView.swift`. Use one stage at a time and keep your app's existing `ContentView()` entry point. The action definitions, hold-button style, controls, and readout remain unchanged across all three stages; later stages add scene behavior around them.
+
+            `@State` retains an observable main-actor scene and its single ``InputController``. A button style supplies `.button(true)` while pressed and neutral on release or disappearance. All direction buttons share `.virtual("screen-controls")` so their values compose within one producer. Fire uses a separate virtual device.
+        }
+
+        @Steps {
+            @Step {
+                Replace `ContentView.swift` with the first stage. Read the Move `.axis2D` and Fire `.button` definitions and their virtual bindings; `[0, 1]` maps Up to positive y. Run the app and hold Up, then Right, then Fire. Move reports y = 1 for Up and x = 1 for Right. Fire reports held = yes and last = pressed. Release Fire: held becomes no and last becomes released. The phase stays released until another transition; it is not a frame flag. On a multitouch device, hold Up and Right together to see a normalized diagonal, or Left and Right together to see zero. All directional buttons share one device; independent sticks should use separate devices.
+
+                @Code(name: "ContentView.swift", file: "spriteui-input-actions-01.swift") {
+                    @Image(source: "spriteui-input-actions-01-preview.svg", alt: "Expected result diagram: on-screen Up is held, Move reports x zero and y one, and Fire is idle.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Read held movement on every simulation frame") {
+        @ContentAndMedia {
+            A ``System`` polls the current value for continuous movement. Reading the stored `.pressed` phase each frame would repeat a one-shot event. The movement system instead reads `value(for:).vector` and applies 100 points per second using ``UpdateContext/deltaTime``.
+
+            The custom `InputDemoDriver` component carries the exact controller instance used by the view. `World` has no input property. This runtime reference is excluded from cloning and is not registered for saved snapshots. Root-level player coordinates match the scene's positive-y-up convention.
+        }
+
+        @Steps {
+            @Step {
+                Replace `ContentView.swift` with stage two. The retained scene now owns a cyan player, attaches `InputDemoDriver`, and installs `InputDemoMovementSystem`. Setup reports scheduling errors in the interface. The system clamps the player to x = -100…100 and y = -90…90 so it stays visible. Run the app. Hold Right to move right, release to stop, and hold Up to move upward. The sprite moves continuously even though repeated identical button samples produce no new action events. The readout still shows the current held value independently of the frame clock.
+
+                @Code(name: "ContentView.swift", file: "spriteui-input-actions-02.swift", previousFile: "spriteui-input-actions-01.swift") {
+                    @Image(source: "spriteui-input-actions-02-preview.svg", alt: "Expected result diagram: holding Right moves the cyan player toward the right boundary and reports Move x one, y zero.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Add hardware bindings and count press edges") {
+        @ContentAndMedia {
+            `.gameInput(scene.input, isActive:)` gives the game surface active focus for keyboard, pointer-button, and GameController input. The hardware map keeps every virtual binding and adds WASD, the left stick and d-pad, Space, primary pointer, and the gamepad's positional south button. Extended and micro gamepad profiles are supported; the left-stick example requires an extended profile. Micro profiles can use their supported buttons and d-pad, while unavailable axes report neutral values. Hardware is optional: the on-screen controls still exercise both actions.
+
+            A retained ``InputSubscription`` observes Fire transitions. Its weak capture avoids retaining the scene through its callback. Only `.pressed` increments the counter. Movement continues to poll held values from its system. Within one device, directions sum and normalize; across devices, the strongest normalized contribution wins. The stick's 0.2 radial dead zone is rescaled to preserve its full remaining range.
+
+            Cancellation gates each held source until neutral, preventing a stuck control from becoming a fresh press. For an analog stick, returning inside its effective bound dead zone is neutral; exact zero is unnecessary. All stages cancel held input when their view disappears. If another interface needs focus, pass false for `isActive` while it owns input.
+
+            Explore <doc:input-actions-and-controllers> next for context priority, rebinding with `setContexts`, persisted Codable maps, and atomic `setValues` snapshots.
+        }
+
+        @Steps {
+            @Step {
+                Replace `ContentView.swift` with the final stage. Hold the on-screen Fire button: the count increases once and stays unchanged while held. Release and press again to increment once more. Hold a direction, then use Disable input. Movement stops and active actions cancel. Enable input, release any still-held control, and press again. Optionally focus the game area and try WASD, a controller's d-pad, or an extended-profile controller's left stick. Space, a primary pointer press in the game area, and the south gamepad button all drive Fire.
+
+                @Code(name: "ContentView.swift", file: "spriteui-input-actions-03.swift", previousFile: "spriteui-input-actions-02.swift") {
+                    @Image(source: "spriteui-input-actions-03-preview.svg", alt: "Expected result diagram: shared hardware and virtual bindings drive the player, Fire is held, and the press counter reads one.")
+                }
+            }
+        }
+    }
+}

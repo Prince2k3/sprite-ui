@@ -1,14 +1,14 @@
 @Tutorials(name: "SpriteUI") {
     @Intro(title: "Build an interactive SpriteUI scene") {
-        Create a scene, give its entities frame-based behavior, and steer a character around a wall.
+        Create a scene, give its entities frame-based behavior, steer around a wall, and control a player with shared input actions.
 
         @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
     }
 
-    @Volume(name: "From your first sprite to collision-aware movement") {
-        Learn to retain a scene, schedule frame-based behavior, handle targeted input, and guide a character around an obstruction.
+    @Volume(name: "From your first sprite to player controls") {
+        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, and map on-screen and hardware controls to actions.
 
-        @Image(source: "spriteui-tutorials-overview.svg", alt: "A progression from scene creation through targeted input to collision-aware steering.")
+        @Image(source: "spriteui-tutorials-overview.svg", alt: "Four stages progress from scene creation through targeted input and collision-aware steering to shared player input actions.")
 
         @Chapter(name: "Create and retain a scene") {
             Learn how a SwiftUI view owns an observable scene and adds entities to GameView.
@@ -29,6 +29,13 @@
 
             @Image(source: "spriteui-steering-collision.svg", alt: "A cyan character follows a curved route above an orange wall to a green destination.")
             @TutorialReference(tutorial: "doc:steering-and-collision-aware-movement")
+        }
+
+        @Chapter(name: "Control a player with input actions") {
+            Use on-screen buttons, poll held movement from a system, and add optional keyboard, pointer, and gamepad bindings. No physical input hardware is required.
+
+            @Image(source: "spriteui-input-actions.svg", alt: "Virtual and hardware controls feed shared Move and Fire actions.")
+            @TutorialReference(tutorial: "doc:controlling-a-player-with-input-actions")
         }
     }
 }

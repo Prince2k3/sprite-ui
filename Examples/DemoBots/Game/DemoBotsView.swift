@@ -4,14 +4,19 @@ import simd
 
 /// A complete SpriteUI game host, with entities rendered by GameView's backend.
 public struct DemoBotsView: View {
-    @State private var game = DemoBotsSession()
-    @State private var selectedLevel = 1
+    @State private var game: DemoBotsSession
+    @State private var controls: DemoBotsInput
     @State private var showsHelp = false
-    @State private var keyboard = Set<String>()
-    @State private var sceneDebug = SceneDebugController(options: [.collisionShapes, .selection, .statistics, .inspector, .simulationControls])
+    @State private var sceneDebug: SceneDebugController
     @Environment(\.scenePhase) private var scenePhase
 
-    public init() {}
+    public init() {
+        let game = DemoBotsSession()
+        let debug = SceneDebugController(options: [.collisionShapes, .selection, .statistics, .inspector, .simulationControls])
+        _game = State(initialValue: game)
+        _sceneDebug = State(initialValue: debug)
+        _controls = State(initialValue: DemoBotsInput(game: game) { debug.isPaused.toggle() })
+    }
 
     public var body: some View {
         GeometryReader { geometry in
@@ -46,49 +51,14 @@ public struct DemoBotsView: View {
         }
         .ignoresSafeArea()
         .preferredColorScheme(.dark)
-        .focusable()
-        .focusEffectDisabled()
-        .onKeyPress(phases: [.down, .repeat, .up]) { press in
-            let key: String
-            switch press.key {
-            case .upArrow: key = "w"
-            case .downArrow: key = "s"
-            case .leftArrow: key = "a"
-            case .rightArrow: key = "d"
-            default: key = String(press.key.character).lowercased()
-            }
-            if press.phase == .down && key == "i" {
-                keyboard = []
-                game.isInspecting ? game.endInspection() : game.beginInspection()
-                return .handled
-            }
-            if game.isInspecting {
-                keyboard = []
-                if press.phase == .down {
-                    if press.key == .escape { game.endInspection() }
-                    else if key == "p" { sceneDebug.isPaused.toggle() }
-                }
-                return ["w", "a", "s", "d", "f", " ", "p", "i"].contains(key) || press.key == .escape ? .handled : .ignored
-            }
-            if press.phase == .up { keyboard.remove(key) } else { keyboard.insert(key) }
-            if press.phase == .down && (key == "p" || press.key == .escape) {
-                game.phase == .playing ? game.pause() : game.resume()
-                return .handled
-            }
-            let known = ["w", "a", "s", "d", "f", " "]
-            guard known.contains(key) || [.upArrow, .downArrow, .leftArrow, .rightArrow].contains(press.key) else { return .ignored }
-            let x = (keyboard.contains("d") ? 1 : 0) - (keyboard.contains("a") ? 1 : 0)
-            let y = (keyboard.contains("w") ? 1 : 0) - (keyboard.contains("s") ? 1 : 0)
-            game.move([Float(x), Float(y)])
-            game.aim(.zero, firing: keyboard.contains("f") || keyboard.contains(" "))
-            return .handled
-        }
-        .onChange(of: scenePhase) { _, phase in if phase != .active { keyboard = []; game.pause() } }
-        .onChange(of: game.isInspecting) { _, _ in keyboard = [] }
+        .gameInput(controls.input, isActive: scenePhase == .active && !showsHelp)
+        .onChange(of: scenePhase) { _, phase in if phase != .active { controls.suspend() } }
+        .onChange(of: game.phase) { _, _ in controls.synchronizeContext() }
+        .onChange(of: game.isInspecting) { _, _ in controls.synchronizeContext() }
         .onChange(of: sceneDebug.isAttached) { _, attached in
             if attached, game.isInspecting { sceneDebug.select(game.player) }
         }
-        .onDisappear { keyboard = []; game.pause() }
+        .onDisappear { controls.suspend() }
         .sheet(isPresented: $showsHelp) { instructions }
 #if os(iOS)
         .statusBarHidden()
@@ -113,15 +83,15 @@ public struct DemoBotsView: View {
                     levelCard(2, title: "Circuit breaker", bots: "Ground + flying")
                     levelCard(3, title: "Core recovery", bots: "Final circuit")
                 }
-                Button { game.start(level: selectedLevel) } label: {
-                    HStack { Image(systemName: "play.fill"); Text("Enter Level \(selectedLevel)").fontWeight(.bold) }
+                Button { controls.confirmSelection() } label: {
+                    HStack { Image(systemName: "play.fill"); Text("Enter Level \(controls.selectedLevel)").fontWeight(.bold) }
                         .frame(maxWidth: .infinity).padding(.vertical, 17)
                 }
                 .buttonStyle(.plain).foregroundStyle(.black)
                 .background(Color(red: 0.7, green: 0.95, blue: 0.15), in: RoundedRectangle(cornerRadius: 16))
                 .accessibilityIdentifier("start-game")
                 if game.hasCheckpoint {
-                    Button("Resume checkpoint", systemImage: "arrow.counterclockwise") { game.loadCheckpoint() }
+                    Button("Resume checkpoint", systemImage: "arrow.counterclockwise") { controls.loadCheckpoint() }
                         .buttonStyle(.bordered).tint(.mint)
                         .accessibilityLabel("Resume saved checkpoint")
                         .accessibilityIdentifier("checkpoint-resume")
@@ -142,17 +112,17 @@ public struct DemoBotsView: View {
     }
 
     private func levelCard(_ number: Int, title: String, bots: String) -> some View {
-        Button { selectedLevel = number } label: {
+        Button { controls.selectedLevel = number } label: {
             VStack(alignment: .leading, spacing: 10) {
                 Text(String(format: "%02d", number)).font(.system(size: 28, weight: .light, design: .monospaced))
-                    .foregroundStyle(selectedLevel == number ? .black : .mint)
+                    .foregroundStyle(controls.selectedLevel == number ? .black : .mint)
                 Text(title).font(.system(size: 12, weight: .semibold)).lineLimit(2).frame(height: 30, alignment: .top)
                 Text(bots).font(.system(size: 9)).opacity(0.7).lineLimit(1).minimumScaleFactor(0.6)
             }
             .frame(maxWidth: .infinity, alignment: .leading).padding(12)
-            .foregroundStyle(selectedLevel == number ? .black : .white)
-            .background(selectedLevel == number ? Color(red: 0.7, green: 0.95, blue: 0.15) : Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
-        }.buttonStyle(.plain).accessibilityLabel("Level \(number): \(title)").accessibilityAddTraits(selectedLevel == number ? .isSelected : [])
+            .foregroundStyle(controls.selectedLevel == number ? .black : .white)
+            .background(controls.selectedLevel == number ? Color(red: 0.7, green: 0.95, blue: 0.15) : Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+        }.buttonStyle(.plain).accessibilityLabel("Level \(number): \(title)").accessibilityAddTraits(controls.selectedLevel == number ? .isSelected : [])
     }
 
     private func gameplayHUD(size: CGSize) -> some View {
@@ -166,9 +136,9 @@ public struct DemoBotsView: View {
                 Text(String(format: "%d:%02d", game.secondsLeft / 60, game.secondsLeft % 60))
                     .font(.system(size: 26, weight: .medium, design: .monospaced)).monospacedDigit()
                     .foregroundStyle(game.secondsLeft < 30 ? .red : .white)
-                Button { game.beginInspection() } label: { Image(systemName: "ladybug").frame(width: 42, height: 42) }
+                Button { controls.toggleInspection() } label: { Image(systemName: "ladybug").frame(width: 42, height: 42) }
                     .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Open scene tools")
-                Button { game.pause() } label: { Image(systemName: "pause.fill").frame(width: 42, height: 42) }
+                Button { controls.togglePause() } label: { Image(systemName: "pause.fill").frame(width: 42, height: 42) }
                     .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Pause game")
             }
             .padding(16).background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 20))
@@ -190,9 +160,9 @@ public struct DemoBotsView: View {
             .padding(10).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 10))
             .padding(.bottom, 10)
             HStack(alignment: .bottom) {
-                BotThumbstick(label: "MOVE", symbol: "arrow.up.and.down.and.arrow.left.and.right", tint: .white) { vector, _ in game.move(vector) }
+                BotThumbstick(label: "MOVE", symbol: "arrow.up.and.down.and.arrow.left.and.right", tint: .white) { vector, _ in controls.moveStick(vector) }
                 Spacer()
-                BotThumbstick(label: "AIM + DEBUG", symbol: "bolt.fill", tint: .cyan) { vector, pressed in game.aim(vector, firing: pressed) }
+                BotThumbstick(label: "AIM + DEBUG", symbol: "bolt.fill", tint: .cyan) { vector, pressed in controls.aimStick(vector, pressed: pressed) }
             }
         }
         .padding(.horizontal, size.width > 650 ? 32 : 20)
@@ -253,21 +223,21 @@ public struct DemoBotsView: View {
 
     private var pauseMenu: some View {
         menu(title: "Taking a breather?", subtitle: "The circuit can wait.") {
-            Button("Resume", systemImage: "play.fill") { game.resume() }.buttonStyle(BotPrimaryButton())
+            Button("Resume", systemImage: "play.fill") { controls.confirmSelection() }.buttonStyle(BotPrimaryButton())
             Button("Save checkpoint", systemImage: "square.and.arrow.down") { game.saveCheckpoint() }
                 .buttonStyle(.bordered)
                 .accessibilityLabel("Save checkpoint")
                 .accessibilityIdentifier("checkpoint-save")
-            Button("Restore checkpoint", systemImage: "arrow.counterclockwise") { game.loadCheckpoint() }
+            Button("Restore checkpoint", systemImage: "arrow.counterclockwise") { controls.loadCheckpoint() }
                 .buttonStyle(.bordered).disabled(!game.hasCheckpoint)
                 .accessibilityLabel("Restore saved checkpoint")
                 .accessibilityIdentifier("checkpoint-restore")
             checkpointFeedback
-            Button("Scene tools", systemImage: "ladybug") { game.beginInspection() }.buttonStyle(.bordered)
+            Button("Scene tools", systemImage: "ladybug") { controls.toggleInspection() }.buttonStyle(.bordered)
             Toggle("Show bot paths", isOn: $game.showsPaths).tint(.mint)
             Toggle("Sound effects", isOn: $game.soundEnabled).tint(.mint)
-            Button("Restart level") { game.start(level: game.levelNumber) }.buttonStyle(.bordered)
-            Button("Level select") { game.home() }.buttonStyle(.plain).foregroundStyle(.secondary)
+            Button("Restart level") { controls.start(level: game.levelNumber) }.buttonStyle(.bordered)
+            Button("Level select") { controls.home() }.buttonStyle(.plain).foregroundStyle(.secondary)
         }
     }
     private var resultMenu: some View {
@@ -277,10 +247,10 @@ public struct DemoBotsView: View {
             Image(systemName: won ? "checkmark.seal.fill" : "clock.badge.exclamationmark")
                 .font(.system(size: 56)).foregroundStyle(won ? .mint : .orange).padding(8)
             if won && game.levelNumber < 3 {
-                Button("Next level", systemImage: "arrow.right") { game.start(level: game.levelNumber + 1) }.buttonStyle(BotPrimaryButton())
+                Button("Next level", systemImage: "arrow.right") { controls.confirmSelection() }.buttonStyle(BotPrimaryButton())
             }
-            Button(won ? "Play again" : "Try again", systemImage: "arrow.clockwise") { game.start(level: game.levelNumber) }.buttonStyle(BotPrimaryButton())
-            Button("Level select") { game.home() }.buttonStyle(.plain).foregroundStyle(.secondary)
+            Button(won ? "Play again" : "Try again", systemImage: "arrow.clockwise") { controls.start(level: game.levelNumber) }.buttonStyle(BotPrimaryButton())
+            Button("Level select") { controls.home() }.buttonStyle(.plain).foregroundStyle(.secondary)
         }
     }
     private func menu<Content: View>(title: String, subtitle: String, @ViewBuilder content: @escaping () -> Content) -> some View {
@@ -311,7 +281,8 @@ public struct DemoBotsView: View {
             Label("Keep the beam on a red bot until it turns green. Watch your beam’s charge.", systemImage: "battery.75percent")
             Label("GroundBots chase and infect. FlyingBots blast nearby bots—curing one can cure its neighbors too.", systemImage: "airplane")
             Label("Out of charge? You recover automatically. Restore all bots before the clock runs out.", systemImage: "clock")
-            Text("Keyboard: WASD to move · F or Space to fire · P to pause · I for scene tools").font(.caption).foregroundStyle(.secondary)
+            Text("Keyboard: WASD/arrows move · F/Space fires · P/Escape pauses · I opens scene tools").font(.caption).foregroundStyle(.secondary)
+            Text("Gamepad: left stick/D-pad moves · right stick aims and fires · south button/right trigger fires · Menu pauses · South/Return confirms menus").font(.caption).foregroundStyle(.secondary)
             Button("Ready", systemImage: "checkmark") { showsHelp = false }.buttonStyle(BotPrimaryButton())
         }.padding(30).frame(maxWidth: 560).presentationDetents([.large])
     }
@@ -327,7 +298,7 @@ public struct DemoBotsView: View {
     private func inspectionControls(size: CGSize) -> some View {
         VStack {
             HStack {
-                Button { game.endInspection() } label: {
+                Button { controls.toggleInspection() } label: {
                     Image(systemName: "xmark").frame(width: 44, height: 44)
                         .background(.regularMaterial, in: Circle())
                 }

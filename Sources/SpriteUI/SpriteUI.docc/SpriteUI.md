@@ -15,6 +15,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Install the package and display a scene | <doc:getting-started> |
 | Organize hierarchies, activation, shared state, and events | <doc:entity-and-scene-lifecycle> |
 | Run frame logic and handle targeted gestures | <doc:systems-and-input> |
+| Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Plan routes and move characters | <doc:gameplay-and-movement> |
 | Load assets and assemble visual content | <doc:rendering-and-resources> |
 | Save progress and inspect a running scene | <doc:saving-and-debugging> |
@@ -41,6 +42,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:getting-started>
 - <doc:entity-and-scene-lifecycle>
 - <doc:systems-and-input>
+- <doc:input-actions-and-controllers>
 - <doc:gameplay-and-movement>
 - <doc:rendering-and-resources>
 - <doc:saving-and-debugging>
@@ -70,6 +72,23 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/EventSubscription``
 - ``SpriteUI/InputTargetComponent``
 - ``SpriteUI/EntityTargetValue``
+
+### Input actions and controllers
+
+- ``SpriteUI/InputController``
+- ``SpriteUI/InputAction``
+- ``SpriteUI/InputActionKind``
+- ``SpriteUI/InputActionMap``
+- ``SpriteUI/InputBinding``
+- ``SpriteUI/InputControl``
+- ``SpriteUI/InputDevice``
+- ``SpriteUI/InputValue``
+- ``SpriteUI/InputActionState``
+- ``SpriteUI/InputActionPhase``
+- ``SpriteUI/InputActionEvent``
+- ``SpriteUI/InputSubscription``
+- ``SpriteUI/GamepadButton``
+- ``SpriteUI/GamepadAxis``
 
 ### Gameplay and movement
 

@@ -7,6 +7,12 @@
 ///
 /// The backend uses explicit collision shapes, then physics shapes. Sprite bounds
 /// remain a compatibility fallback for hierarchies without a collider.
+///
+/// This component controls entity-targeted gestures, independently of game actions
+/// resolved by ``InputController``. It is not required for keyboard, controller,
+/// or virtual action bindings. Disabling a target does not disable a player's
+/// movement or firing actions; use action contexts or the controller's enablement
+/// for that policy. A host's focus or inspection cancellation clears both paths.
 public struct InputTargetComponent: Component, Equatable, Sendable, Codable {
     public var isEnabled: Bool
 

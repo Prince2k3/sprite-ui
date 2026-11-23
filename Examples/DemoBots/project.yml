@@ -12,9 +12,17 @@ targets:
     type: application
     platform: iOS
     sources: [App]
+    info:
+      path: App/Info.plist
+      properties:
+        GCSupportsControllerUserInteraction: true
+        GCSupportedGameControllers:
+          - ProfileName: ExtendedGamepad
+          - ProfileName: MicroGamepad
     dependencies:
       - package: SpriteUI
         product: DemoBotsGame
+      - sdk: GameController.framework
     settings:
       base:
         SWIFT_VERSION: "6.0"
@@ -29,9 +37,17 @@ targets:
     type: application
     platform: macOS
     sources: [App]
+    info:
+      path: App/Info.plist
+      properties:
+        GCSupportsControllerUserInteraction: true
+        GCSupportedGameControllers:
+          - ProfileName: ExtendedGamepad
+          - ProfileName: MicroGamepad
     dependencies:
       - package: SpriteUI
         product: DemoBotsGame
+      - sdk: GameController.framework
     settings:
       base:
         SWIFT_VERSION: "6.0"

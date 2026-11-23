@@ -1,25 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="400" viewBox="0 0 960 400" role="img" aria-labelledby="title desc">
   <title id="title">Build an interactive SpriteUI scene</title>
-  <desc id="desc">Three connected panels progress from a cyan sprite, to input and motion, to a route around a wall.</desc>
+  <desc id="desc">Four connected panels progress from a cyan sprite, through targeted motion and a route around a wall, to a directional pad feeding shared input actions.</desc>
   <rect width="960" height="400" rx="28" fill="#111c30"/>
   <g fill="#182b43" stroke="#45607a" stroke-width="2">
-    <rect x="32" y="44" width="264" height="302" rx="18"/>
-    <rect x="348" y="44" width="264" height="302" rx="18"/>
-    <rect x="664" y="44" width="264" height="302" rx="18"/>
+    <rect x="24" y="44" width="210" height="302" rx="18"/>
+    <rect x="258" y="44" width="210" height="302" rx="18"/>
+    <rect x="492" y="44" width="210" height="302" rx="18"/>
+    <rect x="726" y="44" width="210" height="302" rx="18"/>
   </g>
-  <path d="M309 195h25m-8-6 8 6-8 6M625 195h25m-8-6 8 6-8 6" fill="none" stroke="#93adc5" stroke-width="3"/>
-  <path d="M67 195H261M164 105V261" stroke="#45607a" stroke-width="2" stroke-dasharray="6 8"/>
-  <rect x="139" y="170" width="50" height="50" rx="4" fill="#48d9ec"/>
-  <path d="M385 195H574m-12-8 12 8-12 8" fill="none" stroke="#48d9ec" stroke-width="4"/>
-  <rect x="455" y="170" width="50" height="50" rx="4" fill="#48d9ec"/>
-  <path d="M487 123l10 55 12-19 21-5z" fill="#e0ebf4" stroke="#182b43" stroke-width="2"/>
-  <rect x="785" y="162" width="20" height="99" rx="3" fill="#ffb45b"/>
-  <path d="M709 234C710 165 707 124 739 119S851 107 871 141 875 186 879 196" fill="none" stroke="#48d9ec" stroke-width="4"/>
-  <circle cx="709" cy="234" r="13" fill="#48d9ec"/>
-  <rect x="870" y="188" width="18" height="18" rx="3" fill="#7bdfa2"/>
-  <g font-family="system-ui, sans-serif" fill="#e0ebf4" font-size="23" text-anchor="middle">
-    <text x="164" y="309">1. Create a scene</text>
-    <text x="480" y="309">2. Move and tap</text>
-    <text x="796" y="309">3. Steer and collide</text>
+  <path d="M239 195h14m-6-5 6 5-6 5M473 195h14m-6-5 6 5-6 5M707 195h14m-6-5 6 5-6 5" fill="none" stroke="#93adc5" stroke-width="3"/>
+  <path d="M48 195H210M129 105V261" stroke="#45607a" stroke-width="2" stroke-dasharray="6 8"/>
+  <rect x="106" y="172" width="46" height="46" rx="4" fill="#48d9ec"/>
+  <path d="M284 195H440m-12-8 12 8-12 8" fill="none" stroke="#48d9ec" stroke-width="4"/>
+  <rect x="340" y="172" width="46" height="46" rx="4" fill="#48d9ec"/>
+  <path d="M368 123l10 55 12-19 21-5z" fill="#e0ebf4" stroke="#182b43" stroke-width="2"/>
+  <rect x="590" y="162" width="18" height="99" rx="3" fill="#ffb45b"/>
+  <path d="M525 234C526 165 526 124 551 119S647 107 661 141 662 186 668 196" fill="none" stroke="#48d9ec" stroke-width="4"/>
+  <circle cx="525" cy="234" r="12" fill="#48d9ec"/>
+  <rect x="660" y="188" width="16" height="16" rx="3" fill="#7bdfa2"/>
+  <g fill="#284456" stroke="#93adc5">
+    <rect x="814" y="198" width="34" height="34" rx="5"/>
+    <rect x="774" y="238" width="34" height="34" rx="5"/>
+    <rect x="814" y="238" width="34" height="34" rx="5"/>
+    <rect x="854" y="238" width="34" height="34" rx="5" fill="#48d9ec"/>
+  </g>
+  <path d="m825 218 6-8 6 8m-52 31-7 6 7 6m40-12 6 8 6-8m29 0 7 6-7 6" fill="none" stroke="#e0ebf4" stroke-width="2"/>
+  <rect x="814" y="113" width="34" height="34" rx="3" fill="#48d9ec"/>
+  <path d="M831 189v-30m-6 8 6-8 6 8" fill="none" stroke="#48d9ec" stroke-width="3"/>
+  <g font-family="system-ui, sans-serif" fill="#e0ebf4" font-size="18" text-anchor="middle">
+    <text x="129" y="309">1. Create a scene</text>
+    <text x="363" y="309">2. Move and tap</text>
+    <text x="597" y="309">3. Steer and collide</text>
+    <text x="831" y="309">4. Map input actions</text>
   </g>
 </svg>

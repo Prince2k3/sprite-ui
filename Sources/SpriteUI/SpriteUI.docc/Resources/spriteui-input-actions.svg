@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-labelledby="title desc">
+<title id="title">One action model, many controls</title><desc id="desc">Virtual controls and optional keyboard, pointer, and extended or micro gamepad input feed Move and Fire. A system reads Move to position a cyan player.</desc><style>text{font-family:system-ui,sans-serif;fill:#e1f1f8}.small{font-size:14px}.label{font-size:18px;font-weight:600}.muted{fill:#9db9cb}</style>
+<rect width="720" height="520" rx="24" fill="#102230"/>
+
+<text x="40" y="48" font-size="24" font-weight="700">One action model, many controls</text>
+<rect x="36" y="86" width="222" height="130" rx="12" fill="#07131f" stroke="#38566b"/>
+<text x="56" y="116" class="label">On-screen controls</text>
+<rect x="116" y="130" width="38" height="30" rx="5" fill="#21d6f1"/><path d="m128 148 7-8 7 8" fill="none" stroke="#07131f" stroke-width="3"/>
+<path d="M76 178h118" stroke="#38566b" stroke-width="28" stroke-linecap="round"/>
+<text x="84" y="184" class="small">Left   Down   Right</text>
+<rect x="36" y="246" width="222" height="100" rx="12" fill="#07131f" stroke="#38566b"/>
+<text x="56" y="277" class="label">Optional hardware</text>
+<text x="56" y="307" class="small muted">Keys · pointer buttons</text>
+<text x="56" y="329" class="small muted">Extended / micro gamepad</text>
+<path d="M258 150h28v60h27m-55 86h28v-70h27" fill="none" stroke="#8aacbf" stroke-width="3"/>
+<rect x="314" y="162" width="144" height="130" rx="12" fill="#103b49" stroke="#21d6f1"/>
+<text x="386" y="196" text-anchor="middle" class="label">Actions</text>
+<text x="386" y="230" text-anchor="middle" class="small">Move · vector</text>
+<text x="386" y="260" text-anchor="middle" class="small">Fire · button</text>
+<path d="M458 226h46m-10-8 10 8-10 8" fill="none" stroke="#21d6f1" stroke-width="3"/>
+<rect x="516" y="124" width="168" height="202" rx="12" fill="#07131f" stroke="#38566b"/>
+<text x="600" y="156" text-anchor="middle" class="label">System</text>
+<rect x="554" y="220" width="32" height="32" rx="3" fill="#21d6f1"/>
+<path d="M598 236h50m-10-8 10 8-10 8" fill="none" stroke="#21d6f1" stroke-width="3"/>
+<text x="600" y="298" text-anchor="middle" class="small muted">Poll held Move</text>
+<rect x="36" y="384" width="648" height="96" rx="12" fill="#07131f"/>
+<text x="58" y="418" class="label">Values every frame · transitions when they change</text>
+<text x="58" y="449" class="small muted">Retain a subscription to count Fire presses once.</text>
+</svg>
