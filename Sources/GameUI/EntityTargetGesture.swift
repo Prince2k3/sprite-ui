@@ -186,6 +186,11 @@ public struct EntityTargetValue<Value> {
     }
     private func scenePoint(_ point: CGPoint) -> SIMD2<Float>? {
         guard let host, contact?.cancelled != true else { return nil }
+        guard host.renderer.isVisible(entity, inViewport: viewportID),
+              contact.map({ $0.hasValidViewport(in: host) }) ?? true else {
+            contact?.cancelled = true
+            return nil
+        }
         if let viewportLatch, !viewportLatch.isValid(in: host.renderer) {
             contact?.cancelled = true
             return nil

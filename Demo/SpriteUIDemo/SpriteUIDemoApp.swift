@@ -10,6 +10,7 @@ struct SpriteUIDemoApp: App {
                     Tab("Debug", systemImage: "ladybug") { DebugDemoView() }
                     Tab("Players", systemImage: "person.2") { PlayerInputDemoView() }
                     Tab("Viewports", systemImage: "rectangle.split.2x1") { ViewportDemoView() }
+                    Tab("Layers", systemImage: "square.3.layers.3d") { RenderLayersDemoView() }
                 }
                 Group {
                     Tab("Random", systemImage: "dice") { RandomDemoView() }

@@ -1,6 +1,6 @@
 @_spi(Backend) import ECSCore
 import Foundation
-import SpriteBackend
+@_spi(Backend) import SpriteBackend
 import SwiftUI
 
 /// A view-scoped preference binds a targeted gesture to its own GameView even
@@ -48,16 +48,48 @@ final class InputContact {
     weak var hit: Entity?
     var endedAt: TimeInterval?
     var cancelled = false
+    private var subscriptions: [EventSubscription] = []
+    private var visibilityRevision: UInt64 = 0
     init(id: UInt64, start: CGPoint, hit: Entity?, viewportID: String? = nil) {
         self.id = id; self.start = start; self.hit = hit; self.viewportID = viewportID
         activationRevision = hit?.activationRevision
     }
 
     func hasValidViewport(in host: GameHost) -> Bool {
+        guard !cancelled else { return false }
         let valid = viewportLatch?.isValid(in: host.renderer)
             ?? (host.inputScenePoint(fromView: start, viewportID: viewportID) != nil)
-        if !valid { cancelled = true }
-        return valid
+        let visible = hit.map { host.renderer.isVisible($0, inViewport: viewportID) } ?? true
+        if !valid || !visible { cancelled = true }
+        return !cancelled
+    }
+
+    /// Observe visibility even when SwiftUI does not deliver another sample.
+    /// Once a hidden state is observed, showing the entity cannot reuse this contact.
+    func observeVisibility(in host: GameHost) {
+        visibilityRevision = host.renderer.visibilityEventRevision
+        subscriptions = [
+            host.world.subscribe(to: VisibilityEvents.DidChange.self) { [weak self, weak host] event in
+                guard let self, let host else { return }
+                if let hit, event.revision > visibilityRevision,
+                   event.excludes(hit, inViewport: viewportID, renderer: host.renderer) { cancelled = true }
+                _ = hasValidViewport(in: host)
+            },
+            host.world.subscribe(to: RenderingEvents.DidUpdate.self) { [weak self, weak host] _ in
+                guard let self, let host else { return }
+                _ = hasValidViewport(in: host)
+            },
+            host.world.subscribe(to: ComponentEvents.DidAdd.self) { [weak self, weak host] event in
+                guard event.componentType == VisibilityComponent.self || event.componentType == CameraComponent.self,
+                      let self, let host else { return }
+                _ = hasValidViewport(in: host)
+            },
+            host.world.subscribe(to: ComponentEvents.WillRemove.self) { [weak self, weak host] event in
+                guard event.componentType == VisibilityComponent.self || event.componentType == CameraComponent.self,
+                      let self, let host else { return }
+                _ = hasValidViewport(in: host)
+            }
+        ]
     }
 }
 
@@ -73,12 +105,13 @@ extension GameHost {
         let blocked = !sceneTargetAllowed || !attachmentStore.acceptsInput || attachmentStore.blocksInput(at: point)
             || debugBlocksInput(at: point) || viewport == nil
         let scene = blocked ? nil : inputScenePoint(fromView: point, viewportID: viewportID)
-        let hit = scene.flatMap { renderer.inputTarget(at: CGPoint(scenePoint: $0)) }
+        let hit = scene.flatMap { renderer.inputTarget(at: CGPoint(scenePoint: $0), inViewport: viewportID) }
         let contact = InputContact(id: nextInputID, start: point, hit: hit, viewportID: viewportID)
         if let viewport, viewportID != nil { contact.viewportLatch = InputViewportLatch(viewport: viewport, renderer: renderer) }
         let now = ProcessInfo.processInfo.systemUptime
         inputContacts = inputContacts.filter { $0.value.endedAt.map { now - $0 < 0.5 } ?? true }
         inputContacts[contact.id] = contact
+        contact.observeVisibility(in: self)
         return contact.id
     }
     /// A latched pointer may leave its pane, but never switch to another camera.
@@ -167,6 +200,9 @@ final class TargetedInputCapture<Value> {
               let target, target.world === host.world, target.isActive, resolver(hit) === target else {
             target = nil
             return nil
+        }
+        guard host.renderer.isVisible(target, inViewport: contact.viewportID) else {
+            contact.cancelled = true; self.target = nil; return nil
         }
         var result = EntityTargetValue(entity: target, gestureValue: value, host: host, viewportID: contact.viewportID)
         result.viewportLatch = contact.viewportLatch

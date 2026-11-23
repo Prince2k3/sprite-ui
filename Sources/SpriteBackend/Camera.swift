@@ -66,6 +66,8 @@ public struct CameraComponent: Component, Hashable, Codable, Sendable {
     /// How far, in points, the view moves at full trauma. Shake grows with trauma squared,
     /// so small bumps barely show.
     public var maxShake: Float
+    /// Render categories this camera sees. Independent of physics/light masks.
+    public var cullingMask: RenderLayer
 
     public init(
         target: Target? = nil,
@@ -76,7 +78,8 @@ public struct CameraComponent: Component, Hashable, Codable, Sendable {
         isActive: Bool = true,
         trauma: Float = 0,
         traumaDecay: Float = 1.5,
-        maxShake: Float = 14
+        maxShake: Float = 14,
+        cullingMask: RenderLayer = .all
     ) {
         self.target = target
         self.offset = offset
@@ -87,6 +90,25 @@ public struct CameraComponent: Component, Hashable, Codable, Sendable {
         self.trauma = trauma
         self.traumaDecay = traumaDecay
         self.maxShake = maxShake
+        self.cullingMask = cullingMask
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case target, offset, zoom, smoothing, bounds, isActive, trauma, traumaDecay, maxShake, cullingMask
+    }
+    /// Older saved scenes predate render layers and continue to see all content.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(target: try c.decodeIfPresent(Target.self, forKey: .target),
+                  offset: try c.decodeIfPresent(SIMD2<Float>.self, forKey: .offset) ?? .zero,
+                  zoom: try c.decodeIfPresent(Float.self, forKey: .zoom) ?? 1,
+                  smoothing: try c.decodeIfPresent(Float.self, forKey: .smoothing) ?? 0.15,
+                  bounds: try c.decodeIfPresent(Bounds.self, forKey: .bounds),
+                  isActive: try c.decodeIfPresent(Bool.self, forKey: .isActive) ?? true,
+                  trauma: try c.decodeIfPresent(Float.self, forKey: .trauma) ?? 0,
+                  traumaDecay: try c.decodeIfPresent(Float.self, forKey: .traumaDecay) ?? 1.5,
+                  maxShake: try c.decodeIfPresent(Float.self, forKey: .maxShake) ?? 14,
+                  cullingMask: try c.decodeIfPresent(RenderLayer.self, forKey: .cullingMask) ?? .all)
     }
 
     /// Adds to ``trauma``, up to 1.

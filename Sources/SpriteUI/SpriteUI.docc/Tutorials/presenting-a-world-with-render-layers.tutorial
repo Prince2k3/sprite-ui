@@ -1,0 +1,64 @@
+@Tutorial(time: 25) {
+    @Intro(title: "Presenting a world with render layers") {
+        Show world squares and interactive map diamonds for the same objects, hide visuals while physics continues, and combine camera and viewport masks with pane-scoped selection labels.
+
+        @Image(source: "spriteui-render-layers.svg", alt: "One physical object has a cyan world square and a mint map diamond presented by two interactive cameras.")
+    }
+
+    @Section(title: "Give each camera its own artwork") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Each stage is a complete replacement for `ContentView.swift`; keep your existing `ContentView()` app entry point and use one stage at a time. No images, other source files, or input hardware are required. <doc:sharing-a-world-between-viewports> introduces the viewport layout APIs.
+
+            Define a custom `RenderLayer.map` with bit one; `.default` already reserves bit zero. Put each object's world square and map diamond on separate children of a neutral parent. An entity without ``VisibilityComponent`` is unrestricted, equivalent to `.all`. Each explicit ancestor gates its entire subtree, so putting `.default` on the parent would also exclude its map artwork.
+
+            Retain a world camera with `cullingMask: .default` and a map camera with `cullingMask: .map`. Add them to one world, and present their side-by-side descriptors through one `GameView(viewports: ...)`. Both panes remain interactive. A default camera mask is `.all`, preserving existing scenes.
+        }
+        @Steps {
+            @Step {
+                Run stage one. The left pane shows cyan and orange squares, and the right pane shows mint and yellow diamonds at the same world positions. There is no motion yet. Two art children represent each shared object; no camera owns a separate copy of that object.
+
+                @Code(name: "ContentView.swift", file: "spriteui-render-layers-01.swift") {
+                    @Image(source: "spriteui-render-layers-01-preview.svg", alt: "Schematic stage one: cyan and orange squares on the left, mint and yellow diamonds at matching positions on the right.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Hide the subtree without stopping physics") {
+        @ContentAndMedia {
+            Stage two adds one physics body per parent, with distinct starting positions and velocities. A shared edge-loop arena produces real contact events. The parent's explicit layers now include both `.default` and `.map`, allowing each child to retain its own layer choice. Switching its `isVisible` gates all descendants through both cameras.
+
+            Retain subscriptions for elapsed update time and contact-began events. Read these rapidly changing values in a small activity view so every frame does not reevaluate the game surface's configuration. Counts reflect actual event callbacks. Visibility never changes activation, physics, systems, model queries, or audio.
+        }
+        @Steps {
+            @Step {
+                Replace the file with stage two. Watch the two shapes bounce in matching positions in both panes. Turn on Hide both objects and wait several seconds. The outlines remain, elapsed time advances, and bounces continue to accumulate. Reveal the objects: they reappear at their current physical positions, rather than where they were hidden. Exact contact counts depend on how long the scene runs.
+
+                @Code(name: "ContentView.swift", file: "spriteui-render-layers-02.swift") {
+                    @Image(source: "spriteui-render-layers-02-preview.svg", alt: "Schematic stage two with Hide both objects enabled: the arena stays visible, both art sets disappear, and the bounce and elapsed-time readout continues.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Restrict the pane and select visible art") {
+        @ContentAndMedia {
+            Stage three adds independent world-art hiding, a map camera mask picker, and an optional world-only restriction on the map viewport. A viewport's effective mask is the intersection of the camera mask and `viewport.cullingMask ?? .all`. It can only narrow the camera's choice. An empty effective mask hides everything in that pane, including untagged arena outlines.
+
+            Each art entity has its own ``InputTargetComponent`` and pick outline. Targeted taps report the originating viewport ID. Selection anchors are children of the selected art and set `AttachmentComponent.viewportID` to that pane. Hiding that art also hides its label; hidden art cannot receive a new selection. The diamond's rotated drawing sits under an upright target so its selection label stays upright.
+
+            One world clock drives both views. The activity readout adds actual update count and accumulated physical travel. The 280-point arena and scrolling controls fit a compact phone layout. The running app uses everyday labels for the visual controls.
+        }
+        @Steps {
+            @Step {
+                Run stage three. Tap a square on the left and a diamond on the right: each pane gets its own selection label. Turn on Hide world squares; the map keeps moving and its label remains visible. Hide both objects to gate both art subtrees, then restore them.
+
+                Turn off both Hide world squares and Hide both objects before testing the masks. Set Map camera shows to Map only and enable Limit map pane to world squares. The right pane becomes empty because the two masks have no common bit. Choose Both: only world squares return through that restricted pane. Remove the limit: squares and diamonds can now appear together. Choose Nothing to hide all content in the right pane, then restore Map only. Bounces and time continue throughout. Tap hidden areas to confirm they cannot select hidden art.
+
+                @Code(name: "ContentView.swift", file: "spriteui-render-layers-03.swift") {
+                    @Image(source: "spriteui-render-layers-03-preview.svg", alt: "Schematic stage three with default settings: world squares and map diamonds, independent Comet and Kite selection labels, visual hide switches, a map camera picker, and a pane restriction switch.")
+                }
+            }
+        }
+    }
+}

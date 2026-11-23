@@ -48,9 +48,12 @@ public struct GameViewport: Identifiable, Hashable, Sendable {
     public var frame: ViewportRect
     /// A noninteractive view still blocks input to any view underneath it.
     public var isInteractive: Bool
+    /// Optionally narrows the selected camera's culling mask. Never broadens it.
+    public var cullingMask: RenderLayer?
     public init(id: String, camera: Entity.ID? = nil, frame: ViewportRect = .full,
-                isInteractive: Bool = true) {
+                isInteractive: Bool = true, cullingMask: RenderLayer? = nil) {
         self.id = id; self.camera = camera; self.frame = frame; self.isInteractive = isInteractive
+        self.cullingMask = cullingMask
     }
 }
 
@@ -124,7 +127,7 @@ extension SpriteRenderer {
         viewportRenderSurfaceSize = viewportCanvasSize
         size = frame.size
         camera = selected
-        return body()
+        return withRenderVisibility(visibilityMask(inViewport: id) ?? .none, body)
     }
 
     /// A camera used in multiple views follows/clamps using the first declared

@@ -10,22 +10,22 @@ extension SpriteRenderer {
     /// Uses displayed transforms, including camera-independent animation poses.
     /// Every enabled ancestor mask clips input, including explicit colliders;
     /// model-space physics queries remain independent of visual masks.
-    public func entities(at scenePoint: CGPoint, filter: CollisionQueryFilter = .init()) -> [Entity] {
-        displayedEntities(at: scenePoint, filter: filter, inspectingVisuals: false)
+    public func entities(at scenePoint: CGPoint, filter: CollisionQueryFilter = .init(), inViewport id: String? = nil) -> [Entity] {
+        displayedEntities(at: scenePoint, filter: filter, inspectingVisuals: false, inViewport: id)
     }
 
     /// Inspection sees visible children independently of gameplay collider
     /// ownership. It still obeys activation, displayed masks and draw ordering.
-    func inspectedEntities(at scenePoint: CGPoint) -> [Entity] {
-        displayedEntities(at: scenePoint, filter: .init(), inspectingVisuals: true)
+    func inspectedEntities(at scenePoint: CGPoint, inViewport id: String? = nil) -> [Entity] {
+        displayedEntities(at: scenePoint, filter: .init(), inspectingVisuals: true, inViewport: id)
     }
 
-    private func displayedEntities(at scenePoint: CGPoint, filter: CollisionQueryFilter, inspectingVisuals: Bool) -> [Entity] {
+    private func displayedEntities(at scenePoint: CGPoint, filter: CollisionQueryFilter, inspectingVisuals: Bool, inViewport id: String?) -> [Entity] {
         struct Layer { let z: CGFloat; let order: Int }
         var hits: [(entity: Entity, layers: [Layer])] = []
         var order = 0
         func visit(_ entity: Entity, parentZ: CGFloat, groups: [Layer], hasColliderAncestor: Bool) {
-            guard entity.isActive, let node = node(for: entity), !node.isHidden, maskAllows(scenePoint, node: node) else { return }
+            guard isVisible(entity, inViewport: id), let node = node(for: entity), maskAllows(scenePoint, node: node) else { return }
             let z = parentZ + node.zPosition
             // A composited subtree is atomic relative to sibling layers. Child z
             // values only affect ordering inside that subtree, even for colliders.
@@ -52,7 +52,7 @@ extension SpriteRenderer {
             order += 1
             for child in entity.children { visit(child, parentZ: localZ, groups: scope, hasColliderAncestor: hasColliderAncestor || collider != nil) }
         }
-        if let root = node(for: world.root), !root.isHidden, maskAllows(scenePoint, node: root) {
+        if isVisible(world.root, inViewport: id), let root = node(for: world.root), maskAllows(scenePoint, node: root) {
             for entity in world.entities { visit(entity, parentZ: 0, groups: [], hasColliderAncestor: false) }
         }
         return hits.sorted { a, b in
@@ -66,7 +66,7 @@ extension SpriteRenderer {
 
     /// The front-most hit entity with an enabled InputTargetComponent on itself
     /// or an ancestor. Collision and query filters are independent of rendering.
-    public func inputTarget(at scenePoint: CGPoint, filter: CollisionQueryFilter = .init()) -> Entity? {
-        entities(at: scenePoint, filter: filter).first { $0.isInputTarget }
+    public func inputTarget(at scenePoint: CGPoint, filter: CollisionQueryFilter = .init(), inViewport id: String? = nil) -> Entity? {
+        entities(at: scenePoint, filter: filter, inViewport: id).first { $0.isInputTarget }
     }
 }

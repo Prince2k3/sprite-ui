@@ -68,6 +68,12 @@ public final class SpriteRenderer: SKScene {
     public var viewports: [GameViewport] = []
     var viewportRenderSurfaceSize: CGSize?
     private var viewportPhysicsSuspended = false
+    var renderVisibilityOverrides: [ObjectIdentifier: VisibilityOverride] = [:]
+    var activeRenderVisibilityMask: RenderLayer?
+    var visibilityRevisions: [Entity.ID: UInt64] = [:]
+    var nextVisibilityRevision: UInt64 = 0
+    var knownVisibility: [Entity.ID: VisibilityComponent] = [:]
+    var knownCameraVisibility: [Entity.ID: CameraVisibility] = [:]
 
     private var nodes: [Entity.ID: SKNode] = [:]
     /// Which entity each node shows, for mapping physics contacts back.
@@ -166,6 +172,7 @@ public final class SpriteRenderer: SKScene {
     }
 
     isolated deinit {
+        restoreRenderVisibility()
         if let currentFrame { world.cancelFrame(currentFrame) }
         if let prior = debugPriorProfiling { world.isProfilingEnabled = prior }
         attachedDebugController?.rendererWasDestroyed()
@@ -215,6 +222,7 @@ public final class SpriteRenderer: SKScene {
     }
 
     public override func update(_ currentTime: TimeInterval) {
+        restoreRenderVisibility()
         let interval = lastUpdateTime.map { currentTime - $0 } ?? 0
         let deltaTime = min(interval, 1.0 / 15.0)
         lastUpdateTime = currentTime
@@ -264,6 +272,7 @@ public final class SpriteRenderer: SKScene {
         flush()
         finishDebugFrame()
         world.publish(RenderingEvents.DidUpdate(scene: world))
+        applyRenderVisibility(visibilityMask() ?? .all)
     }
 
     /// Constraints write only owned channels, keeping other animation targets and
@@ -615,6 +624,7 @@ extension SpriteRenderer: WorldObserver {
     }
 
     public func world(_ world: World, activationDidChange entity: Entity) {
+        restoreRenderVisibility()
         validateManipulations()
         guard let node = nodes[entity.id] else { return }
         if !entity.isActive {
@@ -668,6 +678,7 @@ extension SpriteRenderer: WorldObserver {
     public func worldActiveCamera(_ world: World) -> Entity? { activeCamera }
 
     public func world(_ world: World, didAdd entity: Entity) {
+        restoreRenderVisibility()
         validateManipulations()
         guard nodes[entity.id] == nil else { return }
         // A stable backing node can opt into compositing later without replacing
@@ -690,11 +701,19 @@ extension SpriteRenderer: WorldObserver {
         for key in entity.componentKeys {
             apply(key, value: entity.component(forKey: key), of: entity, to: node, transaction: nil)
         }
+        knownVisibility[entity.id] = entity.components[VisibilityComponent.self]
+        knownCameraVisibility[entity.id] = entity.components[CameraComponent.self].map { .init(mask: $0.cullingMask, active: $0.isActive) }
     }
 
     public func world(_ world: World, willRemove entity: Entity) {
+        restoreRenderVisibility()
         cancelManipulations(involving: entity)
         attachedDebugController?.removed(entity)
+        // Cancellation handlers may edit components while the entity is still
+        // attached. Clear policy caches after those callbacks, like dirty state.
+        knownVisibility[entity.id] = nil
+        knownCameraVisibility[entity.id] = nil
+        visibilityRevisions[entity.id] = nil
         var subtree: Set<Entity.ID> = []
         entity.visit { subtree.insert($0.id) }
         removePhysicsJoints(involving: subtree)
@@ -722,6 +741,7 @@ extension SpriteRenderer: WorldObserver {
         didChange componentType: any Component.Type,
         transaction: ActionTransaction?
     ) {
+        restoreRenderVisibility()
         let key = ObjectIdentifier(componentType)
         if componentType == TransformConstraintComponent.self { constraintEvaluations[entity.id] = nil }
         let value = entity.component(forKey: key)
@@ -730,6 +750,7 @@ extension SpriteRenderer: WorldObserver {
         } else {
             dirty[entity.id, default: [:]][key, default: []].append(Change(transaction: transaction, value: value))
         }
+        recordVisibilityChange(entity, type: componentType)
         validateManipulations()
     }
 

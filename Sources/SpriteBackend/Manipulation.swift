@@ -15,6 +15,7 @@ public final class ManipulationSession {
     private let id = UUID()
     private let configuration: ManipulationComponent
     private let operations: ManipulationComponent.Operations
+    private let viewportID: String?
     private let initialPoint: SIMD2<Float>
     private let grab: SIMD2<Float>
     private let hit: Entity
@@ -33,12 +34,13 @@ public final class ManipulationSession {
     }
     private var bodies: [BodyLease] = []
 
-    fileprivate init?(entity: Entity, hit: Entity, at point: SIMD2<Float>, operations requested: ManipulationComponent.Operations, renderer: SpriteRenderer) {
+    fileprivate init?(entity: Entity, hit: Entity, at point: SIMD2<Float>, operations requested: ManipulationComponent.Operations, renderer: SpriteRenderer, inViewport viewportID: String?) {
         guard entity.world === renderer.world, entity !== renderer.world.root, entity.isActive, entity.isInputTarget,
               hit.world === renderer.world, hit.isActive, hit.isInputTarget,
               let configuration = entity.components[ManipulationComponent.self], configuration.isEnabled,
               !configuration.operations.intersection(requested).isEmpty,
-              let node = renderer.node(for: entity), !node.isHidden,
+              let node = renderer.node(for: entity), renderer.isVisible(entity, inViewport: viewportID),
+              renderer.isVisible(hit, inViewport: viewportID),
               renderer.manipulationDriversAreAvailable(for: entity),
               !renderer.manipulationSessions.values.contains(where: {
                   $0.entity === entity || $0.entity.isDescendant(of: entity) || entity.isDescendant(of: $0.entity)
@@ -49,6 +51,7 @@ public final class ManipulationSession {
         let local = inverse.apply(to: point)
         guard local.x.isFinite, local.y.isFinite else { return nil }
         self.entity = entity; self.hit = hit; self.renderer = renderer; world = renderer.world
+        self.viewportID = viewportID
         self.configuration = configuration; operations = configuration.operations.intersection(requested)
         initialTransform = initial; expected = entity.transform; initialPoint = point; grab = [Float(local.x), Float(local.y)]
         revision = entity.activationRevision; hitRevision = hit.activationRevision
@@ -149,6 +152,7 @@ public final class ManipulationSession {
         guard let renderer, let world, world.observer === renderer,
               entity.world === world, entity.isActive, entity.activationRevision == revision,
               hit.world === world, hit.isInputTarget, hit.activationRevision == hitRevision,
+              renderer.isVisible(entity, inViewport: viewportID), renderer.isVisible(hit, inViewport: viewportID),
               hit.components[CollisionComponent.self]?.isEnabled != false else {
             cancel(reason: .entityUnavailable); return false
         }
@@ -225,25 +229,25 @@ public final class ManipulationSession {
 extension SpriteRenderer {
     /// Picks the front-most input target and captures its nearest manipulation
     /// owner. A nonmanipulable foreground target does not click through.
-    public func beginManipulation(at scenePoint: SIMD2<Float>, operations: ManipulationComponent.Operations = .all) -> ManipulationSession? {
+    public func beginManipulation(at scenePoint: SIMD2<Float>, operations: ManipulationComponent.Operations = .all, inViewport viewportID: String? = nil) -> ManipulationSession? {
         guard scenePoint.x.isFinite, scenePoint.y.isFinite else { return nil }
         flush()
-        guard let hit = inputTarget(at: CGPoint(x: CGFloat(scenePoint.x), y: CGFloat(scenePoint.y))),
+        guard let hit = inputTarget(at: CGPoint(x: CGFloat(scenePoint.x), y: CGFloat(scenePoint.y)), inViewport: viewportID),
               let owner = manipulationOwner(for: hit) else { return nil }
-        return beginManipulation(of: owner, hit: hit, at: scenePoint, operations: operations)
+        return beginManipulation(of: owner, hit: hit, at: scenePoint, operations: operations, inViewport: viewportID)
     }
 
     /// Starts a programmatic capture at a scene-space anchor on a known entity.
     /// It must be active and pickable, but this overload does not require a hit
     /// at the anchor. This supports accessible controls and custom input adapters.
-    public func beginManipulation(of entity: Entity, at scenePoint: SIMD2<Float>, operations: ManipulationComponent.Operations = .all) -> ManipulationSession? {
+    public func beginManipulation(of entity: Entity, at scenePoint: SIMD2<Float>, operations: ManipulationComponent.Operations = .all, inViewport viewportID: String? = nil) -> ManipulationSession? {
         flush()
-        return beginManipulation(of: entity, hit: entity, at: scenePoint, operations: operations)
+        return beginManipulation(of: entity, hit: entity, at: scenePoint, operations: operations, inViewport: viewportID)
     }
 
-    private func beginManipulation(of entity: Entity, hit: Entity, at point: SIMD2<Float>, operations: ManipulationComponent.Operations) -> ManipulationSession? {
+    private func beginManipulation(of entity: Entity, hit: Entity, at point: SIMD2<Float>, operations: ManipulationComponent.Operations, inViewport viewportID: String?) -> ManipulationSession? {
         guard !cancellingManipulations,
-              let session = ManipulationSession(entity: entity, hit: hit, at: point, operations: operations, renderer: self), session.start() else { return nil }
+              let session = ManipulationSession(entity: entity, hit: hit, at: point, operations: operations, renderer: self, inViewport: viewportID), session.start() else { return nil }
         return session
     }
 

@@ -1,5 +1,5 @@
 @_spi(Backend) import ECSCore
-import SpriteBackend
+@_spi(Backend) import SpriteBackend
 import SpriteKit
 #if os(macOS)
 import AppKit
@@ -30,6 +30,7 @@ final class GameManipulationInput: NSObject {
         let revision: UInt64
         let viewportID: String?
         let viewportLatch: InputViewportLatch?
+        let visibilityRevision: UInt64
     }
 
     weak var host: GameHost?
@@ -52,7 +53,7 @@ final class GameManipulationInput: NSObject {
     private var isBeginning = false
     private var isCancelling = false
     private var isApplyingSample = false
-    private var frameSubscription: EventSubscription?
+    private var subscriptions: [EventSubscription] = []
     private var observers: [NSObjectProtocol] = []
 #if os(macOS)
     private var recognizers: [NSGestureRecognizer] = []
@@ -65,9 +66,25 @@ final class GameManipulationInput: NSObject {
     init(host: GameHost) {
         self.host = host
         super.init()
-        frameSubscription = host.world.subscribe(to: RenderingEvents.DidUpdate.self) { [weak self] _ in
-            self?.refreshCapture()
-        }
+        subscriptions = [
+            host.world.subscribe(to: VisibilityEvents.DidChange.self) { [weak self] event in
+                guard let self, let host = self.host else { return }
+                let affected = Array(contacts.values) + (capturedContact.map { [$0] } ?? [])
+                if affected.contains(where: { contact in
+                    event.revision > contact.visibilityRevision &&
+                        (event.excludes(contact.hit, inViewport: contact.viewportID, renderer: host.renderer) ||
+                         event.excludes(contact.target, inViewport: contact.viewportID, renderer: host.renderer))
+                }) { cancel() }
+                else { validateContacts() }
+            },
+            host.world.subscribe(to: RenderingEvents.DidUpdate.self) { [weak self] _ in self?.validateContacts() },
+            host.world.subscribe(to: ComponentEvents.DidAdd.self) { [weak self] event in
+                if event.componentType == VisibilityComponent.self || event.componentType == CameraComponent.self { self?.validateContacts() }
+            },
+            host.world.subscribe(to: ComponentEvents.WillRemove.self) { [weak self] event in
+                if event.componentType == VisibilityComponent.self || event.componentType == CameraComponent.self { self?.validateContacts() }
+            }
+        ]
     }
 
     // These entry points also accept simulated samples, without native hardware.
@@ -78,17 +95,21 @@ final class GameManipulationInput: NSObject {
               CGRect(origin: .zero, size: host.renderer.size).contains(point),
               host.attachmentStore.acceptsInput, !host.attachmentStore.blocksInput(at: point),
               !host.debugBlocksInput(at: point) else { return false }
-        if let contact = contacts[id] { return valid(contact) }
+        if let contact = contacts[id] {
+            guard valid(contact) else { cancel(); return false }
+            return true
+        }
         guard let viewport = host.renderer.viewport(at: point) else { return false }
         let viewportID = host.usesScopedViewports ? viewport.id : nil
         guard let scene = host.inputScenePoint(fromView: point, viewportID: viewportID) else { return false }
-        guard let hit = host.renderer.inputTarget(at: CGPoint(x: CGFloat(scene.x), y: CGFloat(scene.y))),
+        guard let hit = host.renderer.inputTarget(at: CGPoint(x: CGFloat(scene.x), y: CGFloat(scene.y)), inViewport: viewportID),
               let target = manipulationTarget(for: hit),
               session.map({ $0.isActive && $0.entity === target }) ?? true,
               capturedContact.map({ $0.viewportID == viewportID }) ?? true,
               contacts.values.allSatisfy({ $0.target === target && $0.viewportID == viewportID }) else { return false }
         contacts[id] = Contact(point: point, hit: hit, target: target, revision: hit.activationRevision,
-                              viewportID: viewportID, viewportLatch: viewportID == nil ? nil : InputViewportLatch(viewport: viewport, renderer: host.renderer))
+                              viewportID: viewportID, viewportLatch: viewportID == nil ? nil : InputViewportLatch(viewport: viewport, renderer: host.renderer),
+                              visibilityRevision: host.renderer.visibilityEventRevision)
         return true
     }
 
@@ -102,7 +123,8 @@ final class GameManipulationInput: NSObject {
         guard !isCancelling, !isBeginning, !isApplyingSample, !activeChannels.contains(channel), let host, !host.isCancellingInputs,
               !ids.isEmpty else { return false }
         let admitted = ids.sorted().compactMap { contacts[$0] }
-        guard admitted.count == ids.count, admitted.allSatisfy({ valid($0) }),
+        guard admitted.allSatisfy({ valid($0) }) else { cancel(); return false }
+        guard admitted.count == ids.count,
               let first = admitted.first,
               admitted.allSatisfy({ $0.target === first.target && $0.viewportID == first.viewportID }),
               first.target.components[ManipulationComponent.self]?.operations.contains(channel.operation) == true else { return false }
@@ -114,9 +136,9 @@ final class GameManipulationInput: NSObject {
             guard let scene = host.inputScenePoint(fromView: first.point, viewportID: first.viewportID) else {
                 isBeginning = false; return false
             }
-            let hit = host.renderer.inputTarget(at: CGPoint(x: CGFloat(scene.x), y: CGFloat(scene.y)))
+            let hit = host.renderer.inputTarget(at: CGPoint(x: CGFloat(scene.x), y: CGFloat(scene.y)), inViewport: first.viewportID)
             let created = hit.flatMap { manipulationTarget(for: $0) === first.target
-                ? host.renderer.beginManipulation(at: scene) : nil }
+                ? host.renderer.beginManipulation(at: scene, inViewport: first.viewportID) : nil }
             isBeginning = false
             guard revision == generation, let created, created.isActive, created.entity === first.target else {
                 created?.cancel(); return false
@@ -181,11 +203,12 @@ final class GameManipulationInput: NSObject {
 
     func finish(_ channel: Channel, cancelled: Bool = false) {
         guard activeChannels.contains(channel) else { return }
+        guard let capturedContact, valid(capturedContact) else { cancel(); return }
         if cancelled { cancel(); return }
         activeChannels.remove(channel)
         guard activeChannels.isEmpty else { return }
         let completed = session
-        session = nil; capturedContact = nil
+        session = nil; self.capturedContact = nil
         completed?.end()
     }
 
@@ -224,9 +247,16 @@ final class GameManipulationInput: NSObject {
               !host.attachmentStore.blocksInput(at: contact.point),
               contact.hit.world === host.world, contact.hit.isInputTarget,
               contact.hit.activationRevision == contact.revision,
+              host.renderer.isVisible(contact.hit, inViewport: contact.viewportID),
+              host.renderer.isVisible(contact.target, inViewport: contact.viewportID),
               contact.hit.components[CollisionComponent.self]?.isEnabled != false,
               manipulationTarget(for: contact.hit) === contact.target else { return false }
         return true
+    }
+
+    private func validateContacts() {
+        guard contacts.values.allSatisfy({ valid($0) }) else { cancel(); return }
+        refreshCapture()
     }
 
     func attach(to view: SKView) {

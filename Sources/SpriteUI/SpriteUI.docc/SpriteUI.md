@@ -19,6 +19,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Render one world through player cameras and a minimap | <doc:viewports-and-split-screen> |
+| Give cameras different art while hidden objects keep simulating | <doc:render-layers-and-camera-visibility> |
 | Plan routes and move characters | <doc:gameplay-and-movement> |
 | Load assets and assemble visual content | <doc:rendering-and-resources> |
 | Save progress and inspect a running scene | <doc:saving-and-debugging> |
@@ -48,6 +49,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:input-actions-and-controllers>
 - <doc:player-input-sessions-and-feedback>
 - <doc:viewports-and-split-screen>
+- <doc:render-layers-and-camera-visibility>
 - <doc:manipulating-entities>
 - <doc:gameplay-and-movement>
 - <doc:rendering-and-resources>
@@ -159,6 +161,8 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/GameViewport``
 - ``SpriteUI/ViewportRect``
 - ``SpriteUI/CameraComponent``
+- ``SpriteUI/RenderLayer``
+- ``SpriteUI/VisibilityComponent``
 - ``SpriteUI/TransformConstraintComponent``
 - ``SpriteUI/MaskComponent``
 - ``SpriteUI/RenderGroupComponent``

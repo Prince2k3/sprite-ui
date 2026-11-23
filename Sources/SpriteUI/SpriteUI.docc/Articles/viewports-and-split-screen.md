@@ -134,6 +134,10 @@ The seventh tutorial and the demo's Viewports tab show actual world-update, pres
 
 App inactivity and disappearance pause the native display driver, and resume resets its frame clock to avoid background-time catch-up. Keep entity and camera IDs stable through these transitions. Use <doc:saving-and-debugging> for broader scene inspection.
 
+## Filter artwork per camera
+
+Use <doc:render-layers-and-camera-visibility> to choose world sprites or map icons from one shared hierarchy. Camera masks and optional viewport restrictions intersect; both panes can remain interactive. The eighth tutorial, <doc:presenting-a-world-with-render-layers>, adds visual hiding, continuing physics counters, and selection labels beneath the selected art.
+
 ## See also
 
 - <doc:sharing-a-world-between-viewports>

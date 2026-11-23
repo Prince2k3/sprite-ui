@@ -137,9 +137,15 @@ public struct SceneDebugSnapshot: Equatable, Sendable {
     }
     @discardableResult public func select(atView point: CGPoint) -> Entity.ID? {
         guard let renderer else { return nil }
-        if !renderer.viewports.isEmpty, renderer.viewport(at: point) == nil {
-            clearSelection()
-            return nil
+        if !renderer.viewports.isEmpty {
+            guard let viewport = renderer.viewport(at: point),
+                  let scene = renderer.scenePoint(fromView: point, inViewport: viewport.id) else {
+                clearSelection()
+                return nil
+            }
+            let entity = renderer.inspectedEntities(at: CGPoint(x: CGFloat(scene.x), y: CGFloat(scene.y)), inViewport: viewport.id).first
+            _ = select(entity)
+            return selectedEntityID
         }
         return select(atScene: renderer.scenePoint(fromView: point))
     }

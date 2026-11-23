@@ -1,5 +1,5 @@
 @_spi(Backend) import ECSCore
-import SpriteBackend
+@_spi(Backend) import SpriteBackend
 import SpriteKit
 import SwiftUI
 
@@ -123,11 +123,15 @@ struct AttachmentIdentity: Hashable {
     let definition: UInt64
     let viewportID: String?
     let viewportRevision: UInt64
+    let visibilityRevision: UInt64
+    let visibilityPolicyRevision: UInt64
 
-    init(entityID: Entity.ID, instance: ObjectIdentifier, activation: UInt64, definition: UInt64, viewportID: String? = nil, viewportRevision: UInt64 = 0) {
+    init(entityID: Entity.ID, instance: ObjectIdentifier, activation: UInt64, definition: UInt64, viewportID: String? = nil, viewportRevision: UInt64 = 0, visibilityRevision: UInt64 = 0, visibilityPolicyRevision: UInt64 = 0) {
         self.entityID = entityID; self.instance = instance; self.activation = activation; self.definition = definition
         self.viewportID = viewportID
         self.viewportRevision = viewportRevision
+        self.visibilityRevision = visibilityRevision
+        self.visibilityPolicyRevision = visibilityPolicyRevision
     }
 }
 
@@ -202,6 +206,14 @@ final class AttachmentStore {
     private var viewportSignatures: [String: ViewportSignature] = [:]
     private var viewportRevisions: [String: UInt64] = [:]
     private var nextViewportRevision: UInt64 = 0
+    private struct PresentationKey: Hashable {
+        let instance: ObjectIdentifier
+        let viewportID: String?
+        init(_ identity: AttachmentIdentity) { instance = identity.instance; viewportID = identity.viewportID }
+        init(_ entity: Entity, viewportID: String?) { instance = ObjectIdentifier(entity); self.viewportID = viewportID }
+    }
+    private var currentIdentities: [PresentationKey: AttachmentIdentity] = [:]
+    private var nextVisibilityRevision: UInt64 = 0
     private var visible = true
     private var appActive = true
     var acceptsInput: Bool { visible && appActive }
@@ -214,9 +226,36 @@ final class AttachmentStore {
         self.host = host
         AttachmentComponent.registerComponent()
         subscriptions = [
+            host.world.subscribe(to: VisibilityEvents.DidChange.self) { [weak self] event in
+                guard let self, let host = self.host else { return }
+                for projection in presentations {
+                    if event.revision > projection.id.visibilityPolicyRevision, let entity = projection.entity,
+                       event.excludes(entity, inViewport: projection.id.viewportID, renderer: host.renderer) { retire(projection.id) }
+                }
+                refresh()
+            },
             host.world.subscribe(to: RenderingEvents.DidUpdate.self) { [weak self] _ in self?.refresh() },
             host.world.subscribe(to: WorldEvents.DidChangeEntityActivation.self) { [weak self] _ in self?.refresh() },
             host.world.subscribe(to: WorldEvents.DidAddEntity.self) { [weak self] _ in self?.refresh() },
+            host.world.subscribe(to: ComponentEvents.DidAdd.self) { [weak self] event in
+                if event.componentType == VisibilityComponent.self || event.componentType == CameraComponent.self || event.componentType == AttachmentComponent.self {
+                    self?.refresh()
+                }
+            },
+            host.world.subscribe(to: ComponentEvents.WillRemove.self) { [weak self] event in
+                guard let self else { return }
+                if event.componentType == AttachmentComponent.self {
+                    for projection in presentations where projection.entity === event.entity { retire(projection.id) }
+                } else if event.componentType == CameraComponent.self {
+                    let affected = Set(viewportSignatures.filter { $0.value.cameraInstance == ObjectIdentifier(event.entity) }.map(\.key))
+                    for projection in presentations where projection.id.viewportID.map({ affected.contains($0) }) == true { retire(projection.id) }
+                    for id in affected { viewportSignatures[id] = nil; viewportRevisions[id] = nil }
+                } else if event.componentType == VisibilityComponent.self {
+                    // WillRemove runs while the old gate still exists. Observe a
+                    // hidden gate before removing it could show the subtree again.
+                    refresh()
+                }
+            },
             host.world.subscribe(to: WorldEvents.WillRemoveEntity.self) { [weak self] event in
                 guard let self else { return }
                 // Removal is announced before the renderer drops the camera.
@@ -224,8 +263,9 @@ final class AttachmentStore {
                 // cannot revive actions from the old presentation.
                 let affected = Set(viewportSignatures.filter { $0.value.cameraInstance == ObjectIdentifier(event.entity) }.map(\.key))
                 for id in affected { viewportSignatures[id] = nil; viewportRevisions[id] = nil }
-                presentations.removeAll { $0.id.viewportID.map { affected.contains($0) } == true }
-                presentations.removeAll { $0.entity === event.entity }; pruneSizes()
+                for projection in presentations where projection.entity === event.entity || projection.id.viewportID.map({ affected.contains($0) }) == true {
+                    retire(projection.id)
+                }
             }
         ]
     }
@@ -252,10 +292,16 @@ final class AttachmentStore {
         return entity
     }
     func isValid(_ entity: Entity, identity: AttachmentIdentity) -> Bool {
+        guard currentIdentities[PresentationKey(identity)] == identity else { return false }
+        guard validatesPresentation(entity, identity: identity) else { retire(identity); return false }
+        return true
+    }
+    private func validatesPresentation(_ entity: Entity, identity: AttachmentIdentity) -> Bool {
         guard visible, appActive, let host, entity.world === host.world, entity.isActive,
               entity.id == identity.entityID, ObjectIdentifier(entity) == identity.instance, entity.activationRevision == identity.activation,
               let component = entity.components[AttachmentComponent.self], component.isEnabled,
-              definitions[component.attachmentID] == identity.definition else { return false }
+              definitions[component.attachmentID] == identity.definition,
+              host.renderer.isVisible(entity, inViewport: identity.viewportID) else { return false }
         if let viewportID = identity.viewportID {
             guard component.viewportID == nil || component.viewportID == viewportID,
                   let viewport = host.renderer.resolvedViewports.first(where: { $0.id == viewportID }),
@@ -267,7 +313,7 @@ final class AttachmentStore {
         return true
     }
     func canInteract(in identity: AttachmentIdentity) -> Bool {
-        guard let host else { return false }
+        guard let host, let entity = host.world.entity(withID: identity.entityID), isValid(entity, identity: identity) else { return false }
         guard let viewportID = identity.viewportID else { return !host.usesScopedViewports }
         return host.renderer.resolvedViewports.contains { $0.id == viewportID && $0.isInteractive }
     }
@@ -276,6 +322,12 @@ final class AttachmentStore {
         sizes[identity] = size
     }
     private func pruneSizes() { let live = Set(presentations.map(\.id)); sizes = sizes.filter { live.contains($0.key) } }
+    private func retire(_ identity: AttachmentIdentity) {
+        let key = PresentationKey(identity)
+        if currentIdentities[key] == identity { currentIdentities[key] = nil }
+        presentations.removeAll { $0.id == identity }
+        sizes[identity] = nil
+    }
     func setVisible(_ value: Bool) {
         guard visible != value else { return }; visible = value
         if !value { invalidateContexts() }; refresh()
@@ -304,6 +356,7 @@ final class AttachmentStore {
         guard visible, appActive, !definitions.isEmpty else {
             if !presentations.isEmpty { presentations = [] }
             if !sizes.isEmpty { sizes.removeAll() }
+            currentIdentities.removeAll()
             return
         }
         let renderer = host.renderer
@@ -322,12 +375,13 @@ final class AttachmentStore {
                   (0...1).contains(component.anchor.x), (0...1).contains(component.anchor.y) else { continue }
             var opacity: CGFloat = 1, z: CGFloat = 0, current: SKNode? = node, visible = true
             while let ancestor = current, ancestor !== renderer {
-                if ancestor.isHidden { visible = false; break }
+                if renderer.isPresentationHidden(ancestor) { visible = false; break }
                 opacity *= ancestor.alpha; z += ancestor.zPosition; current = ancestor.parent
             }
             guard visible, opacity.isFinite, opacity > 0.001, z.isFinite else { continue }
             for (order, viewport) in viewports.enumerated() {
                 guard component.viewportID == nil || component.viewportID == viewport.id,
+                      renderer.isVisible(entity, inViewport: host.usesScopedViewports ? viewport.id : nil),
                       let rect = renderer.viewportRect(id: viewport.id),
                       let origin = renderer.viewPoint(from: component.offset, relativeTo: entity, inViewport: viewport.id),
                       let x = renderer.viewPoint(from: component.offset + [1, 0], relativeTo: entity, inViewport: viewport.id),
@@ -335,9 +389,18 @@ final class AttachmentStore {
                 let raw = CGAffineTransform(a: x.x - origin.x, b: x.y - origin.y, c: y.x - origin.x, d: y.y - origin.y, tx: 0, ty: 0)
                 let determinant = raw.a * raw.d - raw.b * raw.c
                 guard determinant.isFinite, abs(determinant) > 1e-12 else { continue }
+                let key = PresentationKey(entity, viewportID: host.usesScopedViewports ? viewport.id : nil)
+                let visibilityRevision: UInt64
+                if let existing = currentIdentities[key] { visibilityRevision = existing.visibilityRevision }
+                else { nextVisibilityRevision &+= 1; visibilityRevision = nextVisibilityRevision }
                 let identity = AttachmentIdentity(entityID: entity.id, instance: ObjectIdentifier(entity), activation: entity.activationRevision,
                                                   definition: definition, viewportID: host.usesScopedViewports ? viewport.id : nil,
-                                                  viewportRevision: viewportRevisions[viewport.id] ?? 0)
+                                                  viewportRevision: viewportRevisions[viewport.id] ?? 0, visibilityRevision: visibilityRevision,
+                                                  visibilityPolicyRevision: currentIdentities[key].flatMap { existing in
+                                                      existing.activation == entity.activationRevision && existing.definition == definition &&
+                                                          existing.viewportRevision == (viewportRevisions[viewport.id] ?? 0) ? existing.visibilityPolicyRevision : nil
+                                                  } ?? renderer.visibilityEventRevision)
+                currentIdentities[key] = identity
                 let occlusions = viewports.dropFirst(order + 1).compactMap { renderer.viewportRect(id: $0.id) }.filter { $0.intersects(rect) }
                 next.append(AttachmentProjection(id: identity, definitionID: component.attachmentID, entity: entity,
                     position: origin, basis: component.sizing == .screen ? .identity : raw, anchor: component.anchor,
@@ -349,6 +412,8 @@ final class AttachmentStore {
             if $0.viewportOrder != $1.viewportOrder { return $0.viewportOrder < $1.viewportOrder }
             return $0.zIndex == $1.zIndex ? $0.id.entityID < $1.id.entityID : $0.zIndex < $1.zIndex
         }
+        let liveKeys = Set(next.map { PresentationKey($0.id) })
+        currentIdentities = currentIdentities.filter { liveKeys.contains($0.key) }
         if next != presentations { presentations = next; pruneSizes() }
     }
 }

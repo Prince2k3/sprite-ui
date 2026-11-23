@@ -8,6 +8,8 @@ Load shared assets before use, compose visual hierarchies, and give playback and
 
 Use one visual responsibility per entity when independent transforms or animations matter. For example, give a character a sprite, put a world-space caption on a child, and put an attachment anchor on another child. This makes z ordering, opacity, and reuse explicit.
 
+Use <doc:render-layers-and-camera-visibility> for separate world and map art under the same physical parent. Its visibility gates affect presentation while simulation continues; <doc:presenting-a-world-with-render-layers> provides three complete runnable stages.
+
 ## Preload resources before exposing content
 
 ``SpriteUI/ResourceLibrary`` loads and caches textures, atlases, audio, shaders, and prefabs. Retain a library for an app or level, or use `shared`. Completed and in-flight loads are shared; cancelling one waiter does not cancel a shared load. Clearing the library's cache does not invalidate resources that entities still use.

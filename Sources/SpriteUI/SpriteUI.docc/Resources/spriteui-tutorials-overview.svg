@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1674" height="400" viewBox="0 0 1674 400" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1912" height="400" viewBox="0 0 1912 400" role="img" aria-labelledby="title desc">
   <title id="title">Build an interactive SpriteUI scene</title>
-  <desc id="desc">Seven connected panels progress from a cyan sprite, through targeted motion and a route around a wall, to a directional pad feeding shared input actions, then direct manipulation on a tilted grid and two independent players with owned devices and shared-world viewports.</desc>
-  <rect width="1674" height="400" rx="28" fill="#111c30"/>
+  <desc id="desc">Eight connected panels progress from a cyan sprite, through targeted motion and a route around a wall, to a directional pad feeding shared input actions, then direct manipulation on a tilted grid and two independent players with owned devices, shared-world viewports, and world/map render layers.</desc>
+  <rect width="1912" height="400" rx="28" fill="#111c30"/>
   <g fill="#182b43" stroke="#45607a" stroke-width="2">
     <rect x="24" y="44" width="210" height="302" rx="18"/>
     <rect x="258" y="44" width="210" height="302" rx="18"/>
@@ -58,4 +58,11 @@
   <rect x="1575" y="175" width="28" height="28" rx="3" fill="#ffb45b"/>
   <rect x="1583" y="118" width="44" height="32" fill="#284456" stroke="#e0ebf4"/>
   <text x="1542" y="309" font-family="system-ui,sans-serif" fill="#e0ebf4" font-size="18" text-anchor="middle">7. Share world views</text>
+  <rect x="1672" y="44" width="216" height="302" rx="18" fill="#182b43" stroke="#45607a" stroke-width="2"/>
+  <path d="M1659 195h8m-6-5 6 5-6 5" fill="none" stroke="#93adc5" stroke-width="3"/>
+  <rect x="1688" y="111" width="184" height="154" fill="#111c30" stroke="#93adc5"/>
+  <path d="M1780 111v154" stroke="#93adc5"/>
+  <rect x="1716" y="174" width="32" height="32" fill="#48d9ec"/>
+  <path d="M1828 176l14 14-14 14-14-14z" fill="#7ce3ab"/>
+  <text x="1780" y="309" font-family="system-ui,sans-serif" fill="#e0ebf4" font-size="18" text-anchor="middle">8. Choose visible art</text>
 </svg>

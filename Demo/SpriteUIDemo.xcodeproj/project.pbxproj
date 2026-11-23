@@ -29,6 +29,7 @@
 		5E004D84C0F6DE0B60C177E2 /* RandomDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */; };
 		65A996A6A3B7D80DFB800D59 /* PhysicsDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */; };
 		676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60458B4819985FB661F0F10A /* JointDemoView.swift */; };
+		6C925E766CE96E568297250C /* RenderLayersDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B66B4DE6A41451B5690655 /* RenderLayersDemoView.swift */; };
 		71199A69A3664097CE441EB3 /* thud.wav in Resources */ = {isa = PBXBuildFile; fileRef = D7386C3C0BCBEF0A3A80FFAA /* thud.wav */; };
 		750F555994F2A1805B0DC34D /* SpriteUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3FC3600C0AEE0E6FCA318D2A /* SpriteUI */; };
 		7DE39720CD71D913D126DA7E /* ConstraintDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D9BC5FCCAB76BF294439F0 /* ConstraintDemoView.swift */; };
@@ -84,6 +85,7 @@
 		93920852539B40941CCCD9D6 /* NoiseDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoiseDemoView.swift; sourceTree = "<group>"; };
 		95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConsolidationDemoView.swift; sourceTree = "<group>"; };
 		96DB786457C0B4185B6BB04C /* Masking.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Masking.sks; sourceTree = "<group>"; };
+		A4B66B4DE6A41451B5690655 /* RenderLayersDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderLayersDemoView.swift; sourceTree = "<group>"; };
 		AD4B56781DDCE0AD924A5FAD /* coin.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coin.wav; sourceTree = "<group>"; };
 		B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialDemoView.swift; sourceTree = "<group>"; };
 		C2D9BC5FCCAB76BF294439F0 /* ConstraintDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintDemoView.swift; sourceTree = "<group>"; };
@@ -170,6 +172,7 @@
 				64A07FC6D53E7ACB7F7547F5 /* PrefabDemoView.swift */,
 				5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */,
 				2E17EFBCE495B5D694E70CC3 /* RenderGroupDemoView.swift */,
+				A4B66B4DE6A41451B5690655 /* RenderLayersDemoView.swift */,
 				4D6F537FD724A2F0E44CE0F5 /* ResourcesDemoView.swift */,
 				4E6B60BFB5AC5EA7E1A86B4C /* Runner.atlas */,
 				4D552B0900BBD668FE6A20F9 /* Scanlines.fsh */,
@@ -289,6 +292,7 @@
 				34BC0125BB63B500F46459E3 /* PrefabDemoView.swift in Sources */,
 				5E004D84C0F6DE0B60C177E2 /* RandomDemoView.swift in Sources */,
 				1036CD493C1BE32CE8E09882 /* RenderGroupDemoView.swift in Sources */,
+				6C925E766CE96E568297250C /* RenderLayersDemoView.swift in Sources */,
 				58A7DA7CAE71579207CD942C /* ResourcesDemoView.swift in Sources */,
 				4DF5A9D126A647164D9F97B0 /* SceneDemoView.swift in Sources */,
 				E97EE4905384C3E54DD197A4 /* SpatialDemoView.swift in Sources */,
