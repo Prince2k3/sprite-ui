@@ -21,6 +21,7 @@ struct SpriteUIDemoApp: App {
                 Tab("Scenes", systemImage: "square.stack.3d.up") { SceneDemoView() }
                 Tab("Materials", systemImage: "paintpalette") { MaterialDemoView() }
                 Tab("Lighting", systemImage: "lightbulb") { LightingDemoView() }
+                Tab("Rendering", systemImage: "square.3.layers.3d") { RenderGroupDemoView() }
                 Group {
                     Tab("Attachments", systemImage: "text.bubble") { AttachmentDemoView() }
                     Tab("Timelines", systemImage: "timeline.selection") { TimelineDemoView() }

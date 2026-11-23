@@ -83,6 +83,21 @@ import Testing
         host.renderer.update(1); host.renderer.didFinishUpdate()
         #expect(try projection(host).position == CGPoint(x: 140, y: 70))
     }
+
+    @Test func renderGroupsLeaveAttachmentsAndTheirHitRegionsOutsideTheFilter() throws {
+        let (host, anchor) = fixture(interactive: true)
+        let parent = Entity(); host.world.addEntity(parent); parent.addChild(anchor)
+        anchor.position = [20, 30]; host.renderer.flush(); host.attachmentStore.refresh()
+        let before = try projection(host)
+        host.attachmentStore.reportSize(CGSize(width: 80, height: 30), for: before.id)
+        parent.components.set(RenderGroupComponent(effects: [.blur(radius: 12), .bloom(radius: 8)], opacity: 0.5))
+        host.renderer.flush(); host.attachmentStore.refresh()
+        let after = try projection(host)
+        #expect(after.position == before.position && after.basis == before.basis && after.id == before.id)
+        #expect(before.opacity == 1 && after.opacity == 0.5)
+        #expect(host.attachmentStore.blocksInput(at: before.position))
+        #expect(host.renderer.node(for: anchor)?.children.isEmpty == true)
+    }
     @Test func visibilityFollowsHierarchyAndOldContextsNeverRevalidateAfterActivation() throws {
         let (host, anchor) = fixture(interactive: true)
         let parent = Entity(); host.world.addEntity(parent); parent.addChild(anchor)

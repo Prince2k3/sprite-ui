@@ -107,6 +107,7 @@ public final class SpriteRenderer: SKScene {
         register(Transform.self, Self.transformBinding)
         register(SpriteComponent.self, Self.spriteBinding)
         register(LightComponent.self, Self.lightBinding)
+        register(RenderGroupComponent.self, Self.renderGroupBinding)
         register(PhysicsBodyComponent.self, Self.physicsBinding)
         register(CollisionComponent.self, Self.collisionBinding)
         register(CameraComponent.self, Self.cameraBinding)
@@ -554,7 +555,12 @@ extension SpriteRenderer: WorldObserver {
 
     public func world(_ world: World, didAdd entity: Entity) {
         guard nodes[entity.id] == nil else { return }
-        let node = SKNode()
+        // A stable backing node can opt into compositing later without replacing
+        // physics bodies, entity references, hierarchy links, or running actions.
+        let node = SKEffectNode()
+        node.shouldEnableEffects = false
+        node.shouldRasterize = false
+        node.shouldCenterFilter = false
         node.name = entity.name.isEmpty ? "entity-\(entity.id)" : entity.name
         nodes[entity.id] = node
         entityIDs[ObjectIdentifier(node)] = entity.id

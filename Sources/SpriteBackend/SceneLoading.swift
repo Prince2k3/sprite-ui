@@ -87,7 +87,9 @@ public enum SceneLoadingError: Error, Equatable {
 /// ``ECSCore/Transform``. Sprites become a ``SpriteComponent``, physics bodies a
 /// ``PhysicsBodyComponent``, lights a ``LightComponent``, tile maps a ``TileMapComponent``
 /// and User Data a ``SceneUserDataComponent``. Sprite materials keep normal maps and
-/// lighting/shadow masks. Other kinds
+/// lighting/shadow masks. Enabled effect nodes become ``RenderGroupComponent`` values;
+/// Gaussian blur, bloom and color controls are supported. Unknown filters retain
+/// compositing but their filter effect is omitted. Other kinds
 /// of node (labels, shapes, emitters) become plain entities, and their children
 /// still load.
 ///
@@ -180,6 +182,12 @@ public struct SceneLoader {
             if let body = node.physicsBody {
                 entity.components.set(Self.physicsComponent(from: body, on: node))
             }
+        }
+
+        if let effect = node as? SKEffectNode, effect.shouldEnableEffects {
+            let effects = (effect.filter as? RenderGroupFilter)?.effects
+                ?? effect.filter.flatMap(PostProcessEffect.init(filter:)).map { [$0] } ?? []
+            entity.components.set(RenderGroupComponent(effects: effects, opacity: Float(effect.alpha), blendMode: SpriteBlendMode(effect.blendMode)))
         }
 
         if let userData = node.userData, userData.count > 0 {
