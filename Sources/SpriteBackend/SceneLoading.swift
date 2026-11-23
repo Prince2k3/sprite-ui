@@ -85,9 +85,10 @@ public enum SceneLoadingError: Error, Equatable {
 ///
 /// Every node becomes an entity with the same name, place in the hierarchy and
 /// ``ECSCore/Transform``. Sprites become a ``SpriteComponent``, physics bodies a
-/// ``PhysicsBodyComponent``, tile maps a ``TileMapComponent`` and User Data a
-/// ``SceneUserDataComponent``. Other kinds
-/// of node (labels, shapes, emitters, lights) become plain entities, and their children
+/// ``PhysicsBodyComponent``, lights a ``LightComponent``, tile maps a ``TileMapComponent``
+/// and User Data a ``SceneUserDataComponent``. Sprite materials keep normal maps and
+/// lighting/shadow masks. Other kinds
+/// of node (labels, shapes, emitters) become plain entities, and their children
 /// still load.
 ///
 /// The root entity stands for the scene. It's placed so the scene looks the way it
@@ -168,6 +169,11 @@ public struct SceneLoader {
             if let sprite = node as? SKSpriteNode {
                 entity.components.set(Self.spriteComponent(from: sprite))
             }
+            if let light = node as? SKLightNode {
+                entity.components.set(LightComponent(color: Color(light.lightColor), ambientColor: Color(light.ambientColor),
+                    shadowColor: Color(light.shadowColor), falloff: Float(light.falloff), categoryBitMask: light.categoryBitMask,
+                    isEnabled: light.isEnabled && !light.isHidden))
+            }
             if let map = node as? SKTileMapNode {
                 entity.components.set(Self.tileMapComponent(from: map))
             }
@@ -229,6 +235,12 @@ public struct SceneLoader {
             sprite = SpriteComponent(color: color, size: size, anchorPoint: anchor, opacity: opacity)
         }
         sprite.material.blendMode = SpriteBlendMode(node.blendMode)
+        sprite.material.lightingBitMask = node.lightingBitMask
+        sprite.material.shadowCastBitMask = node.shadowCastBitMask
+        sprite.material.shadowedBitMask = node.shadowedBitMask
+        if let normal = node.normalTexture, let image = spriteImage(normal) {
+            sprite.material.normalMap = TextureResource(image: image, name: textureName(normal))
+        }
         return sprite
     }
 

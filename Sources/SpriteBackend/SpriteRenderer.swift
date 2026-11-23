@@ -68,6 +68,7 @@ public final class SpriteRenderer: SKScene {
     var jointEntries: [Entity.ID: PhysicsJointEntry] = [:]
     var jointStatuses: [Entity.ID: PhysicsJointStatus] = [:]
     var physicsShapes: [Entity.ID: PhysicsShapeConfiguration] = [:]
+    var needsLightingRefresh = false
     /// Contacts reported during the current simulation step, published after it.
     private struct QueuedContact {
         let event: any Event
@@ -105,6 +106,7 @@ public final class SpriteRenderer: SKScene {
         Self.registerComponents()
         register(Transform.self, Self.transformBinding)
         register(SpriteComponent.self, Self.spriteBinding)
+        register(LightComponent.self, Self.lightBinding)
         register(PhysicsBodyComponent.self, Self.physicsBinding)
         register(CollisionComponent.self, Self.collisionBinding)
         register(CameraComponent.self, Self.cameraBinding)
@@ -191,6 +193,7 @@ public final class SpriteRenderer: SKScene {
             }
         }
         synchronizePhysicsJoints()
+        refreshLightingIfNeeded()
         if !droppedTransactions.isEmpty {
             let dropped = droppedTransactions
             droppedTransactions.removeAll()
@@ -436,7 +439,10 @@ public final class SpriteRenderer: SKScene {
             if old?.anchorPoint != sprite.anchorPoint {
                 spriteNode.anchorPoint = CGPoint(x: CGFloat(sprite.anchorPoint.x), y: CGFloat(sprite.anchorPoint.y))
             }
-            sprite.material.apply(to: spriteNode, previous: old?.material)
+            if sprite.material.apply(to: spriteNode, previous: old?.material,
+                                     isActive: animator.renderer.world.entity(withID: animator.entityID)?.isActive ?? false) {
+                animator.renderer.needsLightingRefresh = true
+            }
 
             // A fresh sprite has nothing to animate from, so its first values are set directly.
             let animator = old == nil
@@ -504,6 +510,7 @@ extension SpriteRenderer: WorldObserver {
         }
         node.isHidden = !entity.isEnabledInHierarchy
         node.isPaused = !entity.isEnabledInHierarchy || (entity === world.root && (world.isPaused || world.timeScale == 0))
+        synchronizeLightingActivation(entity, node: node)
         applyPhysics(entity.components[PhysicsBodyComponent.self], previous: nil, entity: entity, node: node)
         if entity === world.root { worldSimulationDidChange(world) }
         chooseCamera()

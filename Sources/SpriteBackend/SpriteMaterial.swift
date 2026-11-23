@@ -77,6 +77,19 @@ public struct SpriteMaterial: Hashable, Codable, Sendable {
     public var tintAmount: Float
     public var opacity: Float
     public var blendMode: SpriteBlendMode
+    /// A tangent-space RGB normal map, using the same texture coordinates as the sprite.
+    /// Load it through ResourceLibrary.texture or make a TextureResource from pixels.
+    /// No map uses SpriteKit's flat surface normals. Frame animations keep this map
+    /// until you replace it; supply a matching map when a frame needs different normals.
+    public var normalMap: TextureResource?
+    /// Lights whose categories overlap this mask illuminate the sprite. Zero opts out.
+    /// Custom fragment shaders take precedence over built-in illumination; removing
+    /// the shader restores this mask. Shadow masks remain independent.
+    public var lightingBitMask: UInt32
+    /// Lights occluded by this sprite. Zero casts no shadows.
+    public var shadowCastBitMask: UInt32
+    /// Lights whose shadows darken this sprite. Zero receives no shadows.
+    public var shadowedBitMask: UInt32
     /// Changing the shader clears overrides; the new resource supplies its defaults.
     public var shader: ShaderResource? {
         didSet { if oldValue != shader { parameters = [:] } }
@@ -84,9 +97,13 @@ public struct SpriteMaterial: Hashable, Codable, Sendable {
     public private(set) var parameters: [String: ShaderValue] = [:]
 
     public init(tint: Color = .white, tintAmount: Float = 0, opacity: Float = 1,
-                blendMode: SpriteBlendMode = .alpha, shader: ShaderResource? = nil) {
+                blendMode: SpriteBlendMode = .alpha, shader: ShaderResource? = nil,
+                normalMap: TextureResource? = nil, lightingBitMask: UInt32 = 0,
+                shadowCastBitMask: UInt32 = 0, shadowedBitMask: UInt32 = 0) {
         self.tint = tint; self.tintAmount = tintAmount; self.opacity = opacity
         self.blendMode = blendMode; self.shader = shader
+        self.normalMap = normalMap; self.lightingBitMask = lightingBitMask
+        self.shadowCastBitMask = shadowCastBitMask; self.shadowedBitMask = shadowedBitMask
     }
 
     /// An override, or the resource's default. Unknown names return nil.
@@ -102,12 +119,16 @@ public struct SpriteMaterial: Hashable, Codable, Sendable {
         parameters[name] = value
     }
 
-    private enum CodingKeys: String, CodingKey { case tint, tintAmount, opacity, blendMode, shader, parameters }
+    private enum CodingKeys: String, CodingKey { case tint, tintAmount, opacity, blendMode, shader, parameters, normalMap, lightingBitMask, shadowCastBitMask, shadowedBitMask }
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(tint: try c.decodeColor(forKey: .tint), tintAmount: try c.decode(Float.self, forKey: .tintAmount),
                   opacity: try c.decode(Float.self, forKey: .opacity), blendMode: try c.decode(SpriteBlendMode.self, forKey: .blendMode),
-                  shader: try c.decodeIfPresent(ShaderResource.self, forKey: .shader))
+                  shader: try c.decodeIfPresent(ShaderResource.self, forKey: .shader),
+                  normalMap: try c.decodeIfPresent(TextureResource.self, forKey: .normalMap),
+                  lightingBitMask: try c.decodeIfPresent(UInt32.self, forKey: .lightingBitMask) ?? 0,
+                  shadowCastBitMask: try c.decodeIfPresent(UInt32.self, forKey: .shadowCastBitMask) ?? 0,
+                  shadowedBitMask: try c.decodeIfPresent(UInt32.self, forKey: .shadowedBitMask) ?? 0)
         for (name, value) in try c.decode([String: ShaderValue].self, forKey: .parameters) {
             try setParameter(value, named: name)
         }
@@ -117,21 +138,32 @@ public struct SpriteMaterial: Hashable, Codable, Sendable {
         try c.encode(color: tint, forKey: .tint); try c.encode(tintAmount, forKey: .tintAmount)
         try c.encode(opacity, forKey: .opacity); try c.encode(blendMode, forKey: .blendMode)
         try c.encodeIfPresent(shader, forKey: .shader); try c.encode(parameters, forKey: .parameters)
+        try c.encodeIfPresent(normalMap, forKey: .normalMap); try c.encode(lightingBitMask, forKey: .lightingBitMask)
+        try c.encode(shadowCastBitMask, forKey: .shadowCastBitMask); try c.encode(shadowedBitMask, forKey: .shadowedBitMask)
     }
 
-    @MainActor func apply(to node: SKSpriteNode, previous: SpriteMaterial?) {
+    /// Returns whether SpriteKit's stationary-light shadow cache needs invalidation.
+    @MainActor func apply(to node: SKSpriteNode, previous: SpriteMaterial?, isActive: Bool) -> Bool {
         if previous?.blendMode != blendMode { node.blendMode = blendMode.native }
+        if previous == nil || previous?.normalMap != normalMap { node.normalTexture = normalMap?.nativeTexture }
+        let castMask = isActive ? shadowCastBitMask : 0
+        let membershipChanged = node.lightingBitMask != (shader == nil ? lightingBitMask : 0)
+            || node.shadowCastBitMask != castMask || node.shadowedBitMask != shadowedBitMask
+        node.lightingBitMask = shader == nil ? lightingBitMask : 0
+        node.shadowCastBitMask = castMask
+        node.shadowedBitMask = shadowedBitMask
         let changed = previous == nil || previous?.shader != shader
         if changed {
             node.shader = shader?.nativeShader
             node.attributeValues = [:]
         }
-        guard let shader else { return }
+        guard let shader else { return membershipChanged }
         for name in shader.parameters.keys.sorted() {
             let value = parameter(named: name)!
             if changed || previous?.parameter(named: name) != value {
                 node.setValue(value.native, forAttribute: name)
             }
         }
+        return membershipChanged
     }
 }
