@@ -19,6 +19,7 @@ extension SpriteRenderer {
         TextComponent.registerComponent()
         ShapeComponent.registerComponent()
         MaskComponent.registerComponent()
+        TransformConstraintComponent.registerComponent()
         LightComponent.registerComponent()
         RenderGroupComponent.registerComponent()
         PhysicsBodyComponent.registerComponent()

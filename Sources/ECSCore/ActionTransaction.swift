@@ -42,6 +42,11 @@ public final class ActionTransaction {
 
     // MARK: Backend bookkeeping
 
+    /// Whether another completion-sealing pass is needed. A completion may enqueue
+    /// another transaction without changing a component immediately.
+    @_spi(Backend)
+    public static var hasPendingSeals: Bool { !awaitingSeal.isEmpty }
+
     /// A backend started a finite action on behalf of this transaction.
     @_spi(Backend)
     public func beginAction() {

@@ -29,6 +29,7 @@
 		676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60458B4819985FB661F0F10A /* JointDemoView.swift */; };
 		71199A69A3664097CE441EB3 /* thud.wav in Resources */ = {isa = PBXBuildFile; fileRef = D7386C3C0BCBEF0A3A80FFAA /* thud.wav */; };
 		750F555994F2A1805B0DC34D /* SpriteUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3FC3600C0AEE0E6FCA318D2A /* SpriteUI */; };
+		7DE39720CD71D913D126DA7E /* ConstraintDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D9BC5FCCAB76BF294439F0 /* ConstraintDemoView.swift */; };
 		7DFD7309BD8338BFE1922C67 /* MaskDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C990CEAD9255BAA7FB81E0E /* MaskDemoView.swift */; };
 		7EB43AEF065D6756EB90E8CE /* SteeringDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363FD31E7C468C0C2080419D /* SteeringDemoView.swift */; };
 		834AC392652D26FA615C2843 /* PoolingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30D56C2F72A47BC882F8D3E /* PoolingDemoView.swift */; };
@@ -78,6 +79,7 @@
 		96DB786457C0B4185B6BB04C /* Masking.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Masking.sks; sourceTree = "<group>"; };
 		AD4B56781DDCE0AD924A5FAD /* coin.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coin.wav; sourceTree = "<group>"; };
 		B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialDemoView.swift; sourceTree = "<group>"; };
+		C2D9BC5FCCAB76BF294439F0 /* ConstraintDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintDemoView.swift; sourceTree = "<group>"; };
 		D200C57D852A152275BB8377 /* SceneDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDemoView.swift; sourceTree = "<group>"; };
 		D30D56C2F72A47BC882F8D3E /* PoolingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolingDemoView.swift; sourceTree = "<group>"; };
 		D7386C3C0BCBEF0A3A80FFAA /* thud.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = thud.wav; sourceTree = "<group>"; };
@@ -136,6 +138,7 @@
 				8AF8BBC73CE04F21EF2DDBAC /* CharacterDemoView.swift */,
 				AD4B56781DDCE0AD924A5FAD /* coin.wav */,
 				4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */,
+				C2D9BC5FCCAB76BF294439F0 /* ConstraintDemoView.swift */,
 				1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */,
 				5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */,
 				FC7AFE09A2843F05C7FD51C2 /* Drawing.sks */,
@@ -256,6 +259,7 @@
 				D512D46F4777AEE3716EDFFB /* AttachmentDemoView.swift in Sources */,
 				4B56EED400299D758A88822E /* CharacterDemoView.swift in Sources */,
 				399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */,
+				7DE39720CD71D913D126DA7E /* ConstraintDemoView.swift in Sources */,
 				D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */,
 				5426761EF954EE8084C185FA /* DemoView.swift in Sources */,
 				676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */,

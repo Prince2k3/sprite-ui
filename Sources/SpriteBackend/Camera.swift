@@ -219,12 +219,40 @@ extension SpriteRenderer {
     /// Runs after physics, so it follows where bodies ended up this frame.
     func updateCameras(deltaTime: TimeInterval, time: TimeInterval) {
         let viewSize = SIMD2(Float(size.width), Float(size.height))
-        for entity in cameraEntities() {
+        let cameras = cameraEntities()
+        let ids = Set(cameras.map(\.id))
+        var dependencies: [Entity.ID: Set<Entity.ID>] = [:]
+        func addAncestors(_ entity: Entity?, to id: Entity.ID) {
+            var current = entity
+            while let entity = current {
+                if ids.contains(entity.id) { dependencies[id, default: []].insert(entity.id) }
+                current = entity.parent
+            }
+        }
+        for entity in cameras {
+            addAncestors(entity.parent, to: entity.id)
+            if let target = entity.components[CameraComponent.self]?.target.flatMap(target(of:)) { addAncestors(target, to: entity.id) }
+        }
+        var remaining = cameras, completed: Set<Entity.ID> = []
+        while let index = remaining.firstIndex(where: { (dependencies[$0.id] ?? []).isSubset(of: completed) }) {
+            let entity = remaining.remove(at: index); completed.insert(entity.id)
+            guard let camera = entity.components[CameraComponent.self] else { continue }
+            let goal = camera.target.flatMap(target(of:)).map { presentedSceneMatrix(of: $0).apply(to: .zero) }
+            let position = presentedSceneMatrix(of: entity).apply(to: .zero)
+            let next = camera.step(from: position, toward: goal, viewSize: viewSize, deltaTime: Float(deltaTime))
+            if next != position, let inverse = presentedSceneMatrix(of: entity.parent).inverted() {
+                let local = inverse.apply(to: next)
+                if local.x.isFinite, local.y.isFinite {
+                    var pose = entity.presentation.transform; pose.translation = local
+                    commitPresentedPose(pose, channels: [.position], entity: entity)
+                }
+            }
+        }
+        // Camera feedback (including following one's own descendant) has no
+        // well-defined order. Leave cyclic cameras and their dependents in place,
+        // but continue their independent shake clock so displacement cannot stick.
+        for entity in cameras {
             guard var camera = entity.components[CameraComponent.self] else { continue }
-            let goal = camera.target.flatMap(target(of:))?.scenePosition
-            let next = camera.step(from: entity.scenePosition, toward: goal, viewSize: viewSize, deltaTime: Float(deltaTime))
-            if next != entity.scenePosition { try? entity.setPosition(next, relativeTo: nil) }
-
             if camera.trauma > 0 {
                 camera.trauma = max(0, camera.trauma - camera.traumaDecay * Float(deltaTime))
                 entity.components.set(camera)

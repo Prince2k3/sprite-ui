@@ -3,7 +3,7 @@ import SpriteKit
 import SwiftUI
 
 public enum RenderingEvents {
-    /// Presented transforms are current, after actions, physics, cameras and the
+    /// Presented transforms are current, after actions, physics, constraints, cameras and the
     /// final component flush. Also delivered while simulation is paused.
     public struct DidUpdate: Event { public let scene: World }
 }
@@ -17,8 +17,8 @@ public enum RenderingEvents {
 /// 3. `didSimulatePhysics()` copies simulation results back into ``Transform`` and
 ///    ``PhysicsBodyComponent`` without marking them changed, then publishes the step's
 ///    ``PhysicsEvents``.
-/// 4. `didFinishUpdate()` runs presentation systems, moves cameras (see ``CameraComponent``),
-///    and flushes again.
+/// 4. `didFinishUpdate()` runs presentation systems, flushes their writes, evaluates
+///    transform constraints, moves cameras (see ``CameraComponent``), and flushes again.
 /// 5. SpriteKit renders.
 ///
 /// Component changes are batched: they reach the nodes when ``flush()`` runs, not immediately.
@@ -72,6 +72,7 @@ public final class SpriteRenderer: SKScene {
     var jointStatuses: [Entity.ID: PhysicsJointStatus] = [:]
     var physicsShapes: [Entity.ID: PhysicsShapeConfiguration] = [:]
     var needsLightingRefresh = false
+    var constraintEvaluations: [Entity.ID: TransformConstraintEvaluation] = [:]
     /// Contacts reported during the current simulation step, published after it.
     private struct QueuedContact {
         let event: any Event
@@ -175,13 +176,47 @@ public final class SpriteRenderer: SKScene {
         flush()
     }
 
-    /// Moves cameras once physics and actions have run, so they frame where things ended up.
+    /// Evaluates final constraints and cameras after actions, physics and presentation systems.
     public override func didFinishUpdate() {
         if let currentFrame { world.finishFrame(currentFrame) }
         currentFrame = nil
-        if !world.isPaused, world.timeScale > 0 { updateCameras(deltaTime: lastDeltaTime, time: simulationTime) }
+        // Completions may enqueue more component writes or no-op transactions.
+        // Drain them before capturing constraint input; bound reentrant user code.
+        var passes = 0
+        repeat { flush(); passes += 1 }
+        while passes < 32 && (!dirty.isEmpty || !droppedTransactions.isEmpty || ActionTransaction.hasPendingSeals)
+        let settled = dirty.isEmpty && droppedTransactions.isEmpty && !ActionTransaction.hasPendingSeals
+        if !world.isPaused, world.timeScale > 0 {
+            if settled {
+                updateTransformConstraints(deltaTime: lastDeltaTime)
+                updateCameras(deltaTime: lastDeltaTime, time: simulationTime)
+            } else {
+                world.root.visit { entity in
+                    if let component = entity.components[TransformConstraintComponent.self] {
+                        constraintEvaluations[entity.id] = .init(statuses: component.constraints.map { _ in .pendingChanges })
+                    }
+                }
+            }
+        }
         flush()
         world.publish(RenderingEvents.DidUpdate(scene: world))
+    }
+
+    /// Constraints write only owned channels, keeping other animation targets and
+    /// their native actions intact. Copy-back updates the binding cache too.
+    func commitPresentedPose(_ pose: Transform, channels: Set<AnimationChannel>, entity: Entity) {
+        guard let node = node(for: entity) else { return }
+        var model = entity.transform
+        var previous = applied[entity.id]?[Self.transformKey] as? Transform ?? model
+        if channels.contains(.position) {
+            model.translation = pose.translation; previous.translation = pose.translation
+            node.position = CGPoint(x: CGFloat(pose.translation.x), y: CGFloat(pose.translation.y))
+        }
+        if channels.contains(.rotation) {
+            model.rotation = pose.rotation; previous.rotation = pose.rotation; node.zRotation = CGFloat(pose.rotation)
+        }
+        entity._setWithoutNotifying(model)
+        applied[entity.id, default: [:]][Self.transformKey] = previous
     }
 
     /// Pushes pending component changes, resolves body connections, then lets
@@ -529,6 +564,7 @@ extension SpriteRenderer: WorldObserver {
     /// old actions without delivering their completion into a later lease.
     func resetPooledPresentation(_ root: Entity, preparing: Bool = true) {
         root.visit { entity in
+            constraintEvaluations[entity.id] = nil
             guard let node = nodes[entity.id] else { return }
             let pending = dirty.removeValue(forKey: entity.id) ?? [:]
             for change in pending.values.flatMap({ $0 }) { change.transaction?.cancelCompletion() }
@@ -591,6 +627,7 @@ extension SpriteRenderer: WorldObserver {
         entity.visit { subtree.insert($0.id) }
         removePhysicsJoints(involving: subtree)
         jointStatuses[entity.id] = nil
+        constraintEvaluations[entity.id] = nil
         dirty[entity.id] = nil
         applied[entity.id] = nil
         bodies.remove(entity.id)
@@ -614,6 +651,7 @@ extension SpriteRenderer: WorldObserver {
         transaction: ActionTransaction?
     ) {
         let key = ObjectIdentifier(componentType)
+        if componentType == TransformConstraintComponent.self { constraintEvaluations[entity.id] = nil }
         let value = entity.component(forKey: key)
         if let last = dirty[entity.id]?[key]?.last, last.transaction === transaction {
             dirty[entity.id]![key]![dirty[entity.id]![key]!.count - 1].value = value
