@@ -101,7 +101,7 @@ extension SpriteImage: Codable {
 
 extension SpriteComponent: Codable {
     private enum CodingKeys: String, CodingKey {
-        case imageName, image, texture, color, colorBlendFactor, size, anchorPoint, opacity
+        case imageName, image, texture, color, colorBlendFactor, size, anchorPoint, opacity, material
     }
 
     public init(from decoder: any Decoder) throws {
@@ -114,6 +114,7 @@ extension SpriteComponent: Codable {
         size = try container.decodeIfPresent(SIMD2<Float>.self, forKey: .size)
         anchorPoint = try container.decode(SIMD2<Float>.self, forKey: .anchorPoint)
         opacity = try container.decode(Float.self, forKey: .opacity)
+        if let material = try container.decodeIfPresent(SpriteMaterial.self, forKey: .material) { self.material = material }
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -126,6 +127,7 @@ extension SpriteComponent: Codable {
         try container.encodeIfPresent(size, forKey: .size)
         try container.encode(anchorPoint, forKey: .anchorPoint)
         try container.encode(opacity, forKey: .opacity)
+        try container.encode(material, forKey: .material)
     }
 }
 

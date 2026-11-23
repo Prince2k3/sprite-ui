@@ -212,7 +212,7 @@ public struct SceneLoader {
         let opacity = node.isHidden ? 0 : Float(node.alpha)
         let color = Color(node.color)
 
-        let sprite: SpriteComponent
+        var sprite: SpriteComponent
         if let texture = node.texture {
             if let name = textureName(texture) {
                 sprite = SpriteComponent(imageName: name, size: size, tint: color,
@@ -228,6 +228,7 @@ public struct SceneLoader {
         } else {
             sprite = SpriteComponent(color: color, size: size, anchorPoint: anchor, opacity: opacity)
         }
+        sprite.material.blendMode = SpriteBlendMode(node.blendMode)
         return sprite
     }
 

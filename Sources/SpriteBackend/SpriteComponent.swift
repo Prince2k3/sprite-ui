@@ -10,15 +10,26 @@ public struct SpriteComponent: Component, Equatable {
     public var texture: TextureResource? = nil
     /// Pixels made in code, such as a colored ``NoiseMap``. Wins over `imageName`.
     public var image: SpriteImage?
-    /// Fill color, or the tint color when an image is set.
-    public var color: Color
+    /// Tint, opacity, blending, and optional custom shading, owned by this sprite.
+    public var material: SpriteMaterial = SpriteMaterial()
+    /// Fill color, or the tint color when an image is set. Forwards to `material.tint`.
+    public var color: Color {
+        get { material.tint }
+        set { material.tint = newValue }
+    }
     /// How much `color` tints the image, from 0 (none) to 1 (full).
-    public var colorBlendFactor: Float
+    public var colorBlendFactor: Float {
+        get { material.tintAmount }
+        set { material.tintAmount = newValue }
+    }
     /// Size in points. `nil` uses the image's own size.
     public var size: SIMD2<Float>?
     /// The point in the sprite placed at the entity's position. (0.5, 0.5) is the center.
     public var anchorPoint: SIMD2<Float>
-    public var opacity: Float
+    public var opacity: Float {
+        get { material.opacity }
+        set { material.opacity = newValue }
+    }
 
     public init(
         imageName: String,
@@ -30,11 +41,9 @@ public struct SpriteComponent: Component, Equatable {
     ) {
         self.imageName = imageName
         self.image = nil
-        self.color = tint
-        self.colorBlendFactor = tintAmount
+        self.material = SpriteMaterial(tint: tint, tintAmount: tintAmount, opacity: opacity)
         self.size = size
         self.anchorPoint = anchorPoint
-        self.opacity = opacity
     }
 
     public init(
@@ -47,11 +56,9 @@ public struct SpriteComponent: Component, Equatable {
     ) {
         self.imageName = nil
         self.image = image
-        self.color = tint
-        self.colorBlendFactor = tintAmount
+        self.material = SpriteMaterial(tint: tint, tintAmount: tintAmount, opacity: opacity)
         self.size = size
         self.anchorPoint = anchorPoint
-        self.opacity = opacity
     }
 
     public init(
@@ -75,11 +82,33 @@ public struct SpriteComponent: Component, Equatable {
     ) {
         self.imageName = nil
         self.image = nil
-        self.color = color
-        self.colorBlendFactor = 1
+        self.material = SpriteMaterial(tint: color, tintAmount: 1, opacity: opacity)
         self.size = size
         self.anchorPoint = anchorPoint
-        self.opacity = opacity
+    }
+
+    public init(texture: TextureResource, material: SpriteMaterial, size: SIMD2<Float>? = nil,
+                anchorPoint: SIMD2<Float> = [0.5, 0.5]) {
+        self.init(texture: texture, size: size, anchorPoint: anchorPoint)
+        self.material = material
+    }
+
+    public init(image: SpriteImage, material: SpriteMaterial, size: SIMD2<Float>? = nil,
+                anchorPoint: SIMD2<Float> = [0.5, 0.5]) {
+        self.init(image: image, size: size, anchorPoint: anchorPoint)
+        self.material = material
+    }
+
+    public init(imageName: String, material: SpriteMaterial, size: SIMD2<Float>? = nil,
+                anchorPoint: SIMD2<Float> = [0.5, 0.5]) {
+        self.init(imageName: imageName, size: size, anchorPoint: anchorPoint)
+        self.material = material
+    }
+
+    /// A solid rectangle; tintAmount is irrelevant when no texture is present.
+    public init(material: SpriteMaterial, size: SIMD2<Float>, anchorPoint: SIMD2<Float> = [0.5, 0.5]) {
+        self.init(color: material.tint, size: size, anchorPoint: anchorPoint)
+        self.material = material
     }
 }
 

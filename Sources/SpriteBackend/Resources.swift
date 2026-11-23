@@ -157,10 +157,11 @@ public final class ResourceLibrary {
     private let textures = ResourceCache<TextureResource>()
     private let atlases = ResourceCache<TextureAtlasResource>()
     private let sounds = ResourceCache<AudioResource>()
+    let shaders = ResourceCache<ShaderResource>()
     let prefabs = ResourceCache<PrefabResource>()
     public init() {}
-    public var cachedResourceCount: Int { textures.count + atlases.count + sounds.count + prefabs.count }
-    public func removeAllCachedResources() { textures.removeAll(); atlases.removeAll(); sounds.removeAll(); prefabs.removeAll() }
+    public var cachedResourceCount: Int { textures.count + atlases.count + sounds.count + prefabs.count + shaders.count }
+    public func removeAllCachedResources() { textures.removeAll(); atlases.removeAll(); sounds.removeAll(); prefabs.removeAll(); shaders.removeAll() }
 
     public func texture(contentsOf url: URL) async throws -> TextureResource {
         let url = url.standardizedFileURL

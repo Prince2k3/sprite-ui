@@ -436,6 +436,7 @@ public final class SpriteRenderer: SKScene {
             if old?.anchorPoint != sprite.anchorPoint {
                 spriteNode.anchorPoint = CGPoint(x: CGFloat(sprite.anchorPoint.x), y: CGFloat(sprite.anchorPoint.y))
             }
+            sprite.material.apply(to: spriteNode, previous: old?.material)
 
             // A fresh sprite has nothing to animate from, so its first values are set directly.
             let animator = old == nil
