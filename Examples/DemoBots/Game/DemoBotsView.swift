@@ -9,6 +9,7 @@ public struct DemoBotsView: View {
     @State private var selectedLevel = 1
     @State private var showsHelp = false
     @State private var keyboard = Set<String>()
+    @State private var sceneDebug = SceneDebugController(options: [.collisionShapes, .selection, .statistics, .inspector, .simulationControls])
     @Environment(\.scenePhase) private var scenePhase
 
     public init() {}
@@ -17,14 +18,17 @@ public struct DemoBotsView: View {
         GeometryReader { geometry in
             ZStack {
                 Color(red: 0.025, green: 0.07, blue: 0.06)
-                GameView { content in
+                GameView(debug: game.isInspecting ? sceneDebug : nil) { content in
                     game.build(in: content)
                     await game.prepareResources()
                 }
                     .contentShape(Rectangle())
                     .gesture(SpatialTapGesture().onEnded { game.sendPlayer(toView: $0.location) })
                     .onGeometryChange(for: CGSize.self) { $0.size } action: { game.resize($0) }
+                    .padding(.top, game.isInspecting ? inspectionTopInset(for: geometry.size) + 52 : 0)
+                    .padding(.bottom, game.isInspecting ? 90 : 0)
                 if game.phase == .home { home(size: geometry.size).allowsHitTesting(!game.isLoadingResources) }
+                else if game.isInspecting { inspectionControls(size: geometry.size) }
                 else {
                     gameplayHUD(size: geometry.size)
                     if game.phase == .paused { pauseMenu }
@@ -46,6 +50,19 @@ public struct DemoBotsView: View {
             case .rightArrow: key = "d"
             default: key = String(press.key.character).lowercased()
             }
+            if press.phase == .down && key == "i" {
+                keyboard = []
+                game.isInspecting ? game.endInspection() : game.beginInspection()
+                return .handled
+            }
+            if game.isInspecting {
+                keyboard = []
+                if press.phase == .down {
+                    if press.key == .escape { game.endInspection() }
+                    else if key == "p" { sceneDebug.isPaused.toggle() }
+                }
+                return ["w", "a", "s", "d", "f", " ", "p", "i"].contains(key) || press.key == .escape ? .handled : .ignored
+            }
             if press.phase == .up { keyboard.remove(key) } else { keyboard.insert(key) }
             if press.phase == .down && (key == "p" || press.key == .escape) {
                 game.phase == .playing ? game.pause() : game.resume()
@@ -60,6 +77,11 @@ public struct DemoBotsView: View {
             return .handled
         }
         .onChange(of: scenePhase) { _, phase in if phase != .active { keyboard = []; game.pause() } }
+        .onChange(of: game.isInspecting) { _, _ in keyboard = [] }
+        .onChange(of: sceneDebug.isAttached) { _, attached in
+            if attached, game.isInspecting { sceneDebug.select(game.player) }
+        }
+        .onDisappear { keyboard = []; game.pause() }
         .sheet(isPresented: $showsHelp) { instructions }
 #if os(iOS)
         .statusBarHidden()
@@ -130,6 +152,8 @@ public struct DemoBotsView: View {
                 Text(String(format: "%d:%02d", game.secondsLeft / 60, game.secondsLeft % 60))
                     .font(.system(size: 26, weight: .medium, design: .monospaced)).monospacedDigit()
                     .foregroundStyle(game.secondsLeft < 30 ? .red : .white)
+                Button { game.beginInspection() } label: { Image(systemName: "ladybug").frame(width: 42, height: 42) }
+                    .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Open scene tools")
                 Button { game.pause() } label: { Image(systemName: "pause.fill").frame(width: 42, height: 42) }
                     .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Pause game")
             }
@@ -189,6 +213,7 @@ public struct DemoBotsView: View {
     private var pauseMenu: some View {
         menu(title: "Taking a breather?", subtitle: "The circuit can wait.") {
             Button("Resume", systemImage: "play.fill") { game.resume() }.buttonStyle(BotPrimaryButton())
+            Button("Scene tools", systemImage: "ladybug") { game.beginInspection() }.buttonStyle(.bordered)
             Toggle("Show bot paths", isOn: $game.showsPaths).tint(.mint)
             Toggle("Sound effects", isOn: $game.soundEnabled).tint(.mint)
             Button("Restart level") { game.start(level: game.levelNumber) }.buttonStyle(.bordered)
@@ -226,9 +251,51 @@ public struct DemoBotsView: View {
             Label("Keep the beam on a red bot until it turns green. Watch your beam’s charge.", systemImage: "battery.75percent")
             Label("GroundBots chase and infect. FlyingBots blast nearby bots—curing one can cure its neighbors too.", systemImage: "airplane")
             Label("Out of charge? You recover automatically. Restore all bots before the clock runs out.", systemImage: "clock")
-            Text("Keyboard: WASD to move · F or Space to debug · P to pause").font(.caption).foregroundStyle(.secondary)
+            Text("Keyboard: WASD to move · F or Space to fire · P to pause · I for scene tools").font(.caption).foregroundStyle(.secondary)
             Button("Ready", systemImage: "checkmark") { showsHelp = false }.buttonStyle(BotPrimaryButton())
         }.padding(30).frame(maxWidth: 560).presentationDetents([.large])
+    }
+
+    private func inspectionTopInset(for size: CGSize) -> CGFloat {
+#if os(iOS)
+        size.width > size.height ? 16 : 54
+#else
+        12
+#endif
+    }
+
+    private func inspectionControls(size: CGSize) -> some View {
+        VStack {
+            HStack {
+                Button { game.endInspection() } label: {
+                    Image(systemName: "xmark").frame(width: 44, height: 44)
+                        .background(.regularMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close scene tools")
+                Text("Scene tools").font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, inspectionTopInset(for: size) + 8)
+            Spacer()
+            HStack(spacing: 14) {
+                Button("Player", systemImage: "scope") { sceneDebug.select(game.player) }
+                Button(sceneDebug.options.contains(.origins) ? "Less guides" : "More guides", systemImage: "square.dashed") {
+                    let extras: SceneDebugOptions = [.origins, .bounds, .joints, .constraintTargets]
+                    if sceneDebug.options.contains(.origins) { sceneDebug.options.subtract(extras) }
+                    else { sceneDebug.options.formUnion(extras) }
+                }
+                Text("Player controls off").font(.caption).foregroundStyle(.secondary)
+            }
+            .font(.footnote)
+            .buttonStyle(.bordered)
+            .padding(10)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 12)
+            .padding(.bottom, 24)
+        }
+        .tint(.mint)
     }
 }
 
@@ -268,6 +335,7 @@ private struct BotThumbstick: View {
                     changed([Float(delta.width / radius), -Float(delta.height / radius)], true)
                 }
                 .onEnded { _ in pressed = false; offset = .zero; changed(.zero, false) })
+            .onDisappear { pressed = false; offset = .zero; changed(.zero, false) }
             Text(label).font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(2).foregroundStyle(tint.opacity(0.75))
         }.accessibilityElement(children: .ignore).accessibilityLabel(label == "MOVE" ? "Movement joystick" : "Aim and fire Debug Beam")
     }

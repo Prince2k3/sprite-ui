@@ -18,6 +18,9 @@ public final class DemoBotsSession {
     public private(set) var message = ""
     public var showsPaths = false
     public var soundEnabled = true
+    /// Scene tools suppress player input without putting match logic into its
+    /// pause-menu phase, so SpriteUI's debugger can advance a complete match frame.
+    public private(set) var isInspecting = false
     public private(set) var mapDots: [MapDot] = []
     public private(set) var mapBounds = SIMD4<Float>(128, -1064, 1248, 1704)
 
@@ -54,6 +57,12 @@ public final class DemoBotsSession {
     @ObservationIgnored private var activeClips: [Entity.ID: String] = [:]
     @ObservationIgnored private var cureSound: AudioResource?
     @ObservationIgnored private let resourceLibrary = ResourceLibrary()
+    private struct InspectionState {
+        let phase: DemoBotsPhase
+        let wasPaused: Bool
+        let timeScale: Double
+    }
+    @ObservationIgnored private var inspectionState: InspectionState?
 
     /// Preloads the app's asset catalog once; tests can still load editor scenes
     /// without a GPU or the application asset catalog.
@@ -99,6 +108,8 @@ public final class DemoBotsSession {
 
     public func start(level number: Int = 1) {
         guard let world else { message = "The game is still loading."; return }
+        world.isPaused = true
+        if let saved = discardInspection() { world.timeScale = saved.timeScale }
         moveInput = .zero; aimInput = .zero; isFiring = false
         destination = nil; playerRoute = []; beam = DebugBeam(); playerCharge = PlayerCharge()
         for entity in world.entities { entity.removeFromParent() }
@@ -194,33 +205,82 @@ public final class DemoBotsSession {
         if let navigation { camera?.components[CameraComponent.self]?.bounds = cameraBounds(for: navigation.bounds) }
     }
     public func move(_ direction: SIMD2<Float>) {
-        guard phase == .playing else { return }
+        guard phase == .playing, !isInspecting else { return }
         moveInput = simd_length(direction) > 1 ? simd_normalize(direction) : direction
         if simd_length_squared(direction) > 0.01 { destination = nil; playerRoute = [] }
     }
     public func aim(_ direction: SIMD2<Float>, firing: Bool) {
-        guard phase == .playing else { isFiring = false; return }
+        guard phase == .playing, !isInspecting else { isFiring = false; return }
         aimInput = direction; isFiring = firing
     }
     public func sendPlayer(toView point: CGPoint) {
-        guard phase == .playing, let renderer, let player, let navigation else { return }
+        guard phase == .playing, !isInspecting, let renderer, let player, let navigation else { return }
         let goal = renderer.scenePoint(fromView: point)
         guard navigation.bounds.contains(goal), !navigation.padded.contains(where: { $0.contains(goal) }) else { return }
         destination = goal
         playerRoute = navigation.path(from: player.position, to: goal)
     }
     public func pause() {
+        if let saved = discardInspection() {
+            world?.isPaused = true
+            world?.timeScale = saved.timeScale
+        }
         guard phase == .playing else { return }
         phase = .paused; world?.isPaused = true; stopMotion()
     }
     public func resume() {
+        if isInspecting { endInspection() }
         guard phase == .paused else { return }
         phase = .playing
         world?.isPaused = false
         for bot in bots { bot.components[BotComponent.self]?.decisionDelay = 0 }
     }
     public func home() {
+        world?.isPaused = true
+        if let saved = discardInspection() { world?.timeScale = saved.timeScale }
         phase = .home; world?.isPaused = true; stopMotion()
+    }
+
+    /// Opens scene tooling from gameplay or the pause menu. Pause is initially
+    /// preserved in the world, while the match phase allows systems to run during
+    /// a debug step or an explicit Resume in the tools. Bot steering is retained.
+    public func beginInspection() {
+        guard !isInspecting, !isLoadingResources, phase == .playing || phase == .paused, let world else { return }
+        inspectionState = InspectionState(phase: phase, wasPaused: world.isPaused, timeScale: world.timeScale)
+        world.isPaused = true
+        isInspecting = true; phase = .playing
+        clearPlayerInput()
+        for bot in bots { bot.components[BotComponent.self]?.decisionDelay = 0 }
+    }
+
+    /// Closes tools without carrying held input or debugger speed changes into
+    /// gameplay. A won/lost match remains terminal even if it ended in the tools.
+    public func endInspection() {
+        guard let saved = discardInspection() else { return }
+        world?.isPaused = true
+        world?.timeScale = saved.timeScale
+        clearPlayerInput()
+        if phase == .playing {
+            phase = saved.phase
+            world?.isPaused = saved.wasPaused
+        }
+    }
+
+    private func discardInspection() -> InspectionState? {
+        let saved = inspectionState
+        // Cancel queued/priming steps synchronously. Waiting for SwiftUI to
+        // detach on its next update could otherwise advance a paused match after Close.
+        if saved != nil { renderer?.setDebugController(nil) }
+        inspectionState = nil; isInspecting = false
+        return saved
+    }
+
+    private func clearPlayerInput() {
+        moveInput = .zero; aimInput = .zero; isFiring = false
+        destination = nil; playerRoute = []
+        player?.components[SteeringComponent.self]?.goals = []
+        player?.components[SteeringComponent.self]?.velocity = .zero
+        for line in beamLines { line.components[SpriteComponent.self]?.opacity = 0 }
     }
     func stopMotion() {
         moveInput = .zero; aimInput = .zero; isFiring = false
