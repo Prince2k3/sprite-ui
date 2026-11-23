@@ -94,6 +94,7 @@ extension SpriteRenderer {
     }
 
     func synchronizeLightingActivation(_ entity: Entity, node: SKNode) {
+        let node = Self.contentRoot(node)
         if let light = node.childNode(withName: Self.lightNodeName) as? SKLightNode {
             let enabled = entity.isActive && (entity.components[LightComponent.self]?.isEnabled ?? false)
             if !light.isEnabled && enabled { needsLightingRefresh = true }
@@ -112,11 +113,11 @@ extension SpriteRenderer {
         // even after a same-frame enable transition. Rebuild only the private
         // light children, once per batch; entity nodes, transforms and actions stay.
         for entity in world.performQuery(EntityQuery(where: .has(LightComponent.self))) {
-            guard let parent = node(for: entity), let old = parent.childNode(withName: Self.lightNodeName) as? SKLightNode,
+            guard let root = node(for: entity), let old = Self.contentRoot(root).childNode(withName: Self.lightNodeName) as? SKLightNode,
                   old.isEnabled, let value = entity.components[LightComponent.self] else { continue }
             let light = SKLightNode(); light.name = Self.lightNodeName
             Self.configureLight(light, value: value, isActive: entity.isActive)
-            old.removeFromParent(); parent.addChild(light)
+            old.removeFromParent(); Self.contentRoot(root).addChild(light)
         }
     }
 }

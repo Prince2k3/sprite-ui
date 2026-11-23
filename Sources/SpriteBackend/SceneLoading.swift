@@ -78,6 +78,8 @@ public enum SceneLoadingError: Error, Equatable {
     case notFound(String)
     /// The file isn't a SpriteKit scene.
     case unreadable(URL)
+    /// Mask artwork cannot be represented with matching alpha coverage.
+    case unsupportedMask(String)
 }
 
 /// Loads `.sks` files made in Xcode's scene editor as entities, in place of
@@ -94,6 +96,13 @@ public enum SceneLoadingError: Error, Equatable {
 /// strings load as plain text with the label's base style; shape textures and
 /// custom shape shaders are not imported. Emitters become plain entities, and
 /// their children still load.
+/// Crop nodes import masks made from plain node containers, textured or solid
+/// sprites, and shape fills and strokes. Mask RGB is ignored; alpha is preserved.
+/// A crop without a mask passes its children through. Unsupported mask artwork
+/// throws ``SceneLoadingError/unsupportedMask(_:)`` before the loaded tree is returned:
+/// labels, emitters, tile maps, lights, active effects, nested crops, custom shaders,
+/// shape glow or textures, nine-slice textures, non-alpha blends, and textured sprites tinted with
+/// translucent colors are unsupported.
 ///
 /// The root entity stands for the scene. It's placed so the scene looks the way it
 /// did in the editor in a view centered on the origin, whatever the scene's anchor point.
@@ -148,13 +157,13 @@ public struct SceneLoader {
         guard let data = try? Data(contentsOf: url),
               let node = try? NSKeyedUnarchiver.unarchivedObject(ofClass: SKNode.self, from: data)
         else { throw SceneLoadingError.unreadable(url) }
-        let root = entity(from: node)
+        let root = try entity(from: node)
         if root.name.isEmpty { root.name = url.deletingPathExtension().lastPathComponent }
         return root
     }
 
     /// Converts a node tree. The node is left as it was.
-    func entity(from node: SKNode) -> Entity {
+    func entity(from node: SKNode) throws -> Entity {
         let entity = Entity()
         entity.name = node.name ?? ""
 
@@ -194,6 +203,15 @@ public struct SceneLoader {
             entity.components.set(RenderGroupComponent(effects: effects, opacity: Float(effect.alpha), blendMode: SpriteBlendMode(effect.blendMode)))
         }
 
+        if let crop = node as? SKCropNode {
+            if let mask = crop.maskNode {
+                entity.components.set(MaskComponent(.group([try Self.maskLayer(from: mask)])))
+            }
+            if crop.alpha != 1 || crop.isHidden {
+                entity.components.set(RenderGroupComponent(opacity: crop.isHidden ? 0 : Float(crop.alpha)))
+            }
+        }
+
         if let userData = node.userData, userData.count > 0 {
             var values: [String: SceneValue] = [:]
             for (key, value) in userData {
@@ -209,7 +227,8 @@ public struct SceneLoader {
         }
 
         for child in node.children {
-            entity.addChild(self.entity(from: child))
+            if let crop = node as? SKCropNode, child === crop.maskNode { continue }
+            entity.addChild(try self.entity(from: child))
         }
         return entity
     }

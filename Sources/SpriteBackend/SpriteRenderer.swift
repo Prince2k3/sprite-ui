@@ -29,6 +29,9 @@ public final class SpriteRenderer: SKScene {
     /// `apply` receives the new value (`nil` when the component was removed) and the value
     /// it last applied (`nil` the first time), so it can touch only what changed.
     /// `present` reads the value currently on screen, for `entity.presentation`.
+    /// Visual bindings receive the entity's content container, which can be an
+    /// identity crop wrapper when masked. Built-in transform/physics/camera bindings
+    /// keep using the stable entity node returned by node(for:).
     public struct Binding<T: Component> {
         public var apply: @MainActor (_ new: T?, _ old: T?, _ node: SKNode, _ animator: Animator) -> Void
         public var present: (@MainActor (_ node: SKNode, _ model: T) -> T)?
@@ -108,6 +111,7 @@ public final class SpriteRenderer: SKScene {
         register(SpriteComponent.self, Self.spriteBinding)
         register(TextComponent.self, Self.textBinding)
         register(ShapeComponent.self, Self.shapeBinding)
+        register(MaskComponent.self, Self.maskBinding)
         register(LightComponent.self, Self.lightBinding)
         register(RenderGroupComponent.self, Self.renderGroupBinding)
         register(PhysicsBodyComponent.self, Self.physicsBinding)
@@ -209,7 +213,7 @@ public final class SpriteRenderer: SKScene {
         guard let binding = bindings[type] else { return }
         let animator = Animator(renderer: self, entityID: entity.id, transaction: transaction)
         let old = applied[entity.id]?[type]
-        binding.apply(value, old, node, animator)
+        binding.apply(value, old, Self.bindingRoot(type, node: node), animator)
         applied[entity.id, default: [:]][type] = value
         if type == Self.physicsKey {
             if node.physicsBody != nil { bodies.insert(entity.id) } else { bodies.remove(entity.id) }
@@ -315,7 +319,7 @@ public final class SpriteRenderer: SKScene {
         guard let node = node(for: entity) else { return }
         for channel in channels {
             guard let key = channel == .opacity ? opacityTarget?.key : Self.animationKeys[channel] else { continue }
-            let target = channel == .opacity ? opacityTarget.flatMap { node.childNode(withName: $0.nodeName) } : node
+            let target = channel == .opacity ? opacityTarget.flatMap { Self.contentRoot(node).childNode(withName: $0.nodeName) } : node
             if let target { cancelAction(key, entityID: entity.id, node: target) }
         }
     }
@@ -536,14 +540,15 @@ extension SpriteRenderer: WorldObserver {
             }
             @MainActor func clear(_ node: SKNode) {
                 node.removeAllActions()
-                for child in node.children { clear(child) }
+                if let crop = node as? MaskCropNode { clear(crop.artwork) }
+                for child in node.children where entityIDs[ObjectIdentifier(child)] == nil { clear(child) }
             }
             // Do not clear descendant entity nodes here; each is processed below.
             node.removeAllActions()
             for child in node.children where entityIDs[ObjectIdentifier(child)] == nil { clear(child) }
             // Also remove retired streams whose component was removed while
             // particles were still fading (their reserved name is already nil).
-            for child in node.children where child is SKEmitterNode {
+            for child in Self.contentRoot(node).children where child is SKEmitterNode {
                 child.removeFromParent()
             }
             let keys = Set(applied[entity.id]?.keys.map { $0 } ?? []).union(entity.componentKeys)
@@ -570,7 +575,7 @@ extension SpriteRenderer: WorldObserver {
         entityIDs[ObjectIdentifier(node)] = entity.id
 
         let parentNode: SKNode = entity.parent.flatMap { nodes[$0.id] } ?? self
-        parentNode.addChild(node)
+        Self.contentRoot(parentNode).addChild(node)
         node.isHidden = !entity.isEnabledInHierarchy
         node.isPaused = !entity.isEnabledInHierarchy
 
@@ -623,7 +628,7 @@ extension SpriteRenderer: WorldObserver {
               let node = nodes[entity.id],
               let model = entity.component(forKey: key)
         else { return nil }
-        return present(node, model)
+        return present(Self.bindingRoot(key, node: node), model)
     }
 }
 

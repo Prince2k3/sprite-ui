@@ -98,6 +98,17 @@ import Testing
         #expect(host.attachmentStore.blocksInput(at: before.position))
         #expect(host.renderer.node(for: anchor)?.children.isEmpty == true)
     }
+    @Test func masksLeaveSeparatelyHostedAttachmentsAndTheirInputIndependent() throws {
+        let (host, anchor) = fixture(interactive: true)
+        let parent = Entity(components: MaskComponent(.empty)); host.world.addEntity(parent); parent.addChild(anchor)
+        host.renderer.flush(); host.attachmentStore.refresh()
+        let p = try projection(host)
+        host.attachmentStore.reportSize(CGSize(width: 80, height: 30), for: p.id)
+        #expect(!host.renderer.isPointVisible(.zero, throughMasksOf: anchor))
+        #expect(p.opacity == 1 && host.attachmentStore.blocksInput(at: p.position))
+        #expect(try context(host, anchor).isValid)
+    }
+
     @Test func visibilityFollowsHierarchyAndOldContextsNeverRevalidateAfterActivation() throws {
         let (host, anchor) = fixture(interactive: true)
         let parent = Entity(); host.world.addEntity(parent); parent.addChild(anchor)

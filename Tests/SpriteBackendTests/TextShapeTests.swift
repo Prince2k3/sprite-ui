@@ -290,7 +290,7 @@ private typealias PlatformFont = NSFont
         nativeShape.xScale = 2; nativeShape.yScale = 0.5; nativeShape.zPosition = 3
         let child = SKNode(); child.name = "child"; child.position = CGPoint(x: 6, y: 9); child.zRotation = 0.4
         nativeShape.addChild(child); label.addChild(nativeShape); scene.addChild(label)
-        let direct = SceneLoader().entity(from: label)
+        let direct = try SceneLoader().entity(from: label)
         #expect(direct.components[TextComponent.self]?.lineBreak == .truncateMiddle)
         #expect(direct.components[TextComponent.self]?.blendMode == .add)
         #expect(direct.children.first?.components[ShapeComponent.self]?.blendMode == .add)

@@ -8,16 +8,19 @@ extension SpriteRenderer {
     /// collider. A collider on an ancestor suppresses implicit child visual hits,
     /// while children with their own colliders remain independent targets.
     /// Uses displayed transforms, including camera-independent animation poses.
+    /// Every enabled ancestor mask clips input, including explicit colliders;
+    /// model-space physics queries remain independent of visual masks.
     public func entities(at scenePoint: CGPoint, filter: CollisionQueryFilter = .init()) -> [Entity] {
         struct Layer { let z: CGFloat; let order: Int }
         var hits: [(entity: Entity, layers: [Layer])] = []
         var order = 0
         func visit(_ entity: Entity, parentZ: CGFloat, groups: [Layer], hasColliderAncestor: Bool) {
-            guard entity.isActive, let node = node(for: entity), !node.isHidden else { return }
+            guard entity.isActive, let node = node(for: entity), !node.isHidden, maskAllows(scenePoint, node: node) else { return }
             let z = parentZ + node.zPosition
             // A composited subtree is atomic relative to sibling layers. Child z
             // values only affect ordering inside that subtree, even for colliders.
             let grouped = (node as? SKEffectNode)?.shouldEnableEffects == true
+                || (Self.contentRoot(node) as? MaskCropNode)?.maskNode != nil
             let scope = grouped ? groups + [Layer(z: z, order: order)] : groups
             let localZ = grouped ? 0 : z
             let collider = entity.queryCollider
@@ -30,13 +33,13 @@ extension SpriteRenderer {
                     }
                 }
             } else if !hasColliderAncestor, filter.includes(entity, filter: .init()),
-                      let visualZ = drawingHitZ(at: scenePoint, on: node) {
+                      let visualZ = drawingHitZ(at: scenePoint, on: Self.contentRoot(node)) {
                 hits.append((entity, scope + [Layer(z: localZ + visualZ, order: order)]))
             }
             order += 1
             for child in entity.children { visit(child, parentZ: localZ, groups: scope, hasColliderAncestor: hasColliderAncestor || collider != nil) }
         }
-        if node(for: world.root)?.isHidden != true {
+        if let root = node(for: world.root), !root.isHidden, maskAllows(scenePoint, node: root) {
             for entity in world.entities { visit(entity, parentZ: 0, groups: [], hasColliderAncestor: false) }
         }
         return hits.sorted { a, b in

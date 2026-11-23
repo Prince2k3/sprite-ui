@@ -23,6 +23,7 @@ struct SpriteUIDemoApp: App {
                 Tab("Lighting", systemImage: "lightbulb") { LightingDemoView() }
                 Tab("Rendering", systemImage: "square.3.layers.3d") { RenderGroupDemoView() }
                 Tab("Text & Shapes", systemImage: "textformat") { TextShapeDemoView() }
+                Tab("Masking", systemImage: "circle.lefthalf.filled") { MaskDemoView() }
                 Group {
                     Tab("Attachments", systemImage: "text.bubble") { AttachmentDemoView() }
                     Tab("Timelines", systemImage: "timeline.selection") { TimelineDemoView() }
