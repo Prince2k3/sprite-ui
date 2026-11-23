@@ -44,8 +44,13 @@ extension GameHost {
         inputContacts[id]?.cancelled = cancelled
     }
     func cancelInputs() {
+        guard !isCancellingInputs else { return }
+        isCancellingInputs = true
+        defer { isCancellingInputs = false }
         for contact in inputContacts.values { contact.cancelled = true }
         inputContacts.removeAll()
+        manipulationInput?.cancel()
+        renderer.cancelManipulations()
         actionInput?.cancelAll()
     }
     func contact(startingAt start: CGPoint?, after completedID: UInt64 = 0) -> InputContact? {
@@ -144,6 +149,7 @@ final class GameInputRecognizer: UIGestureRecognizer, UIGestureRecognizerDelegat
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { finish(touches, cancelled: true) }
     private func finish(_ touches: Set<UITouch>, cancelled: Bool) {
         for touch in touches {
+            host?.manipulationInput?.releaseTouch(touch, cancelled: cancelled)
             if let id = contacts.removeValue(forKey: ObjectIdentifier(touch)) { host?.endInput(id, cancelled: cancelled) }
         }
         if contacts.isEmpty { state = .failed }

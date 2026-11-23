@@ -211,7 +211,7 @@ extension SpriteRenderer {
             physicsShapes[entity.id] = signature
         }
         guard let body = node.physicsBody else { return }
-        body.isDynamic = model.isDynamic && !shape.isEdge
+        body.isDynamic = model.isDynamic && !shape.isEdge && !isManipulationHoldingPhysics(entity)
         if let mass = model.mass { body.mass = CGFloat(mass) } else { body.density = CGFloat(model.density) }
         body.friction = CGFloat(model.friction); body.restitution = CGFloat(model.restitution)
         body.linearDamping = CGFloat(model.linearDamping); body.angularDamping = CGFloat(model.angularDamping)

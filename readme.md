@@ -82,7 +82,7 @@ Create entities and install systems in `GameView`'s setup closure. Use its `upda
 | Movement | Collision shapes and queries, character controllers, physics bodies, joints, and transform constraints |
 | Gameplay | Agents and goals, pathfinding, navigation meshes, spatial indexes, state machines, decisions, rules, strategists, noise, and seeded random generators |
 | Input | Observable actions, stacked and Codable binding maps, virtual controls, and focused keyboard, pointer-button, and gamepad input |
-| Presentation | Targeted gestures, SwiftUI attachments, particles, and contact effects |
+| Presentation | Automatic entity dragging, rotation, and scaling; targeted gestures; SwiftUI attachments; particles and contact effects |
 | Persistence and debugging | Registered component snapshots, entity-reference remapping, scene inspection, and frame diagnostics |
 
 ## Package modules
@@ -100,7 +100,7 @@ The module boundaries let pure gameplay algorithms run independently of renderin
 
 ## Documentation and tutorials
 
-The DocC catalog lives in [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md]]. It includes a getting-started guide, conceptual articles, the public API reference, and four hands-on tutorials covering your first scene, systems and targeted input, collision-aware agents, and player input actions.
+The DocC catalog lives in [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md]]. It includes a getting-started guide, conceptual articles, the public API reference, and five hands-on tutorials covering your first scene, systems and targeted input, collision-aware agents, player input actions, and direct entity manipulation.
 
 The tutorial sequence includes complete Swift code for every stage and expected-result illustrations:
 
@@ -108,8 +108,11 @@ The tutorial sequence includes complete Swift code for every stage and expected-
 2. **Moving with systems and input:** implement frame-based movement, targeted taps, and pause/resume.
 3. **Steering and collision-aware movement:** combine agent goals, collision queries, character movement, and a route around a wall.
 4. **Controlling a player with input actions:** build on-screen controls, read held 2D movement from a system, observe press transitions, and add optional keyboard, pointer, and gamepad bindings. No physical keyboard or gamepad is required.
+5. **Manipulating sprites with gestures:** opt into automatic drag, rotation, and scale, constrain a child under a rotated and scaled parent, observe lifecycle events, and add accessible session controls with physics release.
 
-The seven guides cover getting started, entity and scene lifecycle, systems and input, input actions and controllers, gameplay and movement, rendering and resources, and saving and debugging. [[Sources/SpriteUI/SpriteUI.docc/Articles/input-actions-and-controllers.md]] explains context priority, cancellation and dead zones, shared controller ownership, and persisted rebinding.
+The eight guides cover getting started, entity and scene lifecycle, systems and input, input actions and controllers, direct manipulation, gameplay and movement, rendering and resources, and saving and debugging. [[Sources/SpriteUI/SpriteUI.docc/Articles/input-actions-and-controllers.md]] explains context priority, cancellation and dead zones, shared controller ownership, and persisted rebinding.
+
+[[Sources/SpriteUI/SpriteUI.docc/Articles/manipulating-entities.md]] covers parent-local axis locks, bounds and snapping, uniform local scale limits, lifecycle events, and renderer sessions. Add `InputTargetComponent` plus `ManipulationComponent` for automatic `GameView` gestures without an explicit `.gesture` modifier. The [[Demo/SpriteUIDemo/ManipulationDemoView.swift]] playground includes free, constrained-child, and dynamic-body examples with accessible buttons. Physics capture temporarily suspends native bodies without changing component configuration; end/cancel restores dynamics with zero release velocity by default, or `.restoreVelocity`. Placement does not avoid collisions or throw on release. Character-controller, transform-constraint, and joint-connected ownership deliberately reject manipulation.
 
 With Xcode command-line tools and Python 3 installed, run from the repository root:
 

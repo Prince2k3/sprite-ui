@@ -15,6 +15,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Install the package and display a scene | <doc:getting-started> |
 | Organize hierarchies, activation, shared state, and events | <doc:entity-and-scene-lifecycle> |
 | Run frame logic and handle targeted gestures | <doc:systems-and-input> |
+| Drag, rotate, and scale entities with automatic gestures or buttons | <doc:manipulating-entities> |
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Plan routes and move characters | <doc:gameplay-and-movement> |
 | Load assets and assemble visual content | <doc:rendering-and-resources> |
@@ -43,6 +44,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:entity-and-scene-lifecycle>
 - <doc:systems-and-input>
 - <doc:input-actions-and-controllers>
+- <doc:manipulating-entities>
 - <doc:gameplay-and-movement>
 - <doc:rendering-and-resources>
 - <doc:saving-and-debugging>
@@ -72,6 +74,12 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/EventSubscription``
 - ``SpriteUI/InputTargetComponent``
 - ``SpriteUI/EntityTargetValue``
+
+### Direct manipulation
+
+- ``SpriteUI/ManipulationComponent``
+- ``SpriteUI/ManipulationSession``
+- ``SpriteUI/ManipulationEvents``
 
 ### Input actions and controllers
 

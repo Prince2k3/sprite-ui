@@ -1,14 +1,14 @@
 @Tutorials(name: "SpriteUI") {
     @Intro(title: "Build an interactive SpriteUI scene") {
-        Create a scene, give its entities frame-based behavior, steer around a wall, and control a player with shared input actions.
+        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, and manipulate sprites directly.
 
         @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
     }
 
-    @Volume(name: "From your first sprite to player controls") {
-        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, and map on-screen and hardware controls to actions.
+    @Volume(name: "From your first sprite to direct manipulation") {
+        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, and drag, rotate, and scale sprites.
 
-        @Image(source: "spriteui-tutorials-overview.svg", alt: "Four stages progress from scene creation through targeted input and collision-aware steering to shared player input actions.")
+        @Image(source: "spriteui-tutorials-overview.svg", alt: "Five stages progress from scene creation through targeted input, collision-aware steering, and shared player input actions to direct manipulation.")
 
         @Chapter(name: "Create and retain a scene") {
             Learn how a SwiftUI view owns an observable scene and adds entities to GameView.
@@ -36,6 +36,13 @@
 
             @Image(source: "spriteui-input-actions.svg", alt: "Virtual and hardware controls feed shared Move and Fire actions.")
             @TutorialReference(tutorial: "doc:controlling-a-player-with-input-actions")
+        }
+
+        @Chapter(name: "Manipulate sprites directly") {
+            Opt into automatic gestures, constrain a child in parent-local space, and provide accessible session controls with safe physics release.
+
+            @Image(source: "spriteui-manipulation.svg", alt: "A cyan sprite moves freely, a mint child follows a tilted rail, and an orange body resumes physics above a floor.")
+            @TutorialReference(tutorial: "doc:manipulating-sprites-with-gestures")
         }
     }
 }

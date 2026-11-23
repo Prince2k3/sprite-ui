@@ -143,6 +143,8 @@ struct DragScene: View {
 
 ``SpriteUI/EntityTargetValue`` carries the captured entity and the underlying gesture value. Its conversions use displayed transforms and the current camera. Attach the gesture to the `GameView` or a wrapper containing exactly one `GameView`. `targetedToEntity(_:)` selects a specific hierarchy owner; `targetedToEntity(where:)` selects the nearest matching ancestor.
 
+For automatic dragging, rotation, uniform scaling, grab-offset preservation, and parent-local constraints, add `ManipulationComponent` and follow <doc:manipulating-entities>. That path installs GameView gestures automatically and also exposes programmatic sessions for accessible controls.
+
 ## Respect capture validity
 
 Targets are captured from the gesture's starting pointer rather than a global last-hit entity. Removal, disabling, cancellation, activation/reuse, or reparenting that changes the resolved target cancels delivery. Gestures that cannot identify a starting point are delivered only for an unambiguous contact. These rules keep two fingers or two views from accidentally sharing a target.

@@ -8,6 +8,9 @@
 /// The backend uses explicit collision shapes, then physics shapes. Sprite bounds
 /// remain a compatibility fallback for hierarchies without a collider.
 ///
+/// Add ``ManipulationComponent`` to opt a pickable entity into GameView's automatic
+/// dragging, rotation, and scaling. Pickability alone never changes its transform.
+///
 /// This component controls entity-targeted gestures, independently of game actions
 /// resolved by ``InputController``. It is not required for keyboard, controller,
 /// or virtual action bindings. Disabling a target does not disable a player's

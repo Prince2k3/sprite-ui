@@ -95,6 +95,9 @@ public final class SpriteRenderer: SKScene {
     private var nextToken = 0
     /// Adds ``ContactEffectComponent`` effects as contacts are published.
     private var contactEffects: EventSubscription?
+    var manipulationSessions: [UUID: ManipulationSession] = [:]
+    var validatingManipulations = false
+    var cancellingManipulations = false
     private var lastUpdateTime: TimeInterval?
     private var lastDeltaTime: TimeInterval = 0
     private var currentFrame: WorldFrame?
@@ -210,6 +213,7 @@ public final class SpriteRenderer: SKScene {
 
     /// Evaluates final constraints and cameras after actions, physics and presentation systems.
     public override func didFinishUpdate() {
+        validateManipulations()
         if let currentFrame { world.finishFrame(currentFrame) }
         currentFrame = nil
         // Completions may enqueue more component writes or no-op transactions.
@@ -255,6 +259,7 @@ public final class SpriteRenderer: SKScene {
     /// Pushes pending component changes, resolves body connections, then lets
     /// transactions that started no actions complete.
     public func flush() {
+        validateManipulations()
         if !dirty.isEmpty {
             let pending = dirty
             dirty.removeAll(keepingCapacity: true)
@@ -582,6 +587,7 @@ extension SpriteRenderer: WorldObserver {
     }
 
     public func world(_ world: World, activationDidChange entity: Entity) {
+        validateManipulations()
         guard let node = nodes[entity.id] else { return }
         if !entity.isActive {
             copyPhysicsResult(entity.id)
@@ -634,6 +640,7 @@ extension SpriteRenderer: WorldObserver {
     public func worldActiveCamera(_ world: World) -> Entity? { activeCamera }
 
     public func world(_ world: World, didAdd entity: Entity) {
+        validateManipulations()
         guard nodes[entity.id] == nil else { return }
         // A stable backing node can opt into compositing later without replacing
         // physics bodies, entity references, hierarchy links, or running actions.
@@ -658,6 +665,7 @@ extension SpriteRenderer: WorldObserver {
     }
 
     public func world(_ world: World, willRemove entity: Entity) {
+        cancelManipulations(involving: entity)
         attachedDebugController?.removed(entity)
         var subtree: Set<Entity.ID> = []
         entity.visit { subtree.insert($0.id) }
@@ -694,6 +702,7 @@ extension SpriteRenderer: WorldObserver {
         } else {
             dirty[entity.id, default: [:]][key, default: []].append(Change(transaction: transaction, value: value))
         }
+        validateManipulations()
     }
 
     public func world(_ world: World, presentationValueOf componentType: any Component.Type, for entity: Entity) -> (any Component)? {

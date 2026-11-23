@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="400" viewBox="0 0 960 400" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
   <title id="title">Build an interactive SpriteUI scene</title>
-  <desc id="desc">Four connected panels progress from a cyan sprite, through targeted motion and a route around a wall, to a directional pad feeding shared input actions.</desc>
-  <rect width="960" height="400" rx="28" fill="#111c30"/>
+  <desc id="desc">Five connected panels progress from a cyan sprite, through targeted motion and a route around a wall, to a directional pad feeding shared input actions, then direct manipulation on a tilted grid.</desc>
+  <rect width="1200" height="400" rx="28" fill="#111c30"/>
   <g fill="#182b43" stroke="#45607a" stroke-width="2">
     <rect x="24" y="44" width="210" height="302" rx="18"/>
     <rect x="258" y="44" width="210" height="302" rx="18"/>
@@ -33,4 +33,12 @@
     <text x="597" y="309">3. Steer and collide</text>
     <text x="831" y="309">4. Map input actions</text>
   </g>
+  <rect x="960" y="44" width="216" height="302" rx="18" fill="#182b43" stroke="#45607a" stroke-width="2"/>
+  <path d="M941 195h14m-6-5 6 5-6 5" fill="none" stroke="#93adc5" stroke-width="3"/>
+  <g transform="translate(1068 190) rotate(-25)">
+    <rect x="-78" y="-34" width="156" height="68" fill="#18352f" stroke="#7bdfa2"/>
+    <path d="M-50-34v68m25-68v68m25-68v68m25-68v68m25-68v68M-70 0H70" stroke="#4a8970"/>
+    <rect x="12" y="-17" width="34" height="34" rx="3" fill="#7bdfa2"/>
+  </g>
+  <text x="1068" y="309" font-family="system-ui,sans-serif" fill="#e0ebf4" font-size="18" text-anchor="middle">5. Manipulate sprites</text>
 </svg>

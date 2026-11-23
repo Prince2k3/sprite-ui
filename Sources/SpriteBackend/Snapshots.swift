@@ -15,6 +15,7 @@ extension SpriteRenderer {
     /// Particle emitters and sounds are left out: they're effects of the moment, and their
     /// sounds point at files in an app bundle that may have moved.
     public nonisolated static func registerComponents() {
+        ManipulationComponent.registerComponent()
         SpriteComponent.registerComponent()
         TextComponent.registerComponent()
         ShapeComponent.registerComponent()

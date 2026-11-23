@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-labelledby="title desc">
+<title id="title">01 Automatic GameView gestures</title><desc id="desc">Expected result diagram: A cyan rectangle retains its grab offset as it moves, rotates, and grows.</desc>
+<style>text{font-family:system-ui,sans-serif;fill:#e1f1f8}.small{font-size:14px}.muted{fill:#9db9cb}</style>
+<rect width="720" height="520" rx="24" fill="#102230"/>
+<text x="32" y="42" font-size="22" font-weight="700">01  Automatic GameView gestures</text>
+<rect x="32" y="64" width="656" height="302" rx="12" fill="#07131f" stroke="#38566b"/>
+<rect x="206" y="202" width="48" height="32" rx="3" fill="none" stroke="#9db9cb" stroke-dasharray="4 5"/>
+<path d="M265 215q55-10 90-55m-13 3 13-3-4 13" fill="none" stroke="#21d6f1" stroke-width="3"/>
+<g transform="translate(403 168) rotate(-25)"><rect x="-36" y="-24" width="72" height="48" rx="3" fill="#21d6f1"/><circle cx="26" cy="0" r="4" fill="white"/></g>
+<text x="360" y="310" text-anchor="middle" class="small muted">Pan + pinch / magnify + rotate</text>
+<text x="360" y="405" text-anchor="middle" class="small">InputTargetComponent + ManipulationComponent</text>
+<text x="360" y="436" text-anchor="middle" class="small muted">No explicit .gesture modifier · local scale 0.25…4</text>
+<text x="360" y="503" text-anchor="middle" font-size="12" class="muted">Expected result illustration</text></svg>

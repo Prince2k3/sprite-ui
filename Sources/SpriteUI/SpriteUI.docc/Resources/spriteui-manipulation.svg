@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="400" viewBox="0 0 960 400" role="img" aria-labelledby="title desc">
+<title id="title">Manipulating sprites</title><desc id="desc">A cyan sprite moves freely, a mint child follows a tilted grid, and an orange physics body is released above a floor.</desc>
+<rect width="960" height="400" rx="28" fill="#111c30"/>
+<g font-family="system-ui,sans-serif" fill="#e0ebf4" text-anchor="middle" font-size="20"><text x="170" y="65">Free manipulation</text><text x="480" y="65">Parent-local constraints</text><text x="790" y="65">Physics handoff</text></g>
+<path d="M70 220q20-100 130-100m-15-6 15 6-7 14" fill="none" stroke="#48d9ec" stroke-width="4"/>
+<rect x="125" y="155" width="80" height="50" rx="5" fill="#48d9ec" transform="rotate(-20 165 180)"/>
+<g transform="translate(480 200) rotate(-30)"><rect x="-110" y="-40" width="220" height="80" fill="#18352f" stroke="#7bdfa2"/><path d="M-80-40v80m40-80v80m40-80v80m40-80v80m40-80v80M-90 0H90" stroke="#4a8970"/><rect x="25" y="-18" width="36" height="36" fill="#7bdfa2"/></g>
+<rect x="770" y="145" width="42" height="42" rx="4" fill="#ffb45b"/><path d="M791 204v55m-8-10 8 10 8-10" fill="none" stroke="#ffb45b" stroke-width="3"/><path d="M695 290h190" stroke="#93adc5" stroke-width="8"/>
+<g font-family="system-ui,sans-serif" fill="#93adc5" text-anchor="middle" font-size="16"><text x="170" y="346">Drag · rotate · scale</text><text x="480" y="346">Axis lock · grid · bounds</text><text x="790" y="346">Capture · release · resume</text></g></svg>

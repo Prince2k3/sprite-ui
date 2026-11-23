@@ -40,6 +40,7 @@ struct SpriteUIDemoApp: App {
                         Tab("API", systemImage: "square.stack.3d.down.right") { APIConsolidationDemoView() }
                         Tab("Tiles", systemImage: "square.grid.3x3") { TileMapDemoView() }
                         Tab("Constraints", systemImage: "scope") { ConstraintDemoView() }
+                        Tab("Manipulation", systemImage: "hand.draw") { ManipulationDemoView() }
                     }
                 }
             }

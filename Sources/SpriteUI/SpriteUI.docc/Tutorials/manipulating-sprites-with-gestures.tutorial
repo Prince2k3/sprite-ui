@@ -1,0 +1,63 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Manipulating sprites with gestures") {
+        Opt sprites into automatic dragging, rotation, and scaling, constrain a child in its parent's coordinates, and provide accessible buttons using the same manipulation sessions.
+
+        @Image(source: "spriteui-manipulation.svg", alt: "A free cyan sprite, a mint child on a rotated grid, and an orange physics body above a floor.")
+    }
+
+    @Section(title: "Opt a sprite into automatic gestures") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to the SpriteUI package product. Each resource completely replaces `ContentView.swift`; keep the app's existing `ContentView()` entry point. No image assets or explicit gesture modifiers are required.
+
+            `InputTargetComponent` makes the artwork pickable and `ManipulationComponent` opts it into GameView's automatic native gestures. The observable scene is retained with `@State`. No ticking system writes its transform. Stage three adds buttons for users without multitouch or a trackpad.
+        }
+
+        @Steps {
+            @Step {
+                Replace `ContentView.swift` with stage one and run the app. Drag the cyan rectangle from an edge and observe that the original grab offset is preserved. With touch, pinch and rotate it; on a Mac, drag with the pointer and use trackpad magnification and rotation. The rectangle changes position, angle, and uniform scale without a `.gesture` modifier. Its local scale magnitudes stay within the default `0.25...4` range. If these gestures are unavailable, continue to stage three for equivalent button controls.
+
+                @Code(name: "ContentView.swift", file: "spriteui-manipulation-01.swift") {
+                    @Image(source: "spriteui-manipulation-01-preview.svg", alt: "Expected result: a cyan rectangle is dragged, rotated, and uniformly enlarged with automatic GameView gestures.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Constrain a child in parent-local coordinates") {
+        @ContentAndMedia {
+            The second stage keeps the free sprite and adds a mint child under a parent rotated 30° and scaled by 1.1. Its grid and bounds are parent-local; a locked y coordinate follows the tilted parent's X axis rather than the screen's horizontal axis.
+
+            Bounds limit the child's origin, grid snapping measures from the parent origin, and rotation snaps in radians from local zero. Uniform scaling preserves aspect ratio and reflection while limiting local scale magnitudes, independently of parent scale.
+        }
+
+        @Steps {
+            @Step {
+                Replace `ContentView.swift` with stage two. Drag mint diagonally across the rail and observe its origin move only along the tilted local X axis in 20-point steps between -80 and 80. Drag perpendicular to the rail: local y remains zero. Rotate mint and observe 15° steps, then manipulate cyan to compare its free movement. Scaling mint changes its size while preserving the parent's inherited transform; the bounds apply to the origin and do not contain every corner of a large sprite.
+
+                @Code(name: "ContentView.swift", file: "spriteui-manipulation-02.swift", previousFile: "spriteui-manipulation-01.swift") {
+                    @Image(source: "spriteui-manipulation-02-preview.svg", alt: "Expected result: the mint child follows a tilted parent-local X rail on a 20-point grid while cyan remains free.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Observe sessions and restore physics") {
+        @ContentAndMedia {
+            Retained subscriptions observe Began, Changed, Ended, and Cancelled after each committed pose. The orange entity has a dynamic physics body above a static floor. Capture temporarily makes its native body static without changing `PhysicsBodyComponent.isDynamic`. End and cancellation restore configured dynamics with zero release velocity by default; `.restoreVelocity` is available when captured velocity should resume. Placement is not collision-aware and release does not throw.
+
+            Buttons begin an explicit renderer session at the chosen entity's scene-space position, send cumulative translation, rotation radians, and scale factor, then end it. Each action requests only its changing channel. Explicit begin starts at the displayed pose without jumping. The picker makes every sprite reachable without scene gestures; event callbacks also select the latest manipulated sprite.
+
+            Disable input or reset to cancel captures. Do not add a system that rewrites these poses. Entities driven by character controllers or transform constraints, and entities connected by physics joints, deliberately reject manipulation. See <doc:manipulating-entities> for ownership, cancellation, presentation coordinates, and persistence details.
+        }
+
+        @Steps {
+            @Step {
+                Replace `ContentView.swift` with the final stage. Choose Rail and use Rotate left, Smaller, and Larger to test the same constrained sessions without multitouch. Toggle Snapping and drag mint to compare continuous and grid movement; toggle Enabled off to prevent new sessions. Adjust Camera zoom and confirm dragging still follows the pointer. Drag orange above the floor: Began reports suspended simulation, and release reports Ended with dynamics restored before it falls. Begin another drag, then disable manipulation to see Cancelled and restored dynamics. Reset cancels active sessions, restores the three poses, and clears body velocities. Observe these lifecycle messages without reading native physics APIs.
+
+                @Code(name: "ContentView.swift", file: "spriteui-manipulation-03.swift", previousFile: "spriteui-manipulation-02.swift") {
+                    @Image(source: "spriteui-manipulation-03-preview.svg", alt: "Expected result: controls target each sprite, events report Body capture and release, and orange resumes falling toward the floor.")
+                }
+            }
+        }
+    }
+}

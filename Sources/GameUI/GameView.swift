@@ -202,6 +202,8 @@ final class GameHost {
     var viewFrame = CGRect.zero
     let inputHostID = UUID()
     weak var actionInput: InputController?
+    var manipulationInput: GameManipulationInput?
+    var isCancellingInputs = false
     var nextInputID: UInt64 = 0
     var inputContacts: [UInt64: InputContact] = [:]
     var mouseContact: UInt64?
@@ -212,6 +214,7 @@ final class GameHost {
 final class GameSKView: SKView {
     weak var host: GameHost?
     func stopTrackingInput() {
+        host?.manipulationInput?.detach()
         host?.stopPresentation()
 #if os(macOS)
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
@@ -226,6 +229,7 @@ final class GameSKView: SKView {
     private var mouseMonitor: Any?
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        host?.manipulationInput?.windowChanged()
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
         if let id = host?.mouseContact { host?.endInput(id, cancelled: true); host?.mouseContact = nil }
         guard window != nil else { return }
@@ -254,6 +258,7 @@ final class GameSKView: SKView {
     private var contactObserver: GameInputRecognizer?
     override func didMoveToWindow() {
         super.didMoveToWindow()
+        host?.manipulationInput?.windowChanged()
         if let observer = contactObserver {
             observer.cancelTrackedContacts(); observer.view?.removeGestureRecognizer(observer)
             contactObserver = nil
@@ -310,6 +315,10 @@ private func makeView(host: GameHost, debug: SceneDebugController?) -> SKView {
     view.host = host
     view.ignoresSiblingOrder = true
     view.presentScene(host.renderer)
+    host.manipulationInput?.detach()
+    let manipulation = GameManipulationInput(host: host)
+    host.manipulationInput = manipulation
+    manipulation.attach(to: view)
     host.setDebugVisible(true)
     host.configureDebugController(debug)
     return view
