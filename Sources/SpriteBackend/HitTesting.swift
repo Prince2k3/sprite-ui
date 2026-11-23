@@ -11,6 +11,16 @@ extension SpriteRenderer {
     /// Every enabled ancestor mask clips input, including explicit colliders;
     /// model-space physics queries remain independent of visual masks.
     public func entities(at scenePoint: CGPoint, filter: CollisionQueryFilter = .init()) -> [Entity] {
+        displayedEntities(at: scenePoint, filter: filter, inspectingVisuals: false)
+    }
+
+    /// Inspection sees visible children independently of gameplay collider
+    /// ownership. It still obeys activation, displayed masks and draw ordering.
+    func inspectedEntities(at scenePoint: CGPoint) -> [Entity] {
+        displayedEntities(at: scenePoint, filter: .init(), inspectingVisuals: true)
+    }
+
+    private func displayedEntities(at scenePoint: CGPoint, filter: CollisionQueryFilter, inspectingVisuals: Bool) -> [Entity] {
         struct Layer { let z: CGFloat; let order: Int }
         var hits: [(entity: Entity, layers: [Layer])] = []
         var order = 0
@@ -24,15 +34,18 @@ extension SpriteRenderer {
             let scope = grouped ? groups + [Layer(z: z, order: order)] : groups
             let localZ = grouped ? 0 : z
             let collider = entity.queryCollider
+            var colliderHit = false
             if let collider {
                 if collider.isEnabled, filter.includes(entity, filter: collider.filter) {
                     let matrix = displayedCollisionMatrix(for: node) * AffineTransform2D(tx: collider.offset.x, ty: collider.offset.y)
                     let geometry = collisionGeometry(shape: collider.shape, matrix: matrix)
                     if CollisionGeometry.contains([Float(scenePoint.x), Float(scenePoint.y)], in: geometry) {
                         hits.append((entity, scope + [Layer(z: localZ, order: order)]))
+                        colliderHit = true
                     }
                 }
-            } else if !hasColliderAncestor, filter.includes(entity, filter: .init()),
+            }
+            if !colliderHit, (inspectingVisuals || (collider == nil && !hasColliderAncestor)), filter.includes(entity, filter: .init()),
                       let visualZ = drawingHitZ(at: scenePoint, on: Self.contentRoot(node)) {
                 hits.append((entity, scope + [Layer(z: localZ + visualZ, order: order)]))
             }

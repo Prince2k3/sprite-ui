@@ -35,6 +35,9 @@ public struct GameViewContent {
 }
 
 /// Hosts a game world in SwiftUI, in the style of `RealityView`.
+/// Pass a view-scoped `debug` controller to enable collapsible diagnostics and
+/// simulation controls. Explicit debug picking suppresses entity-targeted game
+/// input; arbitrary ancestor gestures follow normal SwiftUI gesture arbitration.
 ///
 /// ```swift
 /// GameView { content in
@@ -51,12 +54,14 @@ public struct GameView: View {
     private let make: Make
     private let update: Update?
     private let showsStatistics: Bool
+    private let debug: SceneDebugController?
     private let makeAttachments: @MainActor () -> [GameAttachment]
 
     @State private var host = GameHost()
     @Environment(\.scenePhase) private var scenePhase
 
     public init(
+        debug: SceneDebugController? = nil,
         showsStatistics: Bool = false,
         make: @escaping Make,
         update: Update? = nil
@@ -64,6 +69,7 @@ public struct GameView: View {
         self.make = make
         self.update = update
         self.showsStatistics = showsStatistics
+        self.debug = debug
         self.makeAttachments = { [] }
     }
 
@@ -81,24 +87,33 @@ public struct GameView: View {
     ///     GameAttachment(id: "name") { Text("Player") }
     /// }
     /// ```
-    public init(showsStatistics: Bool = false, make: @escaping Make, update: Update? = nil,
+    public init(debug: SceneDebugController? = nil, showsStatistics: Bool = false, make: @escaping Make, update: Update? = nil,
                 @GameAttachmentBuilder attachments: @escaping @MainActor () -> [GameAttachment]) {
         self.make = make; self.update = update; self.showsStatistics = showsStatistics
+        self.debug = debug
         makeAttachments = attachments
     }
 
     public var body: some View {
         let definitions = makeAttachments()
         let ids = definitions.map(\.id)
-        return SKViewHost(host: host, update: update, showsStatistics: showsStatistics)
+        return SKViewHost(host: host, update: update, showsStatistics: showsStatistics, debug: debug)
+            .overlay {
+                if let debug { SceneDebugOverlay(controller: debug, host: host) }
+            }
             .overlay { AttachmentOverlay(store: host.attachmentStore, definitions: definitions) }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { host.viewFrame = $0 }
             .preference(key: GameHostPreferenceKey.self, value: [GameHostReference(id: host.inputHostID, host: host)])
-            .onAppear { host.attachmentStore.setVisible(true) }
-            .onDisappear { host.cancelInputs(); host.attachmentStore.setVisible(false) }
+            .onAppear {
+                host.attachmentStore.setVisible(true)
+                host.setDebugVisible(true)
+                host.configureDebugController(debug)
+            }
+            .onDisappear { host.stopPresentation() }
             .onChange(of: scenePhase, initial: true) { _, phase in
                 if phase != .active { host.cancelInputs() }
                 host.attachmentStore.setAppActive(phase == .active)
+                host.setDebugInputActive(phase == .active)
             }
             .onChange(of: ids, initial: true) { _, ids in host.attachmentStore.configure(ids) }
             .task {
@@ -119,6 +134,49 @@ final class GameHost {
     lazy var attachmentStore = AttachmentStore(host: self)
     var content: GameViewContent { GameViewContent(world: world, renderer: renderer, attachments: GameViewAttachments(store: attachmentStore)) }
     var isReady = false
+    let debugInput = SceneDebugInputState()
+    private var requestedDebugController: SceneDebugController?
+    private var debugVisible = true
+
+    var activeDebugController: SceneDebugController? {
+        guard debugVisible, let controller = requestedDebugController,
+              renderer.debugController === controller, controller.scene === world else { return nil }
+        return controller
+    }
+
+    func configureDebugController(_ controller: SceneDebugController?) {
+        if requestedDebugController !== controller {
+            debugInput.reset(); cancelInputs()
+        }
+        requestedDebugController = controller
+        guard debugVisible else { return }
+        if !renderer.setDebugController(controller) {
+            // A rejected replacement must not leave the previous controller's
+            // drawings/profiling running behind a panel owned by another scene.
+            renderer.setDebugController(nil)
+        }
+    }
+
+    func setDebugVisible(_ visible: Bool) {
+        debugVisible = visible
+        if visible {
+            configureDebugController(requestedDebugController)
+        } else {
+            debugInput.reset(); cancelInputs()
+            renderer.setDebugController(nil)
+        }
+    }
+
+    func setDebugInputActive(_ active: Bool) {
+        debugInput.isActive = active
+        if !active { debugInput.reset(); cancelInputs() }
+    }
+
+    /// Shared by SwiftUI disappearance and native-view dismantling.
+    func stopPresentation() {
+        attachmentStore.setVisible(false)
+        setDebugVisible(false)
+    }
 
     /// The latest `update:` closure SwiftUI handed us.
     private var update: GameView.Update?
@@ -153,7 +211,7 @@ final class GameHost {
 final class GameSKView: SKView {
     weak var host: GameHost?
     func stopTrackingInput() {
-        host?.cancelInputs()
+        host?.stopPresentation()
 #if os(macOS)
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
 #else
@@ -216,11 +274,13 @@ private struct SKViewHost: UIViewRepresentable {
     let host: GameHost
     let update: GameView.Update?
     let showsStatistics: Bool
+    let debug: SceneDebugController?
 
-    func makeUIView(context: Context) -> SKView { makeView(host: host) }
+    func makeUIView(context: Context) -> SKView { makeView(host: host, debug: debug) }
 
     func updateUIView(_ view: SKView, context: Context) {
         configure(view, showsStatistics: showsStatistics)
+        host.configureDebugController(debug)
         host.runUpdate(update)
     }
     static func dismantleUIView(_ view: SKView, coordinator: ()) { (view as? GameSKView)?.stopTrackingInput() }
@@ -230,11 +290,13 @@ private struct SKViewHost: NSViewRepresentable {
     let host: GameHost
     let update: GameView.Update?
     let showsStatistics: Bool
+    let debug: SceneDebugController?
 
-    func makeNSView(context: Context) -> SKView { makeView(host: host) }
+    func makeNSView(context: Context) -> SKView { makeView(host: host, debug: debug) }
 
     func updateNSView(_ view: SKView, context: Context) {
         configure(view, showsStatistics: showsStatistics)
+        host.configureDebugController(debug)
         host.runUpdate(update)
     }
     static func dismantleNSView(_ view: SKView, coordinator: ()) { (view as? GameSKView)?.stopTrackingInput() }
@@ -242,11 +304,13 @@ private struct SKViewHost: NSViewRepresentable {
 #endif
 
 @MainActor
-private func makeView(host: GameHost) -> SKView {
+private func makeView(host: GameHost, debug: SceneDebugController?) -> SKView {
     let view = GameSKView()
     view.host = host
     view.ignoresSiblingOrder = true
     view.presentScene(host.renderer)
+    host.setDebugVisible(true)
+    host.configureDebugController(debug)
     return view
 }
 

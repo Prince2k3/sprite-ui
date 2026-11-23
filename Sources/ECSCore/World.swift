@@ -46,6 +46,22 @@ public final class World {
     var scheduledSystems: [SystemEntry] = []
     var isRunningSystems = false
 
+    /// Collects wall-clock durations for systems that actually run in a frame.
+    /// Turning profiling off immediately discards the previous measurements.
+    public var isProfilingEnabled = false {
+        didSet {
+            if !isProfilingEnabled {
+                lastSystemTimings = []
+                profilingRevision &+= 1
+            }
+        }
+    }
+    public internal(set) var lastSystemTimings: [SystemTiming] = []
+    var profilingRevision: UInt64 = 0
+
+    /// True from a paused debug frame's update event through its completion.
+    @_spi(Backend) public internal(set) var isDebugStepping = false
+
     /// Whether simulation, backend physics, and actions are paused. Component edits
     /// still render while paused. User interface updates are not scene simulation.
     public var isPaused = false { didSet { if oldValue != isPaused { simulationDidChange() } } }

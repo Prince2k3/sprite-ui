@@ -31,6 +31,7 @@ extension GameHost {
     func beginInput(at point: CGPoint, sceneTargetAllowed: Bool = true) -> UInt64 {
         nextInputID &+= 1
         let blocked = !sceneTargetAllowed || !attachmentStore.acceptsInput || attachmentStore.blocksInput(at: point)
+            || debugBlocksInput(at: point)
         let hit = blocked ? nil : renderer.inputTarget(at: CGPoint(scenePoint: renderer.scenePoint(fromView: point)))
         let contact = InputContact(id: nextInputID, start: point, hit: hit)
         let now = ProcessInfo.processInfo.systemUptime
@@ -83,7 +84,9 @@ final class TargetedInputCapture<Value> {
         guard let host else { return nil }
         // A control may not create an SKView contact at all. Reject its starting
         // region before considering any recent scene contact at that location.
-        if !attemptedCapture, let start, host.attachmentStore.blocksInput(at: start) {
+        if host.isDebugPicking { return nil }
+        if !attemptedCapture, let start,
+           host.attachmentStore.blocksInput(at: start) || host.debugBlocksInput(at: start) {
             attemptedCapture = true; sourceHost = host; target = nil; return nil
         }
         if let contact, contact.cancelled { end() }
@@ -91,7 +94,7 @@ final class TargetedInputCapture<Value> {
             guard let input = host.contact(startingAt: start, after: completedContacts[host.inputHostID] ?? 0) else { return nil }
             attemptedCapture = true
             sourceHost = host; contact = input
-            if let hit = input.hit { target = resolver(hit) }
+            if let hit = input.hit, !host.debugBlocksInput(at: input.start) { target = resolver(hit) }
         }
         guard sourceHost === host, let contact, !contact.cancelled,
               let hit = contact.hit, hit.world === host.world, hit.isInputTarget,

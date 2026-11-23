@@ -47,6 +47,7 @@
 		DF0D389E25A50C55302D74CD /* APIConsolidationDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */; };
 		E97EE4905384C3E54DD197A4 /* SpatialDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */; };
 		F4ADA338FC9E58E31452A0A0 /* LightingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98A54802ED807F4B7CCE12F /* LightingDemoView.swift */; };
+		F5AF3D9FCF521AFE474F32DF /* DebugDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2087AC349F8F142CD3B41790 /* DebugDemoView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +55,7 @@
 		08BD89A9366587B00C8A21DB /* TextShapeDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextShapeDemoView.swift; sourceTree = "<group>"; };
 		12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicsDemoView.swift; sourceTree = "<group>"; };
 		1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionDemoView.swift; sourceTree = "<group>"; };
+		2087AC349F8F142CD3B41790 /* DebugDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDemoView.swift; sourceTree = "<group>"; };
 		2E17EFBCE495B5D694E70CC3 /* RenderGroupDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderGroupDemoView.swift; sourceTree = "<group>"; };
 		336679CC6AC0F80F32FB81A4 /* playback-demo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "playback-demo.wav"; sourceTree = "<group>"; };
 		363FD31E7C468C0C2080419D /* SteeringDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteeringDemoView.swift; sourceTree = "<group>"; };
@@ -139,6 +141,7 @@
 				AD4B56781DDCE0AD924A5FAD /* coin.wav */,
 				4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */,
 				C2D9BC5FCCAB76BF294439F0 /* ConstraintDemoView.swift */,
+				2087AC349F8F142CD3B41790 /* DebugDemoView.swift */,
 				1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */,
 				5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */,
 				FC7AFE09A2843F05C7FD51C2 /* Drawing.sks */,
@@ -260,6 +263,7 @@
 				4B56EED400299D758A88822E /* CharacterDemoView.swift in Sources */,
 				399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */,
 				7DE39720CD71D913D126DA7E /* ConstraintDemoView.swift in Sources */,
+				F5AF3D9FCF521AFE474F32DF /* DebugDemoView.swift in Sources */,
 				D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */,
 				5426761EF954EE8084C185FA /* DemoView.swift in Sources */,
 				676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */,

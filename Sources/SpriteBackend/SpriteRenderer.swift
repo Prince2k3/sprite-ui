@@ -99,6 +99,17 @@ public final class SpriteRenderer: SKScene {
     private var lastDeltaTime: TimeInterval = 0
     private var currentFrame: WorldFrame?
     private var simulationTime: TimeInterval = 0
+    var attachedDebugController: SceneDebugController?
+    var debugLayer: SKNode?
+    var debugDrawNodes: [String: SKShapeNode] = [:]
+    var debugPriorProfiling: Bool?
+    var debugLastSampleTime: TimeInterval = -.infinity
+    var debugFrameNumber: UInt64 = 0
+    var debugSimulationFrameNumber: UInt64 = 0
+    var debugFPS: Double = 0
+    var pendingDebugStep = false
+    var debugStepPrimed = false
+    var steppingThisFrame = false
 
     public init(world: World, size: CGSize = CGSize(width: 1, height: 1)) {
         self.world = world
@@ -145,6 +156,12 @@ public final class SpriteRenderer: SKScene {
         fatalError("SpriteRenderer is created in code.")
     }
 
+    isolated deinit {
+        if let currentFrame { world.cancelFrame(currentFrame) }
+        if let prior = debugPriorProfiling { world.isProfilingEnabled = prior }
+        attachedDebugController?.rendererWasDestroyed()
+    }
+
     /// Teaches the renderer how to show a component type. Later registrations replace earlier ones.
     public func register<T: Component>(_ type: T.Type, _ binding: Binding<T>) {
         let apply = binding.apply
@@ -168,11 +185,26 @@ public final class SpriteRenderer: SKScene {
     // MARK: Frame loop
 
     public override func update(_ currentTime: TimeInterval) {
-        let deltaTime = lastUpdateTime.map { min(currentTime - $0, 1.0 / 15.0) } ?? 0
+        let interval = lastUpdateTime.map { currentTime - $0 } ?? 0
+        let deltaTime = min(interval, 1.0 / 15.0)
         lastUpdateTime = currentTime
-        currentFrame = world.beginFrame(deltaTime: deltaTime)
+        if pendingDebugStep && (!world.isPaused || !world.root.isActive) { cancelDebugStep() }
+        let step = pendingDebugStep && world.isPaused && world.root.isActive && deltaTime.isFinite && deltaTime > 0
+        if step && !debugStepPrimed {
+            // SpriteKit rebases an action's clock on its first unpaused update.
+            // Prime that clock at zero speed with physics frozen; the following
+            // callback advances exactly one simulation/action/physics frame.
+            debugStepPrimed = true
+            worldSimulationDidChange(world)
+            currentFrame = nil
+        } else {
+            currentFrame = world.beginFrame(deltaTime: deltaTime, debugStep: step)
+        }
+        steppingThisFrame = currentFrame?.isDebugStep == true
+        if steppingThisFrame { pendingDebugStep = false; debugStepPrimed = false; worldSimulationDidChange(world) }
         lastDeltaTime = currentFrame?.deltaTime ?? 0
         simulationTime += lastDeltaTime
+        recordDebugFrame(interval: interval, simulated: currentFrame != nil)
         flush()
     }
 
@@ -186,9 +218,9 @@ public final class SpriteRenderer: SKScene {
         repeat { flush(); passes += 1 }
         while passes < 32 && (!dirty.isEmpty || !droppedTransactions.isEmpty || ActionTransaction.hasPendingSeals)
         let settled = dirty.isEmpty && droppedTransactions.isEmpty && !ActionTransaction.hasPendingSeals
-        if !world.isPaused, world.timeScale > 0 {
+        if steppingThisFrame || (!world.isPaused && world.timeScale > 0) {
             if settled {
-                updateTransformConstraints(deltaTime: lastDeltaTime)
+                updateTransformConstraints(deltaTime: lastDeltaTime, allowPaused: steppingThisFrame)
                 updateCameras(deltaTime: lastDeltaTime, time: simulationTime)
             } else {
                 world.root.visit { entity in
@@ -199,6 +231,7 @@ public final class SpriteRenderer: SKScene {
             }
         }
         flush()
+        finishDebugFrame()
         world.publish(RenderingEvents.DidUpdate(scene: world))
     }
 
@@ -263,7 +296,7 @@ public final class SpriteRenderer: SKScene {
     /// Copies each dynamic body's position, rotation and velocity back into its entity,
     /// then publishes the contacts the step reported.
     public override func didSimulatePhysics() {
-        guard !world.isPaused, world.timeScale > 0 else { contacts.removeAll(); return }
+        guard world.isDebugStepping || (!world.isPaused && world.timeScale > 0) else { contacts.removeAll(); return }
         for id in bodies { copyPhysicsResult(id) }
         publishContacts()
     }
@@ -537,10 +570,12 @@ public final class SpriteRenderer: SKScene {
 
 extension SpriteRenderer: WorldObserver {
     public func worldSimulationDidChange(_ world: World) {
-        let paused = world.isPaused || world.timeScale == 0 || !world.root.isEnabledInHierarchy
+        let priming = debugStepPrimed && pendingDebugStep && world.isPaused && world.root.isEnabledInHierarchy
+        let paused = (!world.isDebugStepping && !priming && (world.isPaused || world.timeScale == 0)) || !world.root.isEnabledInHierarchy
         node(for: world.root)?.isPaused = paused
-        node(for: world.root)?.speed = CGFloat(world.timeScale)
-        physicsWorld.speed = paused ? 0 : CGFloat(world.timeScale)
+        let rate = priming ? 0 : world.isDebugStepping ? 1 : world.timeScale
+        node(for: world.root)?.speed = CGFloat(rate)
+        physicsWorld.speed = paused ? 0 : CGFloat(rate)
         let gravity = world.physics.gravity
         physicsWorld.gravity = CGVector(dx: CGFloat(gravity.x), dy: CGFloat(gravity.y))
         chooseCamera()
@@ -553,7 +588,7 @@ extension SpriteRenderer: WorldObserver {
             removePhysicsJoints(involving: [entity.id])
         }
         node.isHidden = !entity.isEnabledInHierarchy
-        node.isPaused = !entity.isEnabledInHierarchy || (entity === world.root && (world.isPaused || world.timeScale == 0))
+        node.isPaused = !entity.isEnabledInHierarchy || (entity === world.root && !world.isDebugStepping && (world.isPaused || world.timeScale == 0))
         synchronizeLightingActivation(entity, node: node)
         applyPhysics(entity.components[PhysicsBodyComponent.self], previous: nil, entity: entity, node: node)
         if entity === world.root { worldSimulationDidChange(world) }
@@ -623,6 +658,7 @@ extension SpriteRenderer: WorldObserver {
     }
 
     public func world(_ world: World, willRemove entity: Entity) {
+        attachedDebugController?.removed(entity)
         var subtree: Set<Entity.ID> = []
         entity.visit { subtree.insert($0.id) }
         removePhysicsJoints(involving: subtree)

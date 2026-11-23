@@ -5,7 +5,10 @@ struct SpriteUIDemoApp: App {
     var body: some Scene {
         WindowGroup {
             TabView {
-                Tab("Animation", systemImage: "wand.and.stars") { DemoView() }
+                Group {
+                    Tab("Animation", systemImage: "wand.and.stars") { DemoView() }
+                    Tab("Debug", systemImage: "ladybug") { DebugDemoView() }
+                }
                 Group {
                     Tab("Random", systemImage: "dice") { RandomDemoView() }
                     Tab("States", systemImage: "arrow.triangle.branch") { StateMachineDemoView() }

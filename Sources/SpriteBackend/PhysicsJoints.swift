@@ -104,6 +104,28 @@ struct PhysicsJointEntry {
 }
 
 extension SpriteRenderer {
+    /// Authored attachment points in the current displayed poses. Shared pivots
+    /// use the captured rest frame to recover body B's local attachment, matching
+    /// native joint binding after bodies have moved or a prefab is relocated.
+    func debugJointAnchors(for owner: Entity) -> (SIMD2<Float>, SIMD2<Float>)? {
+        guard jointStatuses[owner.id] == .active, let model = jointEntries[owner.id]?.model,
+              let a = world.entity(withID: model.bodyA), let b = world.entity(withID: model.bodyB),
+              let nodeA = node(for: a), let nodeB = node(for: b), var reference = model.referencePose else { return nil }
+        if let id = reference.space {
+            guard let frame = world.entity(withID: id), let node = node(for: frame) else { return nil }
+            let matrix = displayedCollisionMatrix(for: node)
+            reference.a = matrix * reference.a; reference.b = matrix * reference.b
+        }
+        let localA: SIMD2<Float>, localB: SIMD2<Float>
+        switch model.constraint {
+        case .spring(let a, let b, _, _), .limit(let a, let b, _): localA = a; localB = b
+        case .pin(let point, _, _, _), .fixed(let point), .sliding(let point, _, _):
+            guard let inverse = reference.b.inverted() else { return nil }
+            localA = point; localB = inverse.apply(to: reference.a.apply(to: point))
+        }
+        return (displayedCollisionMatrix(for: nodeA).apply(to: localA), displayedCollisionMatrix(for: nodeB).apply(to: localB))
+    }
+
     /// Reconciles after all component bindings; native joints must never point at
     /// bodies that are still being created/replaced in dictionary iteration order.
     func synchronizePhysicsJoints() {

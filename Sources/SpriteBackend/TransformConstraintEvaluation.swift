@@ -18,8 +18,8 @@ private extension TransformConstraintBehavior {
 extension SpriteRenderer {
     /// A final presentation pass rather than a simulation System: native actions
     /// have already advanced, and cameras/attachments consume these final poses.
-    func updateTransformConstraints(deltaTime: TimeInterval) {
-        guard !world.isPaused, world.timeScale > 0, deltaTime.isFinite, deltaTime >= 0 else { return }
+    func updateTransformConstraints(deltaTime: TimeInterval, allowPaused: Bool = false) {
+        guard (allowPaused || (!world.isPaused && world.timeScale > 0)), deltaTime.isFinite, deltaTime >= 0 else { return }
         var entities: [Entity] = []
         world.root.visit { entities.append($0) }
         let owners = entities.filter { $0.components.has(TransformConstraintComponent.self) }

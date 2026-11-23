@@ -105,9 +105,15 @@ public class PlaybackController {
     }
     func synchronize() {
         guard !isTerminal else { return }
-        let suspended = entity?.isActive != true || entity?.world?.isPaused != false || (entity?.world?.timeScale ?? 0) == 0
-        if sceneSuspended != suspended { sceneSuspended = suspended; playbackRevision &+= 1 }
+        synchronizeSuspension()
         do { try apply() } catch { fail((error as? PlaybackError) ?? .audioUnavailable) }
+    }
+    /// Clock/suspension only. Debug step cleanup must not sample tracks again
+    /// after constraints/cameras have committed the final presented transform.
+    func synchronizeSuspension() {
+        let steppingAnimation = self is AnimationPlaybackController && entity?.world?.isDebugStepping == true
+        let suspended = entity?.isActive != true || (!steppingAnimation && (entity?.world?.isPaused != false || (entity?.world?.timeScale ?? 0) == 0))
+        if sceneSuspended != suspended { sceneSuspended = suspended; playbackRevision &+= 1 }
     }
     func apply() throws {}
     func terminate() {}
@@ -155,6 +161,11 @@ public class PlaybackController {
         guard state == .playing, delta.isFinite, delta >= 0 else { return }
         guard let entity, let world = entity.world else { stop(reason: .removed); return }
         guard entity.isActive else { synchronize(); return }
+        if world.isDebugStepping {
+            guard self is AnimationPlaybackController else { return }
+            synchronize()
+            guard state == .playing, isPlaying else { return }
+        }
         let next = elapsedTime + delta * speed
         guard next.isFinite else { fail(.invalidOptions); return }
         let previous = elapsedTime, revision = playbackRevision, activation = entity.activationRevision
