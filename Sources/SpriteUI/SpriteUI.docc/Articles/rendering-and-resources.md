@@ -223,6 +223,7 @@ Release stops playback and clears particles/actions; it is stronger than setting
 
 ## See also
 
+- <doc:parallax-and-repeating-backgrounds>
 - <doc:entity-and-scene-lifecycle>
 - <doc:systems-and-input>
 - <doc:saving-and-debugging>

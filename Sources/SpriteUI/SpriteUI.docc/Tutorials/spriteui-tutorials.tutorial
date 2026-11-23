@@ -1,14 +1,14 @@
 @Tutorials(name: "SpriteUI") {
     @Intro(title: "Build an interactive SpriteUI scene") {
-        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, render their shared world through independent viewports, and choose different world and map art with render layers.
+        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, render their shared world through independent viewports, choose different world and map art with render layers, and add a repeating parallax landscape.
 
         @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
     }
 
     @Volume(name: "From your first sprite to local multiplayer") {
-        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, add split screen with a minimap, and filter camera visibility without stopping physics.
+        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, add split screen with a minimap, filter camera visibility without stopping physics, and scroll decorative artwork while preserving model anchors.
 
-        @Image(source: "spriteui-tutorials-overview.svg", alt: "Eight tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen, a minimap, and camera-specific artwork.")
+        @Image(source: "spriteui-tutorials-overview.svg", alt: "Nine tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen, camera-specific artwork, and repeating parallax landscapes.")
 
         @Chapter(name: "Create and retain a scene") {
             Learn how a SwiftUI view owns an observable scene and adds entities to GameView.
@@ -64,6 +64,13 @@
 
             @Image(source: "spriteui-render-layers.svg", alt: "World squares and interactive map diamonds represent the same physical objects.")
             @TutorialReference(tutorial: "doc:presenting-a-world-with-render-layers")
+        }
+
+        @Chapter(name: "Build a repeating parallax landscape") {
+            Generate seamless textures in code, scroll layers at different depths, and compare independent cameras while model anchors stay untouched.
+
+            @Image(source: "spriteui-parallax.svg", alt: "Independent cameras show one star, mountain, and ground landscape at different scrolling depths.")
+            @TutorialReference(tutorial: "doc:building-a-parallax-landscape")
         }
     }
 }

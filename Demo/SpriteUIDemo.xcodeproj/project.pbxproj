@@ -27,6 +27,7 @@
 		58A7DA7CAE71579207CD942C /* ResourcesDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6F537FD724A2F0E44CE0F5 /* ResourcesDemoView.swift */; };
 		5B9DCCBB6BEC7D9D9EDBBD23 /* StateMachineDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */; };
 		5E004D84C0F6DE0B60C177E2 /* RandomDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */; };
+		648C8DB7BEBDF9B0CCE61F02 /* ParallaxDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 316FDBDE2503F4214B702DD9 /* ParallaxDemoView.swift */; };
 		65A996A6A3B7D80DFB800D59 /* PhysicsDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */; };
 		676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60458B4819985FB661F0F10A /* JointDemoView.swift */; };
 		6C925E766CE96E568297250C /* RenderLayersDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B66B4DE6A41451B5690655 /* RenderLayersDemoView.swift */; };
@@ -61,6 +62,7 @@
 		1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionDemoView.swift; sourceTree = "<group>"; };
 		2087AC349F8F142CD3B41790 /* DebugDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDemoView.swift; sourceTree = "<group>"; };
 		2E17EFBCE495B5D694E70CC3 /* RenderGroupDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderGroupDemoView.swift; sourceTree = "<group>"; };
+		316FDBDE2503F4214B702DD9 /* ParallaxDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParallaxDemoView.swift; sourceTree = "<group>"; };
 		336679CC6AC0F80F32FB81A4 /* playback-demo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "playback-demo.wav"; sourceTree = "<group>"; };
 		363FD31E7C468C0C2080419D /* SteeringDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteeringDemoView.swift; sourceTree = "<group>"; };
 		3E7FA495E00535524F68A83E /* swiftui-ecs */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "swiftui-ecs"; path = ..; sourceTree = SOURCE_ROOT; };
@@ -163,6 +165,7 @@
 				E8A22DF470AC5CDDA85B0C6D /* MaterialDemoView.swift */,
 				93920852539B40941CCCD9D6 /* NoiseDemoView.swift */,
 				ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */,
+				316FDBDE2503F4214B702DD9 /* ParallaxDemoView.swift */,
 				53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */,
 				67F776F36226B4DF4AC99FA4 /* Pendulum.prefab */,
 				12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */,
@@ -285,6 +288,7 @@
 				1541F88FA3EEB8B0756899C6 /* MaterialDemoView.swift in Sources */,
 				AFE3EB6EC6605EBA36A44F3B /* NoiseDemoView.swift in Sources */,
 				543B4CE6BF2485071CC94735 /* ObstacleDemoView.swift in Sources */,
+				648C8DB7BEBDF9B0CCE61F02 /* ParallaxDemoView.swift in Sources */,
 				CA2E123843221506FF47258F /* PathfindingDemoView.swift in Sources */,
 				65A996A6A3B7D80DFB800D59 /* PhysicsDemoView.swift in Sources */,
 				3F4792AE09AFD6FC9F1AAC69 /* PlayerInputDemoView.swift in Sources */,

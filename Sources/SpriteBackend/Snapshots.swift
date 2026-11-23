@@ -29,6 +29,8 @@ extension SpriteRenderer {
         CharacterControllerComponent.registerComponent()
         CameraComponent.registerComponent()
         VisibilityComponent.registerComponent()
+        ParallaxComponent.registerComponent()
+        RepeatingBackgroundComponent.registerComponent()
         LifetimeComponent.registerComponent()
         SceneComponent.registerComponent()
         SceneUserDataComponent.registerComponent()

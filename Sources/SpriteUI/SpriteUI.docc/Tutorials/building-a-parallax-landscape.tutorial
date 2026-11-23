@@ -1,0 +1,60 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Building a parallax landscape") {
+        Build a continuous night landscape with procedural textures, compare independent camera views, and confirm that decorative scrolling leaves model anchors untouched.
+
+        @Image(source: "spriteui-parallax.svg", alt: "Two cameras view the same layered star, mountain, and ground landscape while model anchors remain in place.")
+    }
+
+    @Section(title: "Shift artwork at different depths") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Each stage is a complete replacement for `ContentView.swift`; keep your existing `ContentView()` app entry point and use one stage at a time. Every file includes its deterministic pixel generator. No asset catalog, other source files, image generation service, or input hardware is required.
+
+            Create three sprite entities with horizontal scroll factors of 0.12, 0.45, and 1. The vertical factor stays one to preserve the landscape's height. ``ParallaxComponent`` shifts only each entity's own sprite drawing. Factor one stays in the world; zero follows camera translation. Camera zoom and rotation remain ordinary.
+        }
+        @Steps {
+            @Step {
+                Run stage one and move the camera slider a short distance. Stars travel slowly, mountains travel faster, and ground travels at world speed. Move farther: the finite source images leave gaps. Their entity positions have not moved. The next stage fills those gaps without duplicating entities.
+
+                @Code(name: "ContentView.swift", file: "spriteui-parallax-01.swift") {
+                    @Image(source: "spriteui-parallax-01-preview.svg", alt: "Schematic stage one: three finite landscape tiles have different apparent scrolling speeds, with black space beyond their edges.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Repeat seamless tiles") {
+        @ContentAndMedia {
+            Add ``RepeatingBackgroundComponent`` to the same three entities. Repeat stars on both axes and repeat the mountain and ground strips horizontally. The presented sprite size defines each tile period. The periodic mountain ridge meets at horizontal tile boundaries, and the ground pattern repeats on its horizontal pixel lattice.
+
+            Give each layer a 256-tile budget. The renderer pools drawings rather than entities, wraps the phase near each camera, and omits artwork if coverage would exceed the budget. The default budget is 1,024, and the hard ceiling is 16,384. Invalid geometry also omits repeated artwork; disabling repetition restores the ordinary sprite.
+        }
+        @Steps {
+            @Step {
+                Replace the file with stage two. Move well past the original 256-point tile width, cross zero, and continue in the opposite direction. Stars and horizontal landscape strips continue across the view. The camera moves; the three landscape model positions stay fixed.
+
+                @Code(name: "ContentView.swift", file: "spriteui-parallax-02.swift") {
+                    @Image(source: "spriteui-parallax-02-preview.svg", alt: "Schematic stage two: continuous stars, mountain ridges, and ground span the camera view at a negative horizontal position.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Compare cameras and inspect model anchors") {
+        @ContentAndMedia {
+            Stage three retains two camera IDs and presents one world through side-by-side viewports. Each camera has its own position buttons, position slider, and zoom slider. A layer picker and factor slider allow finite factors from -0.5 through 1.5. Repeat controls tiling and Split switches to a single full-width camera A without recreating entities.
+
+            An ordinary cyan child and an attachment label descend from the mountain entity. They keep their model-space anchor instead of inheriting the sprite-only displacement or repeating with its tiles. Background owners are decorative and excluded from presentation picking; ordinary children can still be interactive when configured as targets.
+
+            Read actual update and presentation counts in a separate small view, keeping per-frame observation out of the game surface configuration. The anchor readout compares the three landscape entities and two children with their captured local positions after each presentation callback. It measures model positions, not renderer internals or GPU draws.
+        }
+        @Steps {
+            @Step {
+                Run stage three. Move A left and B right, then adjust each zoom separately. Select Mountains and compare factors 0, 0.45, and 1, then try a negative value or a value above one. Zoom scales normally. Return both cameras near zero to see the cyan child and Model anchor label; move a camera and change the mountain factor to see artwork shift relative to them. The counter should remain zero of five model anchors changed as updates advance. Turn Repeat off and move away from the original tiles to reveal gaps, then restore it. Turn Split off and use A across the full view; B's controls are disabled. Restore Split to recover B's retained position and zoom. Labels leave a pane when their world anchor leaves its camera; exact event counts depend on elapsed time.
+
+                @Code(name: "ContentView.swift", file: "spriteui-parallax-03.swift") {
+                    @Image(source: "spriteui-parallax-03-preview.svg", alt: "Schematic stage three: independent cyan A and orange B camera views, factor and zoom controls, repeat and split switches, and zero of five changed model anchors.")
+                }
+            }
+        }
+    }
+}

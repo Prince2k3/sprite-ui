@@ -140,6 +140,7 @@ Use <doc:render-layers-and-camera-visibility> to choose world sprites or map ico
 
 ## See also
 
+- <doc:parallax-and-repeating-backgrounds>
 - <doc:sharing-a-world-between-viewports>
 - <doc:sharing-devices-between-players>
 - <doc:systems-and-input>

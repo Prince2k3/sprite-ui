@@ -20,6 +20,8 @@ public protocol WorldObserver: AnyObject {
     func worldSimulationDidChange(_ world: World)
     func world(_ world: World, activationDidChange entity: Entity)
     func worldActiveCamera(_ world: World) -> Entity?
+    /// Restores transient draw state before typed event handlers inspect the world.
+    func worldWillPublishEvent(_ world: World)
 
     /// The value of a component as currently shown on screen, mid-animation.
     /// Return `nil` when it matches the model value or the backend can't tell.
@@ -30,6 +32,7 @@ extension WorldObserver {
     public func world(_ world: World, activationDidChange entity: Entity) {}
     public func worldSimulationDidChange(_ world: World) {}
     public func worldActiveCamera(_ world: World) -> Entity? { nil }
+    public func worldWillPublishEvent(_ world: World) {}
     public func world(_ world: World, presentationValueOf componentType: any Component.Type, for entity: Entity) -> (any Component)? {
         nil
     }
@@ -198,6 +201,7 @@ public final class World {
     /// Publishes an event that involves several entities, such as a contact between two
     /// bodies. Subscribers on any of them get it, and each subscriber gets it once.
     public func publish<E: Event>(_ event: E, from sources: [Entity]) {
+        observer?.worldWillPublishEvent(self)
         for handler in events.handlers(for: E.self, sources: sources) {
             handler(event)
         }

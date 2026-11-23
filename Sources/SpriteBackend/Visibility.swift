@@ -143,6 +143,7 @@ extension SpriteRenderer {
     }
 
     func restoreRenderVisibility() {
+        restoreBackgroundPresentation()
         let previous = renderVisibilityOverrides
         renderVisibilityOverrides.removeAll(keepingCapacity: true)
         activeRenderVisibilityMask = nil

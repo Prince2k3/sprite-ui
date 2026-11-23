@@ -121,13 +121,21 @@ extension SpriteRenderer {
         guard let viewport = resolvedViewports.first(where: { $0.id == id }) else { return nil }
         let oldSize = size, oldCamera = camera
         let oldSurfaceSize = viewportRenderSurfaceSize
+        let oldBackground = backgroundContext
         let selected = viewportCamera(viewport)
         let frame = viewport.frame.rect(in: viewportCanvasSize)
-        defer { size = oldSize; camera = oldCamera; viewportRenderSurfaceSize = oldSurfaceSize }
+        defer {
+            restoreBackgroundPresentation()
+            size = oldSize; camera = oldCamera; viewportRenderSurfaceSize = oldSurfaceSize
+            if let oldBackground { applyBackgroundPresentation(camera: oldBackground.camera, size: oldBackground.size) }
+        }
         viewportRenderSurfaceSize = viewportCanvasSize
         size = frame.size
         camera = selected
-        return withRenderVisibility(visibilityMask(inViewport: id) ?? .none, body)
+        return withRenderVisibility(visibilityMask(inViewport: id) ?? .none) {
+            applyBackgroundPresentation(camera: selected, size: frame.size)
+            return body()
+        }
     }
 
     /// A camera used in multiple views follows/clamps using the first declared

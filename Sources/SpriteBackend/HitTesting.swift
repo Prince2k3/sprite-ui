@@ -33,7 +33,8 @@ extension SpriteRenderer {
                 || (Self.contentRoot(node) as? MaskCropNode)?.maskNode != nil
             let scope = grouped ? groups + [Layer(z: z, order: order)] : groups
             let localZ = grouped ? 0 : z
-            let collider = entity.queryCollider
+            let decorative = hasDecorativeBackground(entity)
+            let collider = decorative ? nil : entity.queryCollider
             var colliderHit = false
             if let collider {
                 if collider.isEnabled, filter.includes(entity, filter: collider.filter) {
@@ -45,7 +46,7 @@ extension SpriteRenderer {
                     }
                 }
             }
-            if !colliderHit, (inspectingVisuals || (collider == nil && !hasColliderAncestor)), filter.includes(entity, filter: .init()),
+            if !decorative, !colliderHit, (inspectingVisuals || (collider == nil && !hasColliderAncestor)), filter.includes(entity, filter: .init()),
                       let visualZ = drawingHitZ(at: scenePoint, on: Self.contentRoot(node)) {
                 hits.append((entity, scope + [Layer(z: localZ + visualZ, order: order)]))
             }

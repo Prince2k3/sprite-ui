@@ -74,6 +74,10 @@ public final class SpriteRenderer: SKScene {
     var nextVisibilityRevision: UInt64 = 0
     var knownVisibility: [Entity.ID: VisibilityComponent] = [:]
     var knownCameraVisibility: [Entity.ID: CameraVisibility] = [:]
+    var backgroundPresentations: [BackgroundPresentation] = []
+    var backgroundContext: BackgroundContext?
+    var backgroundTiles: [Entity.ID: BackgroundTiles] = [:]
+    var backgroundEntities: Set<Entity.ID> = []
 
     private var nodes: [Entity.ID: SKNode] = [:]
     /// Which entity each node shows, for mapping physics contacts back.
@@ -145,6 +149,7 @@ public final class SpriteRenderer: SKScene {
         register(CollisionComponent.self, Self.collisionBinding)
         register(CameraComponent.self, Self.cameraBinding)
         register(TileMapComponent.self, Self.tileMapBinding)
+        register(RepeatingBackgroundComponent.self, Self.repeatingBackgroundBinding)
         register(ParticleEmitterComponent.self, Self.particleBinding)
         register(AudioComponent.self, Self.audioBinding)
         physicsWorld.contactDelegate = self
@@ -273,6 +278,7 @@ public final class SpriteRenderer: SKScene {
         finishDebugFrame()
         world.publish(RenderingEvents.DidUpdate(scene: world))
         applyRenderVisibility(visibilityMask() ?? .all)
+        applyBackgroundPresentation(camera: camera, size: size)
     }
 
     /// Constraints write only owned channels, keeping other animation targets and
@@ -295,6 +301,7 @@ public final class SpriteRenderer: SKScene {
     /// Pushes pending component changes, resolves body connections, then lets
     /// transactions that started no actions complete.
     public func flush() {
+        restoreRenderVisibility()
         validateManipulations()
         if !dirty.isEmpty {
             let pending = dirty
@@ -527,6 +534,7 @@ public final class SpriteRenderer: SKScene {
         apply: { new, old, node, animator in
             let existing = node.childNode(withName: spriteNodeName) as? SKSpriteNode
             guard let sprite = new else {
+                animator.renderer.removeBackgroundTiles(for: animator.entityID)
                 if let existing {
                     for key in spriteKeys { animator.cancel(key, on: existing) }
                     existing.removeFromParent()
@@ -611,7 +619,12 @@ public final class SpriteRenderer: SKScene {
 // MARK: - WorldObserver
 
 extension SpriteRenderer: WorldObserver {
+    public func worldWillPublishEvent(_ world: World) {
+        restoreRenderVisibility()
+    }
+
     public func worldSimulationDidChange(_ world: World) {
+        restoreRenderVisibility()
         let priming = debugStepPrimed && pendingDebugStep && world.isPaused && world.root.isEnabledInHierarchy
         let paused = (!world.isDebugStepping && !priming && (world.isPaused || world.timeScale == 0)) || !world.root.isEnabledInHierarchy
         node(for: world.root)?.isPaused = paused
@@ -703,10 +716,13 @@ extension SpriteRenderer: WorldObserver {
         }
         knownVisibility[entity.id] = entity.components[VisibilityComponent.self]
         knownCameraVisibility[entity.id] = entity.components[CameraComponent.self].map { .init(mask: $0.cullingMask, active: $0.isActive) }
+        updateBackgroundMembership(entity)
     }
 
     public func world(_ world: World, willRemove entity: Entity) {
         restoreRenderVisibility()
+        removeBackgroundTiles(for: entity.id)
+        backgroundEntities.remove(entity.id)
         cancelManipulations(involving: entity)
         attachedDebugController?.removed(entity)
         // Cancellation handlers may edit components while the entity is still
@@ -743,6 +759,9 @@ extension SpriteRenderer: WorldObserver {
     ) {
         restoreRenderVisibility()
         let key = ObjectIdentifier(componentType)
+        if componentType == ParallaxComponent.self || componentType == RepeatingBackgroundComponent.self {
+            updateBackgroundMembership(entity)
+        }
         if componentType == TransformConstraintComponent.self { constraintEvaluations[entity.id] = nil }
         let value = entity.component(forKey: key)
         if let last = dirty[entity.id]?[key]?.last, last.transaction === transaction {

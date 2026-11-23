@@ -121,6 +121,7 @@ The demo's **Layers** tab combines these controls in a 280-point arena. Hide bot
 
 ## See also
 
+- <doc:parallax-and-repeating-backgrounds>
 - <doc:presenting-a-world-with-render-layers>
 - <doc:viewports-and-split-screen>
 - <doc:entity-and-scene-lifecycle>
