@@ -9,13 +9,105 @@ type: permanent
 
 # SpriteUI
 
-SpriteUI brings an entity-and-component API to 2D games, with SpriteKit rendering and a SwiftUI host. Add entities to a `GameView`, describe them with value components, and run frame logic in query-driven systems. The package supports iOS 18 and macOS 15 or later.
+SpriteUI brings a RealityKit-style entity-and-component API to 2D games, with SpriteKit rendering and a SwiftUI host. Add entities to a `GameView`, describe them with value components, and run frame logic in query-driven systems.
 
-Import `SpriteUI` to use the complete library. Smaller products expose `ECSCore` and `Gameplay` separately. [[Package.swift]] defines the products; [[Sources/SpriteUI/SpriteUI.swift]] re-exports the library modules.
+## Requirements
+
+- Swift 6 and an Xcode toolchain that supports it.
+- iOS 18 or macOS 15 or later.
+- Python 3 for the documentation commands; XcodeGen only when regenerating the example app projects.
+
+## Installation
+
+In your SwiftUI app's Xcode project, choose **File > Add Package Dependencies > Add Local**, then select this checkout's root folder. Add the **SpriteUI** library product to your app target and set its deployment target to iOS 18 or macOS 15 or later.
+
+For a package alongside this checkout, add a local dependency and link its product:
+
+```swift
+// In your Package.swift, inside Package(...):
+dependencies: [
+    .package(path: "../swiftui-ecs")
+],
+targets: [
+    .target(
+        name: "MyGame",
+        dependencies: [.product(name: "SpriteUI", package: "swiftui-ecs")]
+    )
+]
+```
+
+Adjust the path to your checkout. Import `SpriteUI` to use the complete library. Smaller library products expose `ECSCore` and `Gameplay` separately; `DemoBotsGame` contains the example game's implementation. [[Package.swift]] defines the products, and [[Sources/SpriteUI/SpriteUI.swift]] re-exports the SDK modules.
+
+## Quick start
+
+This complete view displays a cyan square without requiring any assets. Present `ContentView()` from your app's window.
+
+```swift
+import SpriteUI
+import SwiftUI
+
+@MainActor
+struct ContentView: View {
+    var body: some View {
+        GameView { content in
+            let player = Entity(
+                name: "player",
+                components: SpriteComponent(color: .cyan, size: [40, 40])
+            )
+            player.position = [0, 0]
+            content.add(player)
+        }
+        .frame(minWidth: 320, minHeight: 240)
+    }
+}
+```
+
+With no camera, the scene origin is at the view's center. Positions are in points, with positive y upward, and an entity's position is relative to its parent.
+
+- **Entities** provide identity, hierarchy, and transforms.
+- **Components** hold data describing appearance, movement, collisions, and game state.
+- **Systems** query entities and update their components each simulation frame.
+- **Events** connect systems, scene owners, and app interfaces without coupling their implementations.
+
+Create entities and install systems in `GameView`'s setup closure. Use its `update` closure to apply SwiftUI state to existing entities; use a `System` for movement and other elapsed-time work. The `update` closure runs with SwiftUI updates, rather than once per simulation frame.
+
+## Features
+
+| Area | Included tooling |
+| --- | --- |
+| Scene structure | Entity hierarchies, relative transforms, activation, prefabs, cloning, and pooling |
+| Simulation | Query-driven systems, scheduling, typed events, pause, and time control |
+| Rendering | Sprites, shapes, text, materials, cameras, lighting, masks, and effects |
+| Resources | Scene and tile-map loading, resource caching, animation and audio playback |
+| Movement | Collision shapes and queries, character controllers, physics bodies, joints, and transform constraints |
+| Gameplay | Agents and goals, pathfinding, navigation meshes, spatial indexes, state machines, decisions, rules, strategists, noise, and seeded random generators |
+| Presentation | Targeted gestures, SwiftUI attachments, particles, and contact effects |
+| Persistence and debugging | Registered component snapshots, entity-reference remapping, scene inspection, and frame diagnostics |
+
+## Package modules
+
+| Module | Responsibility |
+| --- | --- |
+| `SpriteUI` | Umbrella import for the complete SDK and bridges between gameplay and rendering |
+| `ECSCore` | Entities, components, transforms, events, scheduling, and snapshots |
+| `Gameplay` | Standalone algorithms and value types |
+| `GameplayECS` | Components and systems that adapt gameplay algorithms to entities |
+| `SpriteBackend` | SpriteKit rendering, physics, resources, playback, and scene services |
+| `GameUI` | SwiftUI hosting, attachments, input, and inspection interfaces |
+
+The module boundaries let pure gameplay algorithms run independently of rendering. Most apps can start with `import SpriteUI`.
 
 ## Documentation and tutorials
 
 The DocC catalog lives in [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md]]. It includes a getting-started guide, conceptual articles, the public API reference, and three hands-on tutorials covering your first scene, systems and input, and collision-aware agents.
+
+The tutorial sequence includes complete Swift code for every stage and expected-result illustrations:
+
+1. **Creating your first scene:** add entities, arrange them, and change component data from SwiftUI.
+2. **Moving with systems and input:** implement frame-based movement, targeted taps, and pause/resume.
+3. **Steering and collision-aware movement:** combine agent goals, collision queries, character movement, and a route around a wall.
+
+The six guides cover getting started, entity and scene lifecycle, systems and input, gameplay and movement, rendering and resources, and saving and debugging.
 
 With Xcode command-line tools and Python 3 installed, run from the repository root:
 
@@ -50,8 +142,20 @@ Edit articles under `Sources/SpriteUI/SpriteUI.docc/Articles/`, tutorials under 
 
 The new top-level `Tools/` folder contains documentation tooling. The `.docc` directory is documentation source for the SpriteUI target; it is not an app resource bundle. Existing source modules and example layouts remain in place.
 
-## Examples and tests
+## Example apps
 
-- `Demo/SpriteUIDemo.xcodeproj` demonstrates the library's individual features.
-- [[Examples/DemoBots/readme.md]] describes the complete DemoBots game for iOS and macOS.
-- Run `swift test` for the package's test suites.
+- **Feature demo:** open `Demo/SpriteUIDemo.xcodeproj` and run the **SpriteUIDemo** scheme on an iOS simulator. Its tabs demonstrate individual SDK features.
+- **DemoBots:** open `Examples/DemoBots/DemoBots.xcodeproj` and choose **DemoBots** for iOS or **DemoBotsMac** for macOS. [[Examples/DemoBots/readme.md]] describes controls, checkpoints, scene tools, and the features used by the game.
+
+Both projects reference the local package. To regenerate either project, run `xcodegen generate` in its containing directory.
+
+## Build and test
+
+From the repository root:
+
+```sh
+swift build
+swift test
+```
+
+Package tests use Swift Testing. Run `Tools/build-documentation.sh check` when changing documentation or its examples. App interaction and graphics checks run in the example apps on a simulator or device.
