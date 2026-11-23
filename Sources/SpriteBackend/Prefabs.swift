@@ -75,6 +75,7 @@ extension ResourceLibrary {
     /// Scenes use the default SceneLoader; custom User Data makers can instead
     /// load a scene themselves and pass its root to PrefabResource(root:).
     public func prefab(contentsOf url: URL) async throws -> PrefabResource {
+        try requireOpenLevelScope()
         let url = url.standardizedFileURL
         return try await prefabs.value(for: url.absoluteString) {
             if url.pathExtension.lowercased() == "sks" {
@@ -90,6 +91,7 @@ extension ResourceLibrary {
 
     /// Loads a named `.prefab`, `.json` or `.sks` file from a bundle.
     public func prefab(named name: String, in bundle: Bundle = .main) async throws -> PrefabResource {
+        try requireOpenLevelScope()
         let path = name as NSString
         if !path.pathExtension.isEmpty {
             guard let url = bundle.url(forResource: path.deletingPathExtension, withExtension: path.pathExtension) else { throw ResourceLoadingError.notFound(name) }

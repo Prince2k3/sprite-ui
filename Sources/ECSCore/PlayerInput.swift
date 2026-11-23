@@ -97,6 +97,7 @@ public enum PlayerInputError: Error, Equatable {
     public let input: InputController
     fileprivate weak var hub: PlayerInputHub?
     fileprivate var activeID: InputDevice?
+    @ObservationIgnored private var hubSuppressionOwners: Set<UUID> = []
     public var isEnabled: Bool {
         get { input.isEnabled }
         set { input.isEnabled = newValue }
@@ -116,6 +117,19 @@ public enum PlayerInputError: Error, Equatable {
             hub.cancelled(device: device, for: self)
             hub.feedbackProvider?.stop(for: device)
         }
+    }
+
+    fileprivate func setHubInputSuppressed(_ suppressed: Bool, owner: UUID) {
+        // Record ownership before cancellation can reenter the hub or remove us.
+        let changed = suppressed ? hubSuppressionOwners.insert(owner).inserted : hubSuppressionOwners.remove(owner) != nil
+        guard changed else { return }
+        input.setInputSuppressed(suppressed, owner: owner)
+    }
+
+    fileprivate func releaseHubInputSuppression() {
+        let owners = hubSuppressionOwners
+        hubSuppressionOwners.removeAll()
+        for owner in owners { input.setInputSuppressed(false, owner: owner) }
     }
 
     /// Uses the last meaningful assigned device when it can express this action,
@@ -140,7 +154,7 @@ public enum PlayerInputError: Error, Equatable {
     /// silently vibrates a different controller. An explicit device must be owned.
     @discardableResult public func playFeedback(_ feedback: ControllerFeedback,
                                                 on device: InputDevice? = nil) -> InputFeedbackResult {
-        guard let hub, !hub.cancelling, hub.isEnabled, input.isEnabled,
+        guard let hub, !hub.cancelling, hub.acceptsInput, input.acceptsInput,
               let selected = device ?? activeID, hub.owner(of: selected) === self,
               let info = devices.first(where: { $0.id == selected }) else { return .unavailable }
         guard case .controller = selected, info.supportsHaptics else { return .unsupported }
@@ -194,6 +208,7 @@ public enum PlayerInputError: Error, Equatable {
     @ObservationIgnored private var clock: UInt64 = 0
     @ObservationIgnored fileprivate var cancelling = false
     @ObservationIgnored private var backendOwner: UUID?
+    @ObservationIgnored private var suppressionOwners: Set<UUID> = []
     @ObservationIgnored fileprivate var feedbackProvider: (any InputFeedbackProvider)?
     @ObservationIgnored private var handlers: [Handler] = []
     private struct Handler {
@@ -202,19 +217,32 @@ public enum PlayerInputError: Error, Equatable {
     }
 
     public init() {}
+
+    isolated deinit {
+        for player in players {
+            player.hub = nil; player.activeID = nil
+            player.releaseHubInputSuppression()
+        }
+    }
+
+    fileprivate var acceptsInput: Bool { isEnabled && suppressionOwners.isEmpty }
+
     @discardableResult public func addPlayer(named name: String, contexts: [InputActionMap] = []) -> PlayerInputSession {
         let player = PlayerInputSession(name: name, contexts: contexts, hub: self)
+        for owner in suppressionOwners { player.setHubInputSuppressed(true, owner: owner) }
         players.append(player)
         return player
     }
     public func removePlayer(_ player: PlayerInputSession) {
-        guard players.contains(where: { $0 === player }) else { return }
+        guard player.hub === self, players.contains(where: { $0 === player }) else { return }
         // Remove before callbacks so a cancellation cannot reassign to this player.
         players.removeAll { $0 === player }
         for device in owners.keys.sorted(by: { $0.sortKey < $1.sortKey }) where owners[device] == player.id {
             changeOwner(device, to: nil, previous: player)
         }
-        player.input.cancelAll(); player.hub = nil; player.activeID = nil
+        player.input.cancelAll()
+        player.releaseHubInputSuppression()
+        player.hub = nil; player.activeID = nil
     }
     public func owner(of device: InputDevice) -> PlayerInputSession? {
         players.first { $0.id == owners[device] }
@@ -262,7 +290,7 @@ public enum PlayerInputError: Error, Equatable {
         if needsBaseline.remove(device) != nil {
             captureGates(device, using: player?.input)
         }
-        guard !cancelling, isEnabled, let player, player.input.isEnabled else {
+        guard !cancelling, acceptsInput, let player, player.input.acceptsInput else {
             captureGates(device, using: player?.input)
             return
         }
@@ -285,7 +313,7 @@ public enum PlayerInputError: Error, Equatable {
             setActive(device, for: player)
         }
         guard revisions[device, default: 0] == revision, owner(of: device) === player,
-              player.isEnabled, isEnabled else { return }
+              player.input.acceptsInput, acceptsInput else { return }
         player.input.setValues(routed, device: device)
     }
     /// Suspends held actions and feedback while preserving assignments. Held
@@ -306,6 +334,19 @@ public enum PlayerInputError: Error, Equatable {
     public func observe(_ handler: @escaping @MainActor (InputDeviceEvent) -> Void) -> InputDeviceSubscription {
         let token = InputDeviceSubscription(); handlers.append(.init(token: token, call: handler)); return token
     }
+    /// Applies an independent suppression lease to current and future players.
+    /// Devices, assignments, backend ownership and enabled preferences survive;
+    /// cancellation retains neutral gates and stops the players' feedback.
+    @_spi(Backend) public func setInputSuppressed(_ suppressed: Bool, owner: UUID) {
+        let changed = suppressed ? suppressionOwners.insert(owner).inserted : suppressionOwners.remove(owner) != nil
+        guard changed else { return }
+        for player in players where player.hub === self {
+            // Cancellation observers may add or release leases reentrantly.
+            // Re-read the current lease before touching each remaining player.
+            player.setHubInputSuppressed(suppressionOwners.contains(owner), owner: owner)
+        }
+    }
+
     /// One native host may drive a hub at a time. Adapters retain their provider
     /// until detach; a rejected attachment must leave the current host alone.
     @_spi(Backend) public func attachBackend(owner: UUID, feedbackProvider: any InputFeedbackProvider) -> Bool {

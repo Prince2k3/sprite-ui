@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="700" viewBox="0 0 800 700" role="img" aria-labelledby="title desc">
+<title id="title">Scene transitions in one world</title><desc id="desc">The Garden and Workshop rooms share a persistent player, camera, and runtime sessions. Preparation precedes a single managed-root replacement.</desc>
+<rect width="800" height="700" rx="24" fill="#0c1425"/>
+<g font-family="system-ui, sans-serif"><text x="30" y="52" font-size="30" fill="#edf5ff">Replace the room. Keep the player.</text><text x="30" y="90" font-size="20" fill="#a4bad0">One World · one GameView · one simulation clock</text><g opacity="1"><rect x="30" y="124" width="320" height="220" rx="12" fill="#12382c" stroke="#6ee7b7"/>
+<text x="46" y="156" font-size="20" fill="#6ee7b7">Garden</text>
+<rect x="54" y="299" width="272" height="10" fill="#6ee7b7"/>
+<circle cx="100" cy="229" r="13" fill="#ffe174"/>
+<rect x="176.0" y="260" width="28" height="28" fill="#49d8ee"/></g><g opacity="1"><rect x="450" y="124" width="320" height="220" rx="12" fill="#3b2118" stroke="#ffb25e"/>
+<text x="466" y="156" font-size="20" fill="#ffb25e">Workshop</text>
+<rect x="474" y="299" width="272" height="10" fill="#ffb25e"/>
+<circle cx="700" cy="229" r="13" fill="#ef8abb"/>
+<rect x="596.0" y="260" width="28" height="28" fill="#49d8ee"/></g><path d="M368 234h62m-12-12 12 12-12 12" fill="none" stroke="#a4bad0" stroke-width="3"/><rect x="30" y="374" width="740" height="140" rx="14" fill="#192e44" stroke="#49d8ee"/><text x="52" y="410" font-size="24" fill="#49d8ee">Persistent siblings under world.root</text><text x="52" y="448" font-size="21" fill="#edf5ff">Player ID + component score + position</text><text x="52" y="484" font-size="21" fill="#edf5ff">Camera + retained runtime player sessions</text><text x="30" y="564" font-size="26" fill="#edf5ff">Prepare → transition → install → activate</text><text x="30" y="604" font-size="20" fill="#a4bad0">Cancel before commit: outgoing room survives</text><text x="30" y="638" font-size="20" fill="#a4bad0">Cancel after commit: incoming room survives</text><text x="30" y="678" font-size="17" fill="#a4bad0">Schematic overview · no extra simulation during capture</text></g></svg>

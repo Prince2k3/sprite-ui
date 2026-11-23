@@ -178,7 +178,7 @@ final class TargetedInputCapture<Value> {
         guard let host else { return nil }
         // A control may not create an SKView contact at all. Reject its starting
         // region before considering any recent scene contact at that location.
-        if host.isDebugPicking { return nil }
+        if host.isDebugPicking || host.levelInputBlocked { return nil }
         if !attemptedCapture, let start,
            host.attachmentStore.blocksInput(at: start) || host.debugBlocksInput(at: start) {
             attemptedCapture = true; sourceHost = host; target = nil; return nil

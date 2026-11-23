@@ -21,6 +21,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Render one world through player cameras and a minimap | <doc:viewports-and-split-screen> |
 | Give cameras different art while hidden objects keep simulating | <doc:render-layers-and-camera-visibility> |
 | Scroll and repeat decorative backgrounds independently per camera | <doc:parallax-and-repeating-backgrounds> |
+| Replace levels while preserving players and cameras | <doc:scene-transitions-and-level-management> |
 | Plan routes and move characters | <doc:gameplay-and-movement> |
 | Load assets and assemble visual content | <doc:rendering-and-resources> |
 | Save progress and inspect a running scene | <doc:saving-and-debugging> |
@@ -52,6 +53,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:viewports-and-split-screen>
 - <doc:render-layers-and-camera-visibility>
 - <doc:parallax-and-repeating-backgrounds>
+- <doc:scene-transitions-and-level-management>
 - <doc:manipulating-entities>
 - <doc:gameplay-and-movement>
 - <doc:rendering-and-resources>
@@ -71,6 +73,14 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/AffineTransform2D``
 - ``SpriteUI/EntityQuery``
 - ``SpriteUI/PresentationValues``
+
+### Levels and transitions
+
+- ``SpriteUI/LevelCoordinator``
+- ``SpriteUI/LevelContext``
+- ``SpriteUI/LevelTransition``
+- ``SpriteUI/LevelLoadingError``
+- ``SpriteUI/LevelEvents``
 
 ### Frame logic and interaction
 

@@ -106,6 +106,7 @@ extension ResourceLibrary {
     /// file can be used with different schemas. Source compilation occurs at render time.
     public func shader(contentsOf url: URL, parameters: [String: ShaderValue] = [:],
                        textures: [String: TextureResource] = [:]) async throws -> ShaderResource {
+        try requireOpenLevelScope()
         let url = url.standardizedFileURL
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         let key = try encoder.encode(ShaderCacheKey(url: url, parameters: parameters, textures: textures.mapValues(\.id))).base64EncodedString()
@@ -120,6 +121,7 @@ extension ResourceLibrary {
 
     public func shader(named name: String, in bundle: Bundle = .main,
                        parameters: [String: ShaderValue] = [:], textures: [String: TextureResource] = [:]) async throws -> ShaderResource {
+        try requireOpenLevelScope()
         let path = name as NSString
         let ext = path.pathExtension.isEmpty ? "fsh" : path.pathExtension
         let base = path.pathExtension.isEmpty ? name : path.deletingPathExtension

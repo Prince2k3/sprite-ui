@@ -118,10 +118,12 @@ final class ResourceCache<Value: Sendable> {
     private var values: [String: Value] = [:]
     private var pending: [String: Task<Value, Error>] = [:]
     private var generation = 0
+    private var closed = false
     var count: Int { values.count }
 
     func value(for key: String, load: @escaping @MainActor () async throws -> Value) async throws -> Value {
         try Task.checkCancellation()
+        if closed { throw CancellationError() }
         if let value = values[key] { return value }
         let task: Task<Value, Error>
         if let existing = pending[key] { task = existing }
@@ -137,9 +139,11 @@ final class ResourceCache<Value: Sendable> {
         }
         let value = try await task.value
         try Task.checkCancellation()
+        if closed { throw CancellationError() }
         return value
     }
     func removeAll() { generation &+= 1; values.removeAll(); pending.removeAll() }
+    func close() { closed = true; removeAll() }
 }
 
 /// Async resource loading and caching, scoped to an app, level, or test.
@@ -159,11 +163,17 @@ public final class ResourceLibrary {
     private let sounds = ResourceCache<AudioResource>()
     let shaders = ResourceCache<ShaderResource>()
     let prefabs = ResourceCache<PrefabResource>()
+    private var levelScopeClosed = false
     public init() {}
     public var cachedResourceCount: Int { textures.count + atlases.count + sounds.count + prefabs.count + shaders.count }
     public func removeAllCachedResources() { textures.removeAll(); atlases.removeAll(); sounds.removeAll(); prefabs.removeAll(); shaders.removeAll() }
+    /// A level owns its library. Retiring the scope also rejects future loads
+    /// from noncooperative work that retained it; existing handles stay valid.
+    func closeLevelScope() { levelScopeClosed = true; textures.close(); atlases.close(); sounds.close(); prefabs.close(); shaders.close() }
+    func requireOpenLevelScope() throws { if levelScopeClosed { throw CancellationError() } }
 
     public func texture(contentsOf url: URL) async throws -> TextureResource {
+        try requireOpenLevelScope()
         let url = url.standardizedFileURL
         return try await textures.value(for: "file:\(url.absoluteString)") {
             let image = try await Task.detached { try Self.readImage(url) }.value
@@ -176,6 +186,7 @@ public final class ResourceLibrary {
 
     /// Loads an image file or a named asset in the supplied bundle.
     public func texture(named name: String, in bundle: Bundle = .main) async throws -> TextureResource {
+        try requireOpenLevelScope()
         if let url = Self.imageURL(name, in: bundle) { return try await texture(contentsOf: url) }
         return try await textures.value(for: "asset:\(bundle.bundleURL.absoluteString):\(name)") {
             #if canImport(UIKit)
@@ -199,7 +210,8 @@ public final class ResourceLibrary {
     /// Loads a compiled SpriteKit atlas from the main app bundle without invoking
     /// the throwing Objective-C atlas initializer for a missing name.
     public func atlas(named name: String) async throws -> TextureAtlasResource {
-        try await atlases.value(for: "compiled:\(name)") {
+        try requireOpenLevelScope()
+        return try await atlases.value(for: "compiled:\(name)") {
             let resource = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<TextureAtlasResource, Error>) in
                 SKTextureAtlas.preloadTextureAtlasesNamed([name]) { error, atlases in
                     guard error == nil, let atlas = atlases.first else {
@@ -226,6 +238,7 @@ public final class ResourceLibrary {
     /// Groups named assets from any bundle into a cached atlas. Useful for asset
     /// catalogs and frame manifests exported by an artist's tools.
     public func atlas(named name: String, textureNames: [String], in bundle: Bundle = .main) async throws -> TextureAtlasResource {
+        try requireOpenLevelScope()
         let keys = Array(Set(textureNames)).sorted()
         let key = "assets:\(bundle.bundleURL.absoluteString):\(name):\(keys.joined(separator: "\u{0}"))"
         return try await atlases.value(for: key) {
@@ -236,10 +249,12 @@ public final class ResourceLibrary {
     }
 
     public func audio(named name: String, in bundle: Bundle = .main) async throws -> AudioResource {
+        try requireOpenLevelScope()
         guard let url = AudioComponent.find(name, in: bundle) else { throw ResourceLoadingError.notFound(name) }
         return try await audio(contentsOf: url)
     }
     public func audio(contentsOf url: URL) async throws -> AudioResource {
+        try requireOpenLevelScope()
         let url = url.standardizedFileURL
         return try await sounds.value(for: url.absoluteString) {
             try await Task.detached {

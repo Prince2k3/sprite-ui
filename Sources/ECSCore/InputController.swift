@@ -17,6 +17,7 @@ public final class InputController {
     @ObservationIgnored private var handlers: [Handler] = []
     @ObservationIgnored private var queuedEvents: [(event: InputActionEvent, revision: UInt64)] = []
     @ObservationIgnored private var revisions: [InputAction: UInt64] = [:]
+    @ObservationIgnored private var suppressionOwners: Set<UUID> = []
     @ObservationIgnored private var isDelivering = false
     @ObservationIgnored var onCancellation: (@MainActor () -> Void)?
     @ObservationIgnored var onDeviceCancellation: (@MainActor (InputDevice) -> Void)?
@@ -33,6 +34,17 @@ public final class InputController {
     }
 
     public init(contexts: [InputActionMap] = []) { self.contexts = Self.normalized(contexts) }
+
+    var acceptsInput: Bool { isEnabled && suppressionOwners.isEmpty }
+
+    /// Temporarily gates input without changing the application's enabled
+    /// preference. Each owner holds an independent, idempotent lease. Changing a
+    /// lease cancels held actions and requires controls to return to neutral.
+    @_spi(Backend) public func setInputSuppressed(_ suppressed: Bool, owner: UUID) {
+        let changed = suppressed ? suppressionOwners.insert(owner).inserted : suppressionOwners.remove(owner) != nil
+        guard changed else { return }
+        cancelAll()
+    }
 
     /// Replaces the context stack or its bindings, cancelling active actions and
     /// gating held controls. Assigning identical maps leaves input undisturbed.
@@ -100,7 +112,7 @@ public final class InputController {
                 if let previous = blocked[source], neutral(value, bindings: previous + bindings(for: source.control)) {
                     blocked.removeValue(forKey: source)
                 }
-                if !isEnabled { block(source) }
+                if !acceptsInput { block(source) }
             }
         }
         resolve()
@@ -139,7 +151,7 @@ public final class InputController {
 
     private func resolve(cancelling: Bool = false) {
         var values: [InputAction: InputValue] = [:]
-        if isEnabled {
+        if acceptsInput {
             let available = effectiveBindings()
             let sources = samples.keys.sorted(by: { $0.sortKey < $1.sortKey })
             for action in ordered(Set(available.map(\.action))) {

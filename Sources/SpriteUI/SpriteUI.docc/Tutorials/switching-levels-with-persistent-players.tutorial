@@ -1,0 +1,66 @@
+@Tutorial(time: 25) {
+    @Intro(title: "Switching levels with persistent players") {
+        Replace a physics room inside one retained game world, preserve player progress and camera identity, then explore fade, crossfade, failure, and cancellation.
+
+        @Image(source: "spriteui-levels.svg", alt: "A cyan player and one camera persist as a Garden room changes into a Workshop room inside one world.")
+    }
+
+    @Section(title: "Load detached rooms in one world") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Each stage completely replaces `ContentView.swift`; keep your app's existing `ContentView()` entry point and use one stage at a time. Every stage runs without bundled images, audio, prefab files, temporary files, or physical input hardware.
+
+            Keep one `GameView(viewports: [])` and use its `content.levels`. Prepare a detached hierarchy containing a backdrop, floor, and physical bouncing ball, then return it to the coordinator. Do not add or remove managed roots yourself. Start with `.instant` so initial installation does not need a rendered frame.
+
+            A Codable room component counts real `WorldEvents.Update` callbacks. Register it before snapshots could be taken. Retain the subscription in the level context, and count only while its root belongs to the event's world. `onActivate` resets the displayed count after installation. A separate activity view observes frame counts without changing the game surface's configuration.
+        }
+        @Steps {
+            @Step {
+                Run stage one. The Garden ball falls and bounces on its floor. Read the current room and increasing update count. Load Workshop, then Garden again. Each switch replaces the room, resets its counter, and spawns a fresh ball while the same game surface and world continue. Counts depend on elapsed simulation time. The model owns the loading task, forwards setup cancellation, and cancels pending work on disappearance.
+
+                @Code(name: "ContentView.swift", file: "spriteui-levels-01.swift") {
+                    @Image(source: "spriteui-levels-01-preview.svg", alt: "Schematic stage one: Garden contains a mint floor and yellow ball, with a live room counter and Load Workshop button.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Preserve player state and fade between rooms") {
+        @ContentAndMedia {
+            Add a cyan player with a Codable score component and a camera before loading the first room. Call `preserve(_:)` on each. This promotes them directly under `world.root` as persistent siblings of the replaceable room, preserving their world transforms. Set `context.camera` to the same camera for each incoming room.
+
+            Prepare the ball's image with `TextureResource(image:)`; procedural resources require no filesystem or bundle resource. For file-backed content, await `context.resources.texture`, `audio`, or `prefab` during preparation as shown in <doc:scene-transitions-and-level-management>. The app demo uses a real bundled sound; this standalone tutorial requires none.
+
+            Use `.instant` initially, then `.fade(duration: 1.6)`. With an outgoing room, that is 0.8 seconds fading out and 0.8 seconds fading in. The host supplies the overlay. Disable external player buttons while `blocksInput` is true; preserve those buttons during preparation. The player and room counters are registered before any snapshots could be made.
+        }
+        @Steps {
+            @Step {
+                Replace the file with stage two. Move the player several times and add score. Record its displayed ID, score, and x position, then load the other room with fade. Those values persist while the ball and room counter restart. The player buttons disable during the fade and resume when it ends. The camera stays selected. Repeat the switch to confirm the same player identity survives both directions.
+
+                @Code(name: "ContentView.swift", file: "spriteui-levels-02.swift") {
+                    @Image(source: "spriteui-levels-02-preview.svg", alt: "Schematic stage two: persistent cyan player number 12 with score 3, a fade between rooms, and movement and score controls.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Cancel, fail, and crossfade safely") {
+        @ContentAndMedia {
+            Stage three adds Instant, Fade, and Crossfade choices plus a controlled one-second preparation await. Cancel stays enabled while preparing and transitioning. A one-shot failure switch throws after the wait, letting you verify that a failed preparation never replaces the outgoing room. `onUnload` counts disposed preparation scopes and replaced rooms.
+
+            During preparation, outgoing simulation and player controls remain active. The coordinator gates game input only for the transition; external gameplay buttons follow `blocksInput`. Crossfade captures one outgoing rendered surface, then blends it over the live incoming world. There is one simulation, and SwiftUI attachments are not captured. Positive animated transitions require an available game surface; the initial instant load avoids requiring a frame during setup.
+
+            Keep loading tasks in the scene owner, catch cancellation and errors, and clear the task handle at completion. A request token prevents a superseded task from replacing newer status. Cancelling before commit keeps the outgoing root; cancelling after commit keeps the incoming root and finishes its visuals. Check `currentID` rather than assuming which side won.
+        }
+        @Steps {
+            @Step {
+                Run stage three. Add score, choose Fade, and load Workshop. During the one-second preparing phase, move the player or add score: outgoing gameplay still works. Cancel during that wait and confirm Garden remains and its counter continues. Next enable Fail next preparation and load again; the visible error leaves Garden intact and increases the disposal count. Disable failure, load successfully, and confirm player state persists while room updates restart.
+
+                Choose Crossfade and switch back: the old ball is frozen in the outgoing image while the incoming ball simulates beneath it. Cancel during crossfade to retain the already installed incoming room. Choose Fade to try cancellation in its outgoing half and then its incoming half; the current-ID readout identifies the retained room. Instant skips animated phases after preparation. Navigate away during a load to cancel the owned task. No particular entity ID or event count is guaranteed; the illustration's values are examples.
+
+                @Code(name: "ContentView.swift", file: "spriteui-levels-03.swift") {
+                    @Image(source: "spriteui-levels-03-preview.svg", alt: "Schematic stage three: transition style picker, one-shot preparation failure toggle, Load and Cancel buttons, persistent player score, and disposal count.")
+                }
+            }
+        }
+    }
+}

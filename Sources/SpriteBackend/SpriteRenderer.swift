@@ -117,6 +117,8 @@ public final class SpriteRenderer: SKScene {
     private var lastUpdateTime: TimeInterval?
     private var lastDeltaTime: TimeInterval = 0
     private var currentFrame: WorldFrame?
+    /// Capture must not render a partially updated native scene from a callback.
+    @_spi(Backend) public private(set) var isUpdatingPresentation = false
     private var simulationTime: TimeInterval = 0
     var attachedDebugController: SceneDebugController?
     var debugLayer: SKNode?
@@ -227,6 +229,7 @@ public final class SpriteRenderer: SKScene {
     }
 
     public override func update(_ currentTime: TimeInterval) {
+        isUpdatingPresentation = true
         restoreRenderVisibility()
         let interval = lastUpdateTime.map { currentTime - $0 } ?? 0
         let deltaTime = min(interval, 1.0 / 15.0)
@@ -253,6 +256,7 @@ public final class SpriteRenderer: SKScene {
 
     /// Evaluates final constraints and cameras after actions, physics and presentation systems.
     public override func didFinishUpdate() {
+        defer { isUpdatingPresentation = false }
         validateManipulations()
         if let currentFrame { world.finishFrame(currentFrame) }
         currentFrame = nil

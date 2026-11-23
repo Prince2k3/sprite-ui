@@ -216,7 +216,8 @@ final class AttachmentStore {
     private var nextVisibilityRevision: UInt64 = 0
     private var visible = true
     private var appActive = true
-    var acceptsInput: Bool { visible && appActive }
+    var levelInputBlocked = false
+    var acceptsInput: Bool { visible && appActive && !levelInputBlocked }
     private struct WeakEntity { weak var value: Entity? }
     private var shared: [String: WeakEntity] = [:]
     @ObservationIgnored private var sizes: [AttachmentIdentity: CGSize] = [:]
@@ -313,7 +314,7 @@ final class AttachmentStore {
         return true
     }
     func canInteract(in identity: AttachmentIdentity) -> Bool {
-        guard let host, let entity = host.world.entity(withID: identity.entityID), isValid(entity, identity: identity) else { return false }
+        guard acceptsInput, let host, let entity = host.world.entity(withID: identity.entityID), isValid(entity, identity: identity) else { return false }
         guard let viewportID = identity.viewportID else { return !host.usesScopedViewports }
         return host.renderer.resolvedViewports.contains { $0.id == viewportID && $0.isInteractive }
     }
@@ -443,7 +444,7 @@ struct AttachmentOverlay: View {
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { store.reportSize($0, for: projection.id) }
                         .modifier(AttachmentPlacement(projection: projection))
                         .opacity(projection.opacity)
-                        .allowsHitTesting(projection.interactive && context.isValid)
+                        .allowsHitTesting(store.acceptsInput && projection.interactive && context.isValid)
                         .zIndex(Double(index))
                 }
             }

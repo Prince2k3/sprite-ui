@@ -21,6 +21,19 @@ final class ViewportFrameRenderer {
     private let spriteKit: SKRenderer
     private let compositor: any MTLRenderPipelineState
     private var textures: [String: any MTLTexture] = [:]
+    private struct Pane {
+        let texture: any MTLTexture
+        let x: Int, y: Int, width: Int, height: Int
+    }
+    private struct CompletedFrame {
+        let panes: [Pane]
+        let width: Int, height: Int
+        let background: MTLClearColor
+        let commandBuffer: any MTLCommandBuffer
+    }
+    private var completedFrame: CompletedFrame?
+    private var isEncodingFrame = false
+    var hasCaptureFrame: Bool { completedFrame != nil && !isEncodingFrame }
     private var lastDisplayTime: TimeInterval?
     private var nativeTime: TimeInterval = 1
     private var hasNativeUpdate = false
@@ -84,6 +97,11 @@ final class ViewportFrameRenderer {
     /// composition into the supplied buffer. The caller presents once.
     func encodeFrame(atTime time: TimeInterval, logicalSize: CGSize,
                      into output: any MTLTexture, commandBuffer: any MTLCommandBuffer) throws {
+        guard !isEncodingFrame else { throw LevelLoadingError.presentationUnavailable }
+        isEncodingFrame = true
+        // A partial draw may overwrite textures belonging to the previous frame.
+        completedFrame = nil
+        defer { isEncodingFrame = false }
         guard logicalSize.width.isFinite, logicalSize.height.isFinite,
               logicalSize.width > 0, logicalSize.height > 0 else { return }
         precondition(output.pixelFormat == .bgra8Unorm && output.sampleCount == 1)
@@ -113,10 +131,6 @@ final class ViewportFrameRenderer {
             spriteKit.update(atTime: nativeTime)
         }
 
-        struct Pane {
-            let texture: any MTLTexture
-            let x: Int, y: Int, width: Int, height: Int
-        }
         var panes: [Pane] = []
         var retainedTextures: [String: any MTLTexture] = [:]
         let scaleX = CGFloat(output.width) / logicalSize.width
@@ -163,11 +177,36 @@ final class ViewportFrameRenderer {
         }
         textures = retainedTextures
 
+        let background = backgroundColor
+        try composite(panes, background: background, into: output, commandBuffer: commandBuffer)
+        completedFrame = CompletedFrame(panes: panes, width: output.width, height: output.height,
+                                        background: background, commandBuffer: commandBuffer)
+    }
+
+    /// Recompose exactly the last frame's pixels, geometry and ordering. This
+    /// deliberately never reads the current cameras or invokes SpriteKit.
+    func capturePresentation() throws -> SpriteImage {
+        guard !isEncodingFrame, let frame = completedFrame,
+              frame.commandBuffer.status == .committed || frame.commandBuffer.status == .scheduled ||
+                frame.commandBuffer.status == .completed else { throw LevelLoadingError.presentationUnavailable }
+        frame.commandBuffer.waitUntilCompleted()
+        guard frame.commandBuffer.status == .completed else { throw LevelLoadingError.presentationUnavailable }
+        let output = try LevelPresentationPixels.makeTexture(device: device, width: frame.width, height: frame.height)
+        guard let command = commandQueue.makeCommandBuffer() else { throw Failure.unavailableCommandBuffer }
+        try composite(frame.panes, background: frame.background, into: output, commandBuffer: command)
+        command.commit()
+        command.waitUntilCompleted()
+        guard command.status == .completed else { throw Failure.incompletePaneRender }
+        return LevelPresentationPixels.image(from: output)
+    }
+
+    private func composite(_ panes: [Pane], background: MTLClearColor,
+                           into output: any MTLTexture, commandBuffer: any MTLCommandBuffer) throws {
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = output
         pass.colorAttachments[0].loadAction = .clear
         pass.colorAttachments[0].storeAction = .store
-        pass.colorAttachments[0].clearColor = backgroundColor
+        pass.colorAttachments[0].clearColor = background
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { throw Failure.unavailableEncoder }
         encoder.label = "SpriteUI composite viewports"
         encoder.setRenderPipelineState(compositor)
@@ -235,6 +274,13 @@ final class ViewportRendering: NSObject {
         isRunning = active
         frames.resetClock()
         metalView.isPaused = !active
+    }
+
+    var hasCaptureFrame: Bool { isRunning && frames.hasCaptureFrame }
+
+    func capturePresentation() throws -> SpriteImage {
+        guard isRunning else { throw LevelLoadingError.presentationUnavailable }
+        return try frames.capturePresentation()
     }
 
     func setShowsStatistics(_ enabled: Bool) { frames.setShowsStatistics(enabled) }

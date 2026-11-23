@@ -1,5 +1,5 @@
 import ECSCore
-import SpriteBackend
+@_spi(Backend) import SpriteBackend
 import SpriteKit
 import SwiftUI
 
@@ -11,6 +11,21 @@ public struct GameViewContent {
     public var scene: World { world }
     /// The SpriteKit renderer, for things the ECS doesn't cover yet.
     public let renderer: SpriteRenderer
+    /// Loads levels in this same world and preserves the native input session.
+    public let levels: LevelCoordinator
+    private let presentation: GameLevelPresentation
+
+    init(world: World, renderer: SpriteRenderer, levels: LevelCoordinator,
+         attachments: GameViewAttachments, presentation: GameLevelPresentation) {
+        self.world = world; self.renderer = renderer; self.levels = levels
+        self.attachments = attachments; self.presentation = presentation
+    }
+
+    /// Captures the last game surface, excluding SwiftUI attachments.
+    /// Throws when the host is hidden or has not produced a usable frame.
+    public func capturePresentation() throws -> SpriteImage {
+        try presentation.captureLevelPresentation()
+    }
     public let attachments: GameViewAttachments
 
     public var entities: [Entity] { world.entities }
@@ -121,6 +136,7 @@ public struct GameView: View {
                 if let debug { SceneDebugOverlay(controller: debug, host: host) }
             }
             .overlay { AttachmentOverlay(store: host.attachmentStore, definitions: definitions) }
+            .overlay { LevelPresentationOverlay(levels: host.levels) }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { host.viewFrame = $0 }
             .preference(key: GameHostPreferenceKey.self, value: [GameHostReference(id: host.inputHostID, host: host)])
             .onAppear {
@@ -153,7 +169,14 @@ final class GameHost {
     let world = World()
     lazy var renderer = SpriteRenderer(world: world)
     lazy var attachmentStore = AttachmentStore(host: self)
-    var content: GameViewContent { GameViewContent(world: world, renderer: renderer, attachments: GameViewAttachments(store: attachmentStore)) }
+    lazy var levelPresentation = GameLevelPresentation(host: self)
+    lazy var levels: LevelCoordinator = {
+        let coordinator = LevelCoordinator(world: world)
+        coordinator.presentation = levelPresentation
+        return coordinator
+    }()
+    var levelInputBlocked: Bool { levelPresentation.blocksInput }
+    var content: GameViewContent { GameViewContent(world: world, renderer: renderer, levels: levels, attachments: GameViewAttachments(store: attachmentStore), presentation: levelPresentation) }
     var isReady = false
     let debugInput = SceneDebugInputState()
     private var requestedDebugController: SceneDebugController?
@@ -223,6 +246,10 @@ final class GameHost {
     /// Shared by SwiftUI disappearance and native-view dismantling.
     func stopPresentation() {
         presentationVisible = false
+        levels.cancel()
+        // Cancellation after commit may finish its visuals asynchronously, but
+        // an offscreen view must release its input lease immediately.
+        levelPresentation.levelInputDidChange(blocked: false)
         nativeView?.updateViewportActivity()
         attachmentStore.setVisible(false)
         setDebugVisible(false)
@@ -251,9 +278,13 @@ final class GameHost {
 
     var viewFrame = CGRect.zero
     let inputHostID = UUID()
-    weak var actionInput: InputController?
+    weak var actionInput: InputController? {
+        didSet { levelPresentation.synchronizeInputSuppression() }
+    }
     var manipulationInput: GameManipulationInput?
-    weak var nativeInputSession: GameInputSession?
+    weak var nativeInputSession: GameInputSession? {
+        didSet { levelPresentation.synchronizeInputSuppression() }
+    }
     var isCancellingInputs = false
     var nextInputID: UInt64 = 0
     var inputContacts: [UInt64: InputContact] = [:]
@@ -262,20 +293,75 @@ final class GameHost {
 }
 
 /// An `SKView` that notes which entity a touch starts on, before SwiftUI's gestures see it.
-final class GameSKView: SKView {
+final class GameSKView: SKView, @preconcurrency SKViewDelegate {
     weak var host: GameHost?
     private var viewportRendering: ViewportRendering?
+    private var hasLegacyFrame = false
+    private var legacyFramePending = false
+
+    func view(_ view: SKView, shouldRenderAtTime time: TimeInterval) -> Bool {
+        // The previous native frame has returned before SpriteKit requests the
+        // next one. Capture itself never asks SpriteKit to perform an update.
+        hasLegacyFrame = legacyFramePending
+        legacyFramePending = true
+        return true
+    }
+
+    /// A visible surface can fade before its first native frame is drawn.
+    var isLevelPresentationAvailable: Bool {
+        guard let host, host.isPresentationActive, !host.renderer.isUpdatingPresentation, window != nil,
+              bounds.width > 0, bounds.height > 0 else { return false }
+#if os(macOS)
+        guard !isHiddenOrHasHiddenAncestor else { return false }
+        var ancestor: NSView? = self
+        while let view = ancestor {
+            guard view.alphaValue > 0 else { return false }
+            ancestor = view.superview
+        }
+#else
+        var ancestor: UIView? = self
+        while let view = ancestor {
+            guard !view.isHidden, view.alpha > 0 else { return false }
+            ancestor = view.superview
+        }
+#endif
+        return true
+    }
+
+    /// Cross-fade capture additionally needs a previously completed game frame.
+    var isLevelCaptureAvailable: Bool {
+        guard isLevelPresentationAvailable, let host else { return false }
+        if let viewportRendering { return viewportRendering.hasCaptureFrame }
+        return scene === host.renderer && hasLegacyFrame
+    }
+
+    func captureLevelPresentation() throws -> SpriteImage {
+        guard isLevelCaptureAvailable, let host else { throw LevelLoadingError.presentationUnavailable }
+        if let viewportRendering { return try viewportRendering.capturePresentation() }
+#if os(macOS)
+        let scale = window?.backingScaleFactor ?? 1
+#else
+        let scale = contentScaleFactor
+#endif
+        return try LevelPresentationPixels.captureLegacy(scene: host.renderer, logicalSize: bounds.size, scale: scale)
+    }
 
     func configurePresentation() {
         guard let host else { return }
         if host.configuredViewports != nil {
             if scene != nil { presentScene(nil) }
+            delegate = nil
+            hasLegacyFrame = false; legacyFramePending = false
             if viewportRendering == nil { viewportRendering = ViewportRendering(host: host, container: self) }
             updateViewportActivity()
         } else {
             viewportRendering?.stop()
             viewportRendering = nil
-            if scene !== host.renderer { presentScene(host.renderer) }
+            if scene !== host.renderer {
+                hasLegacyFrame = false; legacyFramePending = false
+                delegate = self
+                presentScene(host.renderer)
+            }
         }
     }
 

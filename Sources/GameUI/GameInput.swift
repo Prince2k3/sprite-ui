@@ -228,13 +228,16 @@ final class GameInputSession {
         if let host, host.nativeInputSession == nil || host.nativeInputSession === self {
             host.nativeInputSession = self
             if host.actionInput == nil || host.actionInput === router.input { host.actionInput = router.input }
+            host.levelPresentation.synchronizeInputSuppression()
         }
+        refresh()
     }
 
     func refresh() {
         // Stop and reject feedback before cancellation callbacks can request it.
-        if !availability.acceptsInput { controllers.suspend() }
-        router.setActive(availability.acceptsInput)
+        let acceptsInput = availability.acceptsInput && host?.levelInputBlocked != true
+        if !acceptsInput { controllers.suspend() }
+        router.setActive(acceptsInput)
         if !router.isActive { controllers.suspend() }
     }
     func cancelFromHost() {
@@ -249,6 +252,8 @@ final class GameInputSession {
         guard lifecycleRevision == revision else { return }
         if let hub { router.configure(hub, feedback: controllers.feedback) }
         else if let input { router.configure(input) }
+        host?.levelPresentation.synchronizeInputSuppression()
+        refresh()
     }
 
     func start() {

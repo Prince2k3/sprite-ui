@@ -12,6 +12,7 @@ struct SpriteUIDemoApp: App {
                     Tab("Viewports", systemImage: "rectangle.split.2x1") { ViewportDemoView() }
                     Tab("Layers", systemImage: "square.3.layers.3d") { RenderLayersDemoView() }
                     Tab("Parallax", systemImage: "mountain.2") { ParallaxDemoView() }
+                    Tab("Levels", systemImage: "square.stack.3d.up.fill") { LevelTransitionDemoView() }
                 }
                 Group {
                     Tab("Random", systemImage: "dice") { RandomDemoView() }
