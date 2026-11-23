@@ -15,7 +15,7 @@ let package = Package(
         // Pure Swift ECS: Entity, Component, System, queries, events. No SpriteKit.
         .target(name: "ECSCore"),
 
-        // Modern GameplayKit: pure algorithms (random, state machines, pathfinding...).
+        // Pure algorithms: random, state machines, pathfinding, and more.
         // No SpriteKit and no ECS, so it's deterministic and usable on its own.
         .target(name: "Gameplay"),
 

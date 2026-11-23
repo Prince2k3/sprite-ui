@@ -2,8 +2,7 @@ import Gameplay
 import SpriteBackend
 
 extension TileMapComponent {
-    /// A pathfinding grid with a node for every cell, in place of building a
-    /// `GKGridGraph` from a tile map by hand.
+    /// A pathfinding grid with a node for every tile-map cell.
     ///
     /// `cost` says how much stepping onto a cell costs, given its tile (`nil` when the
     /// cell is empty). Return `nil` to block it. Costs below 1 count as 1.

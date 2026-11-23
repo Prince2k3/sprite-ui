@@ -1,7 +1,7 @@
 import Foundation
 
 extension DecisionTree {
-    /// Learns a tree from examples, in place of `GKDecisionTree(examples:actions:attributes:)`.
+    /// Learns a tree from examples.
     ///
     /// Each example is a set of answers and the action that was right for them.
     /// The tree asks first about whatever separates the actions best (the most

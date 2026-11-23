@@ -1,6 +1,6 @@
 import Foundation
 
-/// A 2D coherent noise field, in place of `GKNoise` and `GKNoiseSource`.
+/// A 2D coherent noise field.
 ///
 /// Start from a source such as ``perlin(frequency:octaves:persistence:lacunarity:seed:)``
 /// and build on it: combine fields with `+`, `*`, ``minimum(_:)`` or
@@ -61,7 +61,7 @@ public struct Noise: Hashable, Codable, Sendable {
 // MARK: Sources
 
 extension Noise {
-    /// Smooth hills: fractal Perlin gradient noise, in place of `GKPerlinNoiseSource`.
+    /// Smooth hills: fractal Perlin gradient noise.
     ///
     /// - Parameters:
     ///   - frequency: Features per unit at the first octave.
@@ -74,21 +74,21 @@ extension Noise {
         Noise(.perlin(frequency: frequency, octaves: max(octaves, 1), persistence: persistence, lacunarity: lacunarity, seed: seed))
     }
 
-    /// Puffy, cloud-like lumps, in place of `GKBillowNoiseSource`.
+    /// Puffy, cloud-like lumps.
     public static func billow(
         frequency: Double = 1, octaves: Int = 6, persistence: Double = 0.5, lacunarity: Double = 2, seed: Int32 = 0
     ) -> Noise {
         Noise(.billow(frequency: frequency, octaves: max(octaves, 1), persistence: persistence, lacunarity: lacunarity, seed: seed))
     }
 
-    /// Sharp ridges, like mountain ranges, in place of `GKRidgedNoiseSource`.
+    /// Sharp ridges, like mountain ranges.
     public static func ridged(
         frequency: Double = 1, octaves: Int = 6, lacunarity: Double = 2, seed: Int32 = 0
     ) -> Noise {
         Noise(.ridged(frequency: frequency, octaves: max(octaves, 1), lacunarity: lacunarity, seed: seed))
     }
 
-    /// Flat cells, each with its own value, in place of `GKVoronoiNoiseSource`.
+    /// Flat cells, each with its own value.
     ///
     /// - Parameters:
     ///   - displacement: How far apart the cells' values spread.
@@ -100,22 +100,22 @@ extension Noise {
         Noise(.voronoi(frequency: frequency, displacement: displacement, includesDistance: includesDistance, seed: seed))
     }
 
-    /// Concentric rings around the origin, in place of `GKSpheresNoiseSource`.
+    /// Concentric rings around the origin.
     public static func rings(frequency: Double = 1) -> Noise {
         Noise(.rings(frequency: frequency))
     }
 
-    /// Parallel bands across x, in place of `GKCylindersNoiseSource`.
+    /// Parallel bands across x.
     public static func stripes(frequency: Double = 1) -> Noise {
         Noise(.stripes(frequency: frequency))
     }
 
-    /// Alternating squares of 1 and -1, in place of `GKCheckerboardNoiseSource`.
+    /// Alternating squares of 1 and -1.
     public static func checkerboard(squareSize: Double = 1) -> Noise {
         Noise(.checkerboard(squareSize: squareSize))
     }
 
-    /// The same value everywhere, in place of `GKConstantNoiseSource`.
+    /// The same value everywhere.
     public static func constant(_ value: Double) -> Noise {
         Noise(.constant(value))
     }
@@ -157,7 +157,7 @@ extension Noise {
     }
 
     /// Turns slopes into steps that flatten out at each of `peaks`, like terraced
-    /// hillsides, in place of `GKNoise.remapValuesToTerraces(withPeaks:terracesInverted:)`.
+    /// hillsides.
     public func terraced(peaks: [Double]) -> Noise {
         Noise(.terrace(node, peaks: Array(Set(peaks)).sorted()))
     }
@@ -173,8 +173,7 @@ extension Noise {
         Noise(.transform(node, translation: translation, scale: scale, rotation: rotation))
     }
 
-    /// Jostles each point by a random amount, roughening edges, in place of
-    /// `GKNoise.applyTurbulence(frequency:power:roughness:seed:)`.
+    /// Jostles each point by a random amount, roughening edges.
     ///
     /// - Parameters:
     ///   - power: How far points can move.
@@ -183,8 +182,7 @@ extension Noise {
         Noise(.turbulence(node, frequency: frequency, power: power, roughness: max(roughness, 1), seed: seed))
     }
 
-    /// Moves each point by `x` and `y` times `strength`, in place of
-    /// `GKNoise.displaceX(withNoise:yNoise:zNoise:)`.
+    /// Moves each point by `x` and `y` times `strength`.
     public func displaced(x: Noise, y: Noise, strength: Double = 1) -> Noise {
         Noise(.displace(node, x: x.node, y: y.node, strength: strength))
     }

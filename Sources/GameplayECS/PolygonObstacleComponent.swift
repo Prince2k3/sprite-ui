@@ -1,8 +1,7 @@
 import ECSCore
 
 /// Makes an entity a solid polygon: steered entities avoid it, and
-/// ``ECSCore/World/obstacleGraph(bufferRadius:)`` routes paths around it,
-/// in place of `GKPolygonObstacle` attached to a node.
+/// ``ECSCore/World/obstacleGraph(bufferRadius:)`` routes paths around it.
 ///
 /// The points are in the entity's own space, so moving, turning or scaling the
 /// entity (or its ancestors) moves the obstacle with it.
@@ -56,7 +55,7 @@ extension World {
     }
 
     /// A graph around every ``PolygonObstacleComponent`` in the world, for units
-    /// of radius `bufferRadius`, like `GKObstacleGraph(obstacles:bufferRadius:)`.
+    /// of radius `bufferRadius`.
     ///
     /// It's a snapshot: make a new one after obstacles move, or set its
     /// ``ObstacleGraph/obstacles`` to ``polygonObstacles``.
@@ -65,7 +64,7 @@ extension World {
     }
 
     /// The floor inside `bounds` around every ``PolygonObstacleComponent`` in the
-    /// world, for units of radius `bufferRadius`, like `GKMeshGraph`.
+    /// world, for units of radius `bufferRadius`.
     ///
     /// It's a snapshot: make a new one after obstacles move, or set its
     /// ``NavigationMesh/obstacles`` to ``polygonObstacles``.

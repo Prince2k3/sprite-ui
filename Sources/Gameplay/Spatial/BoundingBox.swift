@@ -1,4 +1,4 @@
-/// An axis-aligned rectangle, in place of `GKQuad`.
+/// An axis-aligned rectangle.
 ///
 /// `min` is the bottom-left corner and `max` the top-right, with +y up like the scene.
 public struct BoundingBox: Hashable, Codable, Sendable, CustomStringConvertible {

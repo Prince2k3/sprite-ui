@@ -25,7 +25,7 @@ extension RandomDistribution {
 /// let spread = GaussianDistribution(mean: 0, standardDeviation: 40)
 /// enemy.position.x = Float(spread.next(using: &rng))
 ///
-/// // Or keep values in a range, centered on it (like GKGaussianDistribution).
+/// // Or keep values in a range, centered on it.
 /// var damage = GaussianDistribution(in: 10...20)
 /// ```
 public struct GaussianDistribution: RandomDistribution, Hashable, Codable, Sendable {
@@ -64,7 +64,7 @@ public struct GaussianDistribution: RandomDistribution, Hashable, Codable, Senda
 ///
 /// Feels fairer than pure randomness: no long droughts, no streaks. When the bag
 /// empties it refills and reshuffles, and never gives the same element twice in a row
-/// across a refill (like `GKShuffledDistribution`).
+/// across a refill.
 ///
 /// ```swift
 /// var pieces = ShuffleBag(Tetromino.allCases)

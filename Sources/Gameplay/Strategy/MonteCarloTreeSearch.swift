@@ -1,7 +1,7 @@
 import Foundation
 
 /// Picks moves by playing many quick random games and favoring the moves that
-/// win most often, in place of `GKMonteCarloStrategist`.
+/// win most often.
 ///
 /// Unlike ``Minimax`` it needs no ``GameModel/score(for:)``, so it suits games
 /// that are hard to score or have too many moves to look far ahead. More
@@ -17,11 +17,10 @@ import Foundation
 /// with the best UCT score, adds one untried move, plays randomly to the end,
 /// and records the result on the way back up. The answer is the most-tried move.
 public struct MonteCarloTreeSearch: Sendable, Hashable, Codable {
-    /// How many random games to play per decision, like
-    /// `GKMonteCarloStrategist.budget`.
+    /// How many random games to play per decision.
     public var iterations: Int
-    /// How much to try less-explored moves rather than the best so far, like
-    /// `GKMonteCarloStrategist.explorationParameter`. √2 is the textbook value.
+    /// How much to try less-explored moves rather than the best so far.
+    /// √2 is the textbook value.
     public var exploration: Double
     /// Stops a random game after this many moves and counts it as a draw.
     /// `nil` plays every game to the end.

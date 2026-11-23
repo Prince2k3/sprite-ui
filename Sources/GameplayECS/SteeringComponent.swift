@@ -8,7 +8,7 @@ public enum SteeringTarget: Hashable, Codable, Sendable {
     case entity(Entity.ID)
 }
 
-/// One thing a steered entity wants, in place of `GKGoal`.
+/// One thing a steered entity wants.
 public enum SteeringBehavior: Hashable, Codable, Sendable {
     /// Head straight for the target.
     case seek(SteeringTarget)
@@ -41,7 +41,7 @@ public enum SteeringBehavior: Hashable, Codable, Sendable {
     case stayOn(AgentPath, lookAhead: Float = 0.5)
     /// Speed up or slow down to this many points per second, keeping the heading.
     case reachSpeed(Float)
-    /// Several goals acting as one, in place of `GKCompositeBehavior`. Their
+    /// Several goals acting as one. Their
     /// weighted forces add up, then the group's own weight scales the total.
     /// Name the group to switch it with ``SteeringComponent/setEnabled(_:named:)``.
     case group([SteeringGoal])
@@ -64,7 +64,7 @@ public struct SteeringGoal: Hashable, Codable, Sendable {
         self.isEnabled = isEnabled
     }
 
-    /// A named group of goals, in place of `GKCompositeBehavior`.
+    /// A named group of goals.
     public static func group(
         _ name: String? = nil,
         weight: Float = 1,
@@ -129,7 +129,7 @@ extension [SteeringGoal] {
     }
 }
 
-/// Moves an entity by steering behaviors, in place of `GKAgent2D` and `GKBehavior`.
+/// Moves an entity by steering behaviors.
 ///
 /// Add ``SteeringSystem`` to the world so it moves. Flocking goals
 /// (`separate`, `align`, `cohere`) find neighbors with the spatial index, so give

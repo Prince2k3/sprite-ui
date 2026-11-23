@@ -130,8 +130,7 @@ final class LevelScene {
     private static let disc = SpriteImage.disc(diameter: 64)
     private static let colors: [Color] = [.mint, .pink, .orange, .teal, .purple]
 
-    /// Turns the editor's User Data into game components, the way `GKScene` adds
-    /// the `GKComponent`s set on a node.
+    /// Turns the editor's User Data into game components.
     private static let loader: SceneLoader = {
         var loader = SceneLoader()
         loader.register("coin") { $0.int.map(CoinComponent.init(points:)) }

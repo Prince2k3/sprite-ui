@@ -1,6 +1,6 @@
 import Foundation
 
-/// Steering behaviors, in place of `GKGoal`.
+/// Steering behaviors.
 ///
 /// Each function returns the force that moves an agent toward what it wants. Forces
 /// add, so weight and sum several, then pass the total to
@@ -41,8 +41,8 @@ public enum AgentGoal {
         return steer(agent, toward: offset * (speed / distance))
     }
 
-    /// Speed up or slow down to `speed` without turning, in place of
-    /// `GKGoal(toReachTargetSpeed:)`. An agent standing still sets off along +x.
+    /// Speed up or slow down to `speed` without turning.
+    /// An agent standing still sets off along +x.
     public static func reachSpeed(_ agent: Agent2D, _ speed: Float) -> SIMD2<Float> {
         let target = max(0, min(speed, agent.maxSpeed))
         return steer(agent, toward: (agent.heading ?? [1, 0]) * target)
@@ -213,10 +213,10 @@ public enum AgentGoal {
         return seek(agent, toward: path.point(atDistance: along + ahead))
     }
 
-    /// Keep within `path`'s radius without moving along it, in place of
-    /// `GKGoal(toStayOn:maxPredictionTime:)`. Nothing happens while the agent, and
-    /// where it will be in `lookAhead` seconds, are both on the path; otherwise it
-    /// turns back toward the nearest point on it. Pair it with goals that move the agent.
+    /// Keep within `path`'s radius without moving along it.
+    /// Nothing happens while the agent and where it will be in `lookAhead`
+    /// seconds are both on the path; otherwise it turns back toward the nearest
+    /// point on it. Pair it with goals that move the agent.
     public static func stay(_ agent: Agent2D, on path: AgentPath, lookAhead: Float = 0.5) -> SIMD2<Float> {
         guard !path.points.isEmpty else { return .zero }
         let probe = agent.predictedPosition(after: lookAhead)

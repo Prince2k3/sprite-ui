@@ -19,7 +19,7 @@ public struct GridPoint: Hashable, Codable, Sendable, CustomStringConvertible {
     }
 }
 
-/// A grid of walkable and blocked cells, in place of `GKGridGraph`.
+/// A grid of walkable and blocked cells.
 ///
 /// It's a plain value: no node objects to create, connect or remove.
 ///

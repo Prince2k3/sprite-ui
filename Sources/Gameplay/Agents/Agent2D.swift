@@ -1,4 +1,4 @@
-/// Something that moves by steering, in place of `GKAgent2D`.
+/// Something that moves by steering.
 ///
 /// Goal functions such as ``AgentGoal/seek(_:toward:)`` return a force; add up
 /// the ones you want, weighted, and pass the total to ``apply(_:deltaTime:)``:
@@ -64,7 +64,7 @@ public struct Agent2D: Hashable, Codable, Sendable {
     }
 }
 
-/// A round thing for agents to steer around, in place of `GKCircleObstacle`.
+/// A round thing for agents to steer around.
 public struct CircleObstacle: Hashable, Codable, Sendable {
     public var center: SIMD2<Float>
     public var radius: Float

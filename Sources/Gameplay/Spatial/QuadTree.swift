@@ -1,5 +1,4 @@
 /// Points in a fixed region, split into quarters where they crowd together.
-/// In place of `GKQuadtree`.
 ///
 /// It's a value: copy it to snapshot it, and it's `Codable` when its elements are.
 ///

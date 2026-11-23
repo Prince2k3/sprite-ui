@@ -1,5 +1,5 @@
 /// The walkable floor of a level covered in triangles, for finding paths
-/// through open areas, in place of `GKMeshGraph`.
+/// through open areas.
 ///
 /// The floor is ``bounds`` minus every obstacle, with both padded by
 /// ``bufferRadius``, the radius of the units that walk it. Gaps narrower than

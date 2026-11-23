@@ -1,6 +1,6 @@
 import Foundation
 
-/// A solid polygon that units can't walk through, in place of `GKPolygonObstacle`.
+/// A solid polygon that units can't walk through.
 ///
 /// The points can go either way around; they're stored counter-clockwise
 /// (with y pointing up). The polygon may be concave but must not cross itself.

@@ -1,4 +1,4 @@
-/// Anything you can search for paths through, in place of `GKGraph`.
+/// Anything you can search for paths through.
 ///
 /// Conform a type by listing each node's neighbors. Add an estimate of the remaining
 /// cost to make ``findPath(from:to:)`` an A* search; without one it's Dijkstra's.

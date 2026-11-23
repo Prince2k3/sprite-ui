@@ -1,4 +1,4 @@
-/// A line of points for agents to follow, in place of `GKPath`.
+/// A line of points for agents to follow.
 ///
 /// Measure along it with ``distance(closestTo:)`` and ``point(atDistance:)``, or
 /// hand it to ``AgentGoal/follow(_:path:lookAhead:)``.

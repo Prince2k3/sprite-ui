@@ -145,8 +145,7 @@ public indirect enum DecisionNode<Action: Hashable & Sendable>: Hashable, Sendab
         .question(attribute: attribute, branches: branches, otherwise: otherwise)
     }
 
-    /// Picks one node at random, in proportion to its weight, like
-    /// `GKDecisionNode.createBranch(weight:attribute:)`.
+    /// Picks one node at random, in proportion to its weight.
     public static func random(_ choices: [(Double, DecisionNode<Action>)]) -> Self {
         .weighted(choices.map { WeightedChoice(weight: $0.0, node: $0.1) })
     }
@@ -172,7 +171,7 @@ extension DecisionNode: Codable where Action: Codable {}
 extension DecisionNode.WeightedChoice: Codable where Action: Codable {}
 extension DecisionBranch: Codable where Action: Codable {}
 
-/// Picks an action by asking questions about the world, in place of `GKDecisionTree`.
+/// Picks an action by asking questions about the world.
 ///
 /// Build one by hand from ``DecisionNode``s, or learn one from examples with
 /// ``init(learningFrom:actions:maxDepth:)``. Then ask it what to do:

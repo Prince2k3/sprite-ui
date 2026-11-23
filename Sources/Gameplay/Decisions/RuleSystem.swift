@@ -14,14 +14,14 @@ public struct Facts<Fact: Hashable & Sendable>: Sendable {
         grades[fact] ?? 0
     }
 
-    /// Raises `fact`'s grade by `grade`, up to 1, like `GKRuleSystem.assertFact(_:grade:)`.
+    /// Raises `fact`'s grade by `grade`, up to 1.
     public mutating func assert(_ fact: Fact, grade: Double = 1) {
         guard grade > 0 else { return }
         if grades[fact] == nil { order.append(fact) }
         grades[fact] = min((grades[fact] ?? 0) + grade, 1)
     }
 
-    /// Lowers `fact`'s grade by `grade`, removing it at 0, like `GKRuleSystem.retractFact(_:grade:)`.
+    /// Lowers `fact`'s grade by `grade`, removing it at 0.
     public mutating func retract(_ fact: Fact, grade: Double = 1) {
         guard let current = grades[fact], grade > 0 else { return }
         let lowered = current - grade
@@ -123,7 +123,7 @@ public struct Rule<State, Fact: Hashable & Sendable>: Sendable {
     }
 }
 
-/// Works out facts from a state by running rules, in place of `GKRuleSystem`.
+/// Works out facts from a state by running rules.
 ///
 /// Instead of a dictionary of state, rules read your own typed `State`, and facts
 /// are your own `Fact` type, usually an enum:

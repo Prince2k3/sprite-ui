@@ -1,4 +1,4 @@
-/// A graph for finding paths around polygon obstacles, in place of `GKObstacleGraph`.
+/// A graph for finding paths around polygon obstacles.
 ///
 /// Every obstacle is padded by ``bufferRadius``, the radius of the units that
 /// will walk the paths. The nodes are the outward corners of the padded
@@ -75,8 +75,8 @@ public struct ObstacleGraph: Graph, Sendable {
     /// `goal` is inside a padded obstacle or can't be reached.
     ///
     /// The points don't need to be nodes; they're joined to every corner they
-    /// can see for this search only, like `GKObstacleGraph.connectUsingObstacles(node:)`
-    /// without having to remove them afterwards. A `start` inside a padded
+    /// can see for this search only, without having to remove them afterwards.
+    /// A `start` inside a padded
     /// obstacle may walk straight out of it, so a unit pushed into the padding
     /// can still find its way, though never through the obstacle itself.
     public func findPath(from start: SIMD2<Float>, to goal: SIMD2<Float>) -> [SIMD2<Float>]? {

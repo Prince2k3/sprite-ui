@@ -21,7 +21,7 @@ public struct StateMachineComponent<State: GameState>: Component {
 extension StateMachineComponent: Equatable, Hashable, Sendable {}
 extension StateMachineComponent: Codable where State: Codable {}
 
-/// A state that runs logic on the entity it belongs to, like `GKState`.
+/// A state that runs logic on the entity it belongs to.
 ///
 /// ```swift
 /// enum Guard: EntityState {

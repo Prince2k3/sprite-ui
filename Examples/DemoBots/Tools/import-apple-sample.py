@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Import licensed art/levels from Apple's extracted DemoBots 2.3 sample.
-Usage: python3 import-apple-sample.py /path/to/DemoBotsBuildingaCrossPlatformGamewithSpriteKitandGameplayKit
+Usage: python3 import-apple-sample.py /path/to/extracted-apple-sample
 Only resource files are imported; gameplay is implemented with SpriteUI.
 """
 import json, pathlib, plistlib, shutil, sys

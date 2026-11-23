@@ -1,5 +1,5 @@
-/// A graph of nodes and the edges you add between them, in place of `GKGraph`
-/// with `GKGraphNode`s. Good for waypoints, rooms, or a level's road network.
+/// A graph of nodes and the edges you add between them.
+/// Good for waypoints, rooms, or a level's road network.
 ///
 /// ```swift
 /// var roads = AdjacencyGraph<String>()

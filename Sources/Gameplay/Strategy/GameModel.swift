@@ -1,7 +1,6 @@
-/// A turn-based game that ``Minimax`` and ``MonteCarloTreeSearch`` can play,
-/// in place of `GKGameModel`.
+/// A turn-based game that ``Minimax`` and ``MonteCarloTreeSearch`` can play.
 ///
-/// Unlike `GKGameModel`, a model is a value: ``applying(_:)`` returns the next
+/// A model is a value: ``applying(_:)`` returns the next
 /// position instead of changing this one, so strategists never copy or undo moves,
 /// and a model can be handed to a background task to think.
 ///

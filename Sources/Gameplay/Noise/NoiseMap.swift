@@ -1,4 +1,4 @@
-/// A grid of samples from a ``Noise`` field, in place of `GKNoiseMap`.
+/// A grid of samples from a ``Noise`` field.
 ///
 /// Row 0 is the bottom of the sampled area (lowest y), matching scene space.
 ///
@@ -117,7 +117,7 @@ public struct NoiseMap: Hashable, Codable, Sendable {
     }
 }
 
-/// Colors for noise values, in place of the gradient in `GKNoise(_:gradientColors:)`.
+/// Maps noise values to colors.
 ///
 /// Colors are linear RGBA in 0...1. Values between stops are blended; values past
 /// the ends take the end color.

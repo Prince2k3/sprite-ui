@@ -2,8 +2,7 @@ import SpriteUI
 import SwiftUI
 import simd
 
-/// A complete SpriteUI game host. The game itself never creates an SKNode or
-/// imports GameplayKit: its entities are rendered by GameView's backend.
+/// A complete SpriteUI game host, with entities rendered by GameView's backend.
 public struct DemoBotsView: View {
     @State private var game = DemoBotsSession()
     @State private var selectedLevel = 1

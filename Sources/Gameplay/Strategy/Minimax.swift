@@ -1,5 +1,4 @@
-/// Picks moves by looking every possible reply a fixed number of turns ahead,
-/// in place of `GKMinmaxStrategist`.
+/// Picks moves by looking every possible reply a fixed number of turns ahead.
 ///
 /// It assumes each opponent always makes the reply that's worst for the player
 /// it's choosing for, and uses alpha-beta pruning to skip lines that can't
@@ -46,8 +45,8 @@ public struct Minimax: Sendable, Hashable, Codable {
             .map(\.element)
     }
 
-    /// The best move, choosing randomly between equally good ones, like
-    /// `GKMinmaxStrategist.bestMove(for:)`. `nil` when the game is over.
+    /// The best move, choosing randomly between equally good ones.
+    /// Returns `nil` when the game is over.
     public func bestMove<Model: GameModel, G: RandomNumberGenerator>(
         for model: Model, using generator: inout G
     ) -> Model.Move? {
@@ -61,8 +60,7 @@ public struct Minimax: Sendable, Hashable, Codable {
         scoredMoves(for: model).first?.move
     }
 
-    /// A random move from the `count` best, like
-    /// `GKMinmaxStrategist.randomMove(for:fromNumberOfBestMoves:)`.
+    /// A random move from the `count` best.
     /// Use it to make an easier opponent.
     public func randomMove<Model: GameModel, G: RandomNumberGenerator>(
         for model: Model, fromBest count: Int, using generator: inout G

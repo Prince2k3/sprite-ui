@@ -82,8 +82,7 @@ public enum SceneLoadingError: Error, Equatable {
     case unsupportedMask(String)
 }
 
-/// Loads `.sks` files made in Xcode's scene editor as entities, in place of
-/// `GKScene` and `GKSKNodeComponent`.
+/// Loads `.sks` files made in Xcode's scene editor as entities.
 ///
 /// Every node becomes an entity with the same name, place in the hierarchy and
 /// ``ECSCore/Transform``. Sprites become a ``SpriteComponent``, physics bodies a
@@ -113,8 +112,7 @@ public enum SceneLoadingError: Error, Equatable {
 /// let player = level.findEntity(named: "player")
 /// ```
 ///
-/// To build your own components from User Data, in the way `GKScene` adds the
-/// `GKComponent`s set in the editor, register a maker for a key:
+/// To build your own components from editor User Data, register a maker for a key:
 ///
 /// ```swift
 /// var loader = SceneLoader()
