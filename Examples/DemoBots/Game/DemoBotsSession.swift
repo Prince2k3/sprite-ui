@@ -8,21 +8,24 @@ import simd
 @MainActor @Observable
 public final class DemoBotsSession {
     public private(set) var phase: DemoBotsPhase = .home
-    public private(set) var levelNumber = 1
+    public internal(set) var levelNumber = 1
     public private(set) var secondsLeft = 180
     public private(set) var badBots = 0
     public private(set) var totalBots = 0
     public private(set) var charge: Float = 100
     public private(set) var beamFraction: Float = 1
     public private(set) var isRecharging = false
-    public private(set) var message = ""
+    public internal(set) var message = ""
     public var showsPaths = false
     public var soundEnabled = true
     /// Scene tools suppress player input without putting match logic into its
     /// pause-menu phase, so SpriteUI's debugger can advance a complete match frame.
     public private(set) var isInspecting = false
+    var botStatuses: [Entity.ID: BotStatus] = [:]
+    public internal(set) var hasCheckpoint = false
+    public internal(set) var checkpointMessage = ""
     public private(set) var mapDots: [MapDot] = []
-    public private(set) var mapBounds = SIMD4<Float>(128, -1064, 1248, 1704)
+    public internal(set) var mapBounds = SIMD4<Float>(128, -1064, 1248, 1704)
 
     public struct MapDot: Identifiable {
         public let id: Entity.ID
@@ -39,6 +42,9 @@ public final class DemoBotsSession {
     @ObservationIgnored var camera: Entity?
     @ObservationIgnored var beamLines: [Entity] = []
     @ObservationIgnored var pathLines: [Entity] = []
+    @ObservationIgnored var effects: DemoBotsEffects?
+    @ObservationIgnored var targetReticle: Entity?
+    @ObservationIgnored private var levelPrefabs: [Int: PrefabResource] = [:]
     @ObservationIgnored var moveInput = SIMD2<Float>.zero
     @ObservationIgnored var aimInput = SIMD2<Float>.zero
     @ObservationIgnored var isFiring = false
@@ -85,7 +91,7 @@ public final class DemoBotsSession {
         } catch { message = "Couldn’t load animation resources: \(error.localizedDescription)" }
     }
 
-    public init() {}
+    public init() { refreshCheckpointAvailability() }
 
     public func build(in content: GameViewContent) {
         attach(to: content.world)
@@ -117,23 +123,7 @@ public final class DemoBotsSession {
         levelNumber = min(max(number, 1), 3)
         do {
             let config = try BotLevelConfiguration.load(levelNumber)
-            let levelURL = try DemoBotsResources.url("Level\(levelNumber)", extension: "sks")
-            let level = try SceneLoader().load(contentsOf: levelURL)
-            // The original editor scenes use uncentered coordinates; their patrol
-            // markers and obstacle locations are expressed in that same space.
-            level.position = .zero
-            level.visit { entity in entity.components.remove(PhysicsBodyComponent.self) }
-            for (name, z): (String, Float) in [("board", -100), ("shadows", -50), ("obstacles", -25), ("characters", 0), ("above_characters", 1000), ("top", 1100)] {
-                level.findEntity(named: name)?.transform.zPosition = z
-            }
-            if let obstacleLayer = level.findEntity(named: "obstacles") {
-                for entity in obstacleLayer.children {
-                    guard let sprite = entity.components[SpriteComponent.self], let size = sprite.size else { continue }
-                    entity.components.set(PolygonObstacleComponent(rectangle: size))
-                    entity.components.set(CollisionComponent(shape: .rectangle(size: size), filter: .init(group: BotCollisionGroups.walls)))
-                    if sprite.imageName == nil { entity.components[SpriteComponent.self]?.opacity = 0 }
-                }
-            }
+            let level = try loadLevel(levelNumber)
             world.addEntity(level)
             let box: BoundingBox
             switch levelNumber {
@@ -175,11 +165,7 @@ public final class DemoBotsSession {
             ))
             camera.position = spawn
             world.addEntity(camera); self.camera = camera
-            for i in 0..<4 {
-                let line = Entity(name: "debug-beam-\(i)", components: SpriteComponent(color: i % 2 == 0 ? .cyan : .white, size: [1, 1], opacity: 0))
-                line.transform.zPosition = 500
-                world.addEntity(line); beamLines.append(line)
-            }
+            resetPresentation()
             totalBots = bots.count
             remainingTime = config.timeLimit; elapsed = 0; hudDelay = 0; effectDelay = 0
             world.isPaused = false
@@ -189,6 +175,49 @@ public final class DemoBotsSession {
             phase = .home
             message = "Couldn’t load Level \(levelNumber): \(error.localizedDescription)"
         }
+    }
+
+    func loadLevel(_ number: Int) throws -> Entity {
+        if let prefab = levelPrefabs[number] { return prefab.instantiate() }
+        let levelURL = try DemoBotsResources.url("Level\(number)", extension: "sks")
+        let level = try SceneLoader().load(contentsOf: levelURL)
+        // The original editor scenes use uncentered coordinates; their patrol
+        // markers and obstacle locations are expressed in that same space.
+        level.position = .zero
+        level.visit { entity in entity.components.remove(PhysicsBodyComponent.self) }
+        for (name, z): (String, Float) in [("board", -100), ("shadows", -50), ("obstacles", -25), ("characters", 0), ("above_characters", 1000), ("top", 1100)] {
+            level.findEntity(named: name)?.transform.zPosition = z
+        }
+        if let obstacleLayer = level.findEntity(named: "obstacles") {
+            for entity in obstacleLayer.children {
+                guard let sprite = entity.components[SpriteComponent.self], let size = sprite.size else { continue }
+                entity.components.set(PolygonObstacleComponent(rectangle: size))
+                entity.components.set(CollisionComponent(shape: .rectangle(size: size), filter: .init(group: BotCollisionGroups.walls)))
+                if sprite.imageName == nil { entity.components[SpriteComponent.self]?.opacity = 0 }
+            }
+        }
+        let prefab = PrefabResource(root: level, name: "Level\(number)")
+        levelPrefabs[number] = prefab
+        return prefab.instantiate()
+    }
+
+    /// Runtime callbacks and cosmetic leases belong to the current world, not
+    /// to a checkpoint. Rebind them after the SDK restores persistent entities.
+    func finishRestoringCheckpoint() {
+        if let saved = discardInspection() { world?.timeScale = saved.timeScale }
+        world?.isPaused = true
+        phase = .paused
+        moveInput = .zero; aimInput = .zero; isFiring = false
+        destination = nil; playerRoute = []
+        totalBots = bots.count
+        resetPresentation()
+        for entity in [player].compactMap({ $0 }) + bots {
+            if let info = entity.components[BotComponent.self] {
+                let velocity = entity.components[SteeringComponent.self]?.velocity ?? .zero
+                updateLook(entity, info: info, moving: simd_length_squared(velocity) > 1)
+            }
+        }
+        refreshHUD()
     }
 
     var preferredZoom: Float { viewSize.width > viewSize.height ? 0.9 : 0.62 }
@@ -216,7 +245,7 @@ public final class DemoBotsSession {
     public func sendPlayer(toView point: CGPoint) {
         guard phase == .playing, !isInspecting, let renderer, let player, let navigation else { return }
         let goal = renderer.scenePoint(fromView: point)
-        guard navigation.bounds.contains(goal), !navigation.padded.contains(where: { $0.contains(goal) }) else { return }
+        guard navigation.isWalkable(goal), recoverNavigationStart(player, navigation: navigation) else { return }
         destination = goal
         playerRoute = navigation.path(from: player.position, to: goal)
     }
@@ -280,7 +309,7 @@ public final class DemoBotsSession {
         destination = nil; playerRoute = []
         player?.components[SteeringComponent.self]?.goals = []
         player?.components[SteeringComponent.self]?.velocity = .zero
-        for line in beamLines { line.components[SpriteComponent.self]?.opacity = 0 }
+        hideBeam()
     }
     func stopMotion() {
         moveInput = .zero; aimInput = .zero; isFiring = false
@@ -288,30 +317,20 @@ public final class DemoBotsSession {
             entity.components[SteeringComponent.self]?.goals = []
             entity.components[SteeringComponent.self]?.velocity = .zero
         }
-        for line in beamLines { line.components[SpriteComponent.self]?.opacity = 0 }
+        hideBeam()
     }
 
     func makeBot(kind: BotKind, at point: SIMD2<Float>, heading: Float) -> Entity {
-        let data = BotComponent(kind: kind, heading: heading, previousPosition: point)
-        let entity = Entity(components: data, SteeringComponent(maxSpeed: 210, maxForce: 900, radius: 25), SpatialIndexComponent())
+        let entity = BotPrefabs.make(kind: kind)
+        entity.components.set(BotComponent(kind: kind, heading: heading, previousPosition: point))
         entity.position = point
-        entity.components.set(CollisionComponent(shape: .circle(radius: 25), filter: .init(group: BotCollisionGroups.actors)))
-        entity.components.set(CharacterControllerComponent(shape: .circle(radius: 25), filter: .init(group: BotCollisionGroups.actors, mask: BotCollisionGroups.walls)))
-        let body = Entity(name: "body", components: SpriteComponent(imageName: "PlayerBot", size: [120, 120]))
-        body.position = [0, 25]; entity.addChild(body)
-        let shadow = Entity(name: "shadow", components: SpriteComponent(imageName: kind == .player ? "PlayerBotShadow" : "GroundBotShadow", size: [80, 32], opacity: 0.6))
-        shadow.position = [0, -8]; shadow.transform.zPosition = -1; entity.addChild(shadow)
-        let barBack = Entity(name: "charge-background", components: SpriteComponent(color: .black.opacity(0.65), size: [54, 6]))
-        barBack.position = [0, 86]; entity.addChild(barBack)
-        let bar = Entity(name: "charge", components: SpriteComponent(color: .green, size: [50, 3]))
-        bar.position = [0, 86]; bar.transform.zPosition = 1; entity.addChild(bar)
         world?.addEntity(entity)
         return entity
     }
 
     func beforeSteering(deltaTime: Float) {
         guard phase == .playing, let player, let navigation else { return }
-        let dt = min(max(deltaTime, 0), 1 / 15)
+        let dt = max(deltaTime, 0)
         elapsed += dt; effectDelay = max(0, effectDelay - dt)
         remainingTime = max(0, remainingTime - Double(dt))
         playerCharge.advance(dt)
@@ -334,9 +353,10 @@ public final class DemoBotsSession {
             steering.maxSpeed = 210 * simd_length(moveInput)
             steering.goals = [SteeringGoal(.seek(.point(player.position + moveInput * 180)))]
         } else if destination != nil {
-            while playerRoute.count > 1 && simd_distance(player.position, playerRoute[0]) < 32 { playerRoute.removeFirst() }
-            if let next = playerRoute.first, simd_distance(next, player.position) > 10 {
-                steering.goals = [SteeringGoal(.arrive(.point(next), slowingRadius: playerRoute.count == 1 ? 70 : 10))]
+            advanceRoute(&playerRoute, from: player.scenePosition, navigation: navigation)
+            if let next = playerRoute.first, playerRoute.count > 1 || simd_distance(next, player.scenePosition) > 10 {
+                let goal: SteeringBehavior = playerRoute.count == 1 ? .arrive(.point(next), slowingRadius: 70) : .seek(.point(next))
+                steering.goals = [SteeringGoal(goal)]
             } else { destination = nil; playerRoute = []; steering.goals = [SteeringGoal(.reachSpeed(0))] }
         } else { steering.goals = [SteeringGoal(.reachSpeed(0))] }
         player.components.set(steering)
@@ -354,12 +374,16 @@ public final class DemoBotsSession {
                 info.decisionDelay = 0.3
                 decide(bot, info: &info, player: player, navigation: navigation)
             }
+            if bot.state(BotMode.self) != .zapped || bot.timeInState(BotMode.self) >= 0.3 {
+                advanceBotRoute(bot, info: &info)
+            }
             bot.components.set(info)
         }
         if remainingTime <= 0 { finish(won: false) }
     }
 
     func decide(_ bot: Entity, info: inout BotComponent, player: Entity, navigation: BotNavigation) {
+        guard recoverNavigationStart(bot, navigation: navigation) else { info.route = []; return }
         let red = bots.filter { $0.id != bot.id && $0.components[BotComponent.self]?.isBad == true }
         let good = bots.filter { $0.id != bot.id && $0.components[BotComponent.self]?.isBad == false }
         let targets = playerCharge.recharging ? good : good + [player]
@@ -387,18 +411,67 @@ public final class DemoBotsSession {
             destination = info.patrol[info.waypoint]
         }
         bot.enter(mode)
-        let path = navigation.path(from: bot.position, to: destination)
-        info.route = path
+        // Patrol routes keep their remaining corners. Moving hunt/flee goals
+        // replan only after a meaningful change or loss of segment clearance.
+        let reusable = info.route.last.map { simd_distance($0, destination) < 20 } == true &&
+            info.route.first.map { navigation.isClear(from: bot.scenePosition, to: $0) } == true
+        if !reusable { info.route = navigation.path(from: bot.scenePosition, to: destination) }
         var steering = bot.components[SteeringComponent.self]!
         steering.maxSpeed = info.isBad ? (mode == .hunt ? 155 : 115) : 140
         steering.maxForce = 700
-        let next = path.dropFirst().first ?? bot.position
+        // Keep safety goals independent from the switchable navigation group.
         steering.goals = [
-            .group("navigation", [SteeringGoal(.arrive(.point(next), slowingRadius: 30))]),
+            .group("navigation", []),
             SteeringGoal(.separate(radius: 65), weight: 1.2),
             SteeringGoal(.avoidObstacles(lookAhead: 0.18), weight: 1.5)
         ]
         bot.components.set(steering)
+    }
+
+    func advanceBotRoute(_ bot: Entity, info: inout BotComponent) {
+        if let navigation { advanceRoute(&info.route, from: bot.scenePosition, navigation: navigation) }
+        let next = info.route.first
+        let goal: SteeringBehavior
+        if let next, info.route.count > 1 || simd_distance(bot.scenePosition, next) > 8 {
+            goal = info.route.count == 1 ? .arrive(.point(next), slowingRadius: 65) : .seek(.point(next))
+        } else { goal = .reachSpeed(0) }
+        guard var steering = bot.components[SteeringComponent.self],
+              let index = steering.goals.firstIndex(where: { $0.name == "navigation" }) else { return }
+        steering.goals[index].behavior = .group([SteeringGoal(goal)])
+        bot.components.set(steering)
+    }
+
+    /// Proximity alone cannot skip a tight corner: first prove the next leg
+    /// has the same clearance as the planned route.
+    func advanceRoute(_ route: inout [SIMD2<Float>], from point: SIMD2<Float>, navigation: BotNavigation) {
+        while route.count > 1 && simd_distance(point, route[0]) < 12 && navigation.isClear(from: point, to: route[1]) {
+            route.removeFirst()
+        }
+    }
+
+    /// Swept movement can stop inside the planner's extra one-point margin.
+    /// Recover only that tiny gap with the actual character controller. Deep
+    /// overlaps/invalid starts still fail; pathfinding never projects through walls.
+    @discardableResult func recoverNavigationStart(_ actor: Entity, navigation: BotNavigation) -> Bool {
+        let start = actor.scenePosition
+        if navigation.isWalkable(start) { return true }
+        var candidates: [SIMD2<Float>] = []
+        for polygon in navigation.padded where polygon.contains(start) || polygon.distance(to: start) < 2 {
+            let boundary = polygon.closestPoint(to: start)
+            let delta = boundary - start
+            if simd_length_squared(delta) > 0.000001 {
+                candidates.append(boundary + simd_normalize(delta) * 0.25)
+            }
+        }
+        // The board edge uses the same padding as the obstacle graph.
+        let margin = SIMD2<Float>(repeating: navigation.clearance + 0.25)
+        candidates.append(simd_clamp(start, navigation.bounds.min + margin, navigation.bounds.max - margin))
+        for point in candidates.sorted(by: { simd_distance_squared(start, $0) < simd_distance_squared(start, $1) })
+            where simd_distance_squared(start, point) <= 4 && navigation.isWalkable(point) {
+            guard let result = try? actor.moveCharacter(by: point - actor.scenePosition), !result.isOverlapping else { continue }
+            if navigation.isWalkable(actor.scenePosition) { return true }
+        }
+        return false
     }
 
     func hasLineOfSight(from start: SIMD2<Float>, to end: SIMD2<Float>) -> Bool {
@@ -434,18 +507,20 @@ public final class DemoBotsSession {
             // Query in the ground plane, then lift the drawn beam to emitter height.
             end = hit.position + SIMD2<Float>(0, 60)
         }
-        for (index, line) in beamLines.enumerated() {
-            let fractionA = Float(index / 2) / 2
-            let fractionB = Float(index / 2 + 1) / 2
-            let jitter = SIMD2<Float>(-direction.y, direction.x) * sin(elapsed * 90) * 7
-            let middle = (origin + end) / 2 + jitter
-            let a = fractionA == 0 ? origin : middle
-            let b = fractionB == 1 ? end : middle
-            let vector = b - a
-            line.position = (a + b) / 2; line.transform.rotation = atan2(vector.y, vector.x)
-            line.components[SpriteComponent.self]?.size = [simd_length(vector), index % 2 == 0 ? 10 : 3]
-            line.components[SpriteComponent.self]?.opacity = index % 2 == 0 ? 0.35 : 1
+        let jitter = SIMD2<Float>(-direction.y, direction.x) * sin(elapsed * 90) * 7
+        var path = VectorPath()
+        path.move(to: origin); path.addLine(to: (origin + end) / 2 + jitter); path.addLine(to: end)
+        for line in beamLines {
+            line.isEnabled = true
+            line.components[ShapeComponent.self]?.geometry = .path(path)
         }
+        if let target, let reticle = targetReticle {
+            let tracking = TransformConstraintComponent([
+                TransformConstraint(.follow(.entity(target.id), offset: [0, 2], offsetSpace: .scene))
+            ])
+            if reticle.components[TransformConstraintComponent.self] != tracking { reticle.components.set(tracking) }
+            reticle.isEnabled = true
+        } else { targetReticle?.isEnabled = false }
         guard let target, var bot = target.components[BotComponent.self] else { return }
         bot.corruption = max(0, bot.corruption - 90 * dt)
         target.components.set(bot)
@@ -456,7 +531,10 @@ public final class DemoBotsSession {
         }
         if bot.corruption <= 0 { cure(target) }
     }
-    func hideBeam() { for line in beamLines { line.components[SpriteComponent.self]?.opacity = 0 } }
+    func hideBeam() {
+        for line in beamLines { line.isEnabled = false }
+        targetReticle?.isEnabled = false
+    }
 
     func cure(_ entity: Entity, cascade: Bool = true) {
         guard var info = entity.components[BotComponent.self], info.isBad else { return }
@@ -464,6 +542,7 @@ public final class DemoBotsSession {
         info.waypoint = 0; info.decisionDelay = 0; info.attackCooldown = 2
         entity.components.set(info); entity.enter(BotMode.patrol)
         spark(at: entity.position + [0, 45], color: .green, count: 28)
+        effects?.caption("REPAIRED", color: .green, at: entity.scenePosition + [0, 100])
         if soundEnabled { playTone("cure", at: entity.position) }
         if info.kind == .flying, cascade {
             blast(at: entity.position, beneficial: true)
@@ -475,7 +554,7 @@ public final class DemoBotsSession {
 
     func resolveMovement(deltaTime: Float) {
         guard phase == .playing, let player else { return }
-        let dt = min(max(deltaTime, 0), 1 / 15)
+        let dt = max(deltaTime, 0)
         for entity in [player] + bots {
             guard var info = entity.components[BotComponent.self], var steering = entity.components[SteeringComponent.self] else { continue }
             let proposed = entity.position
@@ -497,7 +576,8 @@ public final class DemoBotsSession {
 
     func afterSteering(deltaTime: Float) {
         guard phase == .playing, let player else { return }
-        let dt = min(max(deltaTime, 0), 1 / 15)
+        let dt = max(deltaTime, 0)
+        effects?.advance(dt)
         for entity in [player] + bots {
             guard let info = entity.components[BotComponent.self] else { continue }
             updateLook(entity, info: info, moving: simd_distance_squared(entity.position, info.previousPosition) > 0.05)
@@ -524,6 +604,7 @@ public final class DemoBotsSession {
                 entity.components[BotComponent.self]?.hitFlash = 0.5
                 camera?.components[CameraComponent.self]?.shake(0.3)
                 spark(at: entity.position, color: .red, count: 12)
+                effects?.caption("−\(Int(amount))", color: .red, at: entity.scenePosition + [0, 100])
             }
         } else if var info = entity.components[BotComponent.self], !info.isBad {
             info.corruption = min(100, info.corruption + amount * 2)
@@ -546,23 +627,28 @@ public final class DemoBotsSession {
             activeClips[entity.id] = key
         }
         entity.transform.zPosition = 100 - entity.position.y / 10000
-        let amount = info.kind == .player ? playerCharge.value : (info.isBad ? info.corruption : 100 - info.corruption)
-        let bar = entity.findEntity(named: "charge")
-        bar?.components[SpriteComponent.self]?.size = [50 * max(0.01, amount / 100), 3]
-        bar?.components[SpriteComponent.self]?.color = info.kind == .player ? .cyan : (info.isBad ? .red : .green)
+        if let body = entity.findEntity(named: "body"), var sprite = body.components[SpriteComponent.self] {
+            let original = sprite
+            let textureSize = sprite.texture?.size ?? sprite.image.map { SIMD2(Float($0.width), Float($0.height)) } ?? sprite.size ?? [120, 120]
+            try? sprite.material.setParameter(.vector2([1 / max(textureSize.x, 1), 1 / max(textureSize.y, 1)]), named: "a_texelSize")
+            try? sprite.material.setParameter(.float(mode == .zapped ? 2 : 0), named: "a_outlineWidth")
+            try? sprite.material.setParameter(.float(min(1, info.hitFlash * 4)), named: "a_flash")
+            try? sprite.material.setParameter(.color(info.hitFlash > 0 ? .red : .cyan), named: "a_effectColor")
+            if sprite != original { body.components.set(sprite) }
+        }
     }
 
     func spark(at position: SIMD2<Float>, color: Color, count: Int) {
-        world?.addEntity(.oneShot(particles: .sparks(color: color), count: count, at: position))
+        effects?.burst(.sparks(color: color), count: count, at: position)
     }
     func blast(at position: SIMD2<Float>, beneficial: Bool) {
         var particles = ParticleEmitterComponent.puff(color: beneficial ? .green : .red)
         particles.speed = 150; particles.lifetime = 0.8; particles.particleSize = [28, 28]
-        world?.addEntity(.oneShot(particles: particles, count: 60, at: position + [0, 25]))
+        effects?.burst(particles, count: 60, at: position + [0, 25], blast: true)
     }
     func playTone(_ name: String, at position: SIMD2<Float>) {
         guard name == "cure", let cureSound, let world else { return }
-        let emitter = Entity(name: "cure sound", components: LifetimeComponent(Float(cureSound.duration + 0.1)))
+        let emitter = Entity(name: "cure sound", components: LifetimeComponent(Float(cureSound.duration + 0.1)), DemoBotsTransient())
         emitter.position = position; world.addEntity(emitter)
         _ = try? emitter.playAudio(cureSound, volume: 0.3, isPositional: true)
     }
@@ -577,22 +663,53 @@ public final class DemoBotsSession {
         badBots = bots.filter { $0.components[BotComponent.self]?.isBad == true }.count
         charge = playerCharge.value; beamFraction = beam.remaining / DebugBeam.capacity
         isRecharging = playerCharge.recharging
+        botStatuses = Dictionary(uniqueKeysWithValues: ([player].compactMap { $0 } + bots).map { entity in
+            let info = entity.components[BotComponent.self]!
+            let value = info.kind == .player ? playerCharge.value : (info.isBad ? info.corruption : 100 - info.corruption)
+            return (entity.id, BotStatus(charge: max(0, min(1, value / 100)), isBad: info.isBad,
+                isPlayer: info.kind == .player, isRecharging: info.kind == .player && playerCharge.recharging))
+        })
         mapDots = ([player].compactMap { $0 } + bots).map {
             MapDot(id: $0.id, position: $0.position, bad: $0.components[BotComponent.self]?.isBad == true, player: $0 === player)
         }
     }
+    func resetPresentation() {
+        for entity in world?.entities ?? [] where entity.components.has(DemoBotsTransient.self) { entity.removeFromParent() }
+        beamLines = []; pathLines = []; activeClips = [:]; targetReticle = nil
+        guard let world else { return }
+        effects = try? DemoBotsEffects(world: world)
+        for (index, width): (Int, Float) in [(0, 10), (1, 3)] {
+            let line = Entity(name: "debug-beam-\(index)", components: DemoBotsTransient(), ShapeComponent(.path(VectorPath()),
+                stroke: index == 0 ? .cyan : .white, lineWidth: width, glowWidth: index == 0 ? 5 : 0,
+                lineCap: .round, lineJoin: .round, opacity: index == 0 ? 0.4 : 1, blendMode: .add))
+            line.zPosition = 500; line.isEnabled = false
+            world.addEntity(line); beamLines.append(line)
+        }
+        let reticle = Entity(name: "beam-target", components: DemoBotsTransient(), ShapeComponent(.ellipse(size: [84, 34]),
+            stroke: .cyan, lineWidth: 3, glowWidth: 2, blendMode: .add))
+        reticle.zPosition = 450; reticle.isEnabled = false
+        world.addEntity(reticle); targetReticle = reticle
+        redrawPaths()
+    }
+
     func redrawPaths() {
-        for entity in pathLines { entity.removeFromParent() }; pathLines = []
-        guard showsPaths else { return }
-        for bot in bots {
-            let route = bot.components[BotComponent.self]?.route ?? []
-            guard route.count > 1 else { continue }
-            for (a, b) in zip(route, route.dropFirst()) {
-                let delta = b - a
-                let line = Entity(components: SpriteComponent(color: .yellow.opacity(0.6), size: [simd_length(delta), 2]))
-                line.position = (a + b) / 2; line.transform.rotation = atan2(delta.y, delta.x)
-                line.transform.zPosition = 300; world?.addEntity(line); pathLines.append(line)
-            }
+        guard let world else { return }
+        let actors = [player].compactMap { $0 } + bots
+        while pathLines.count < actors.count {
+            let line = Entity(name: "navigation-guide", components: DemoBotsTransient(),
+                ShapeComponent(.path(VectorPath()), stroke: .yellow.opacity(0.6), lineWidth: 2, lineCap: .round, lineJoin: .round))
+            line.zPosition = 300; world.addEntity(line); pathLines.append(line)
+        }
+        for (index, line) in pathLines.enumerated() {
+            guard actors.indices.contains(index) else { line.isEnabled = false; continue }
+            let actor = actors[index]
+            let route = actor === player ? playerRoute : actor.components[BotComponent.self]?.route ?? []
+            line.isEnabled = showsPaths && !route.isEmpty
+            guard line.isEnabled else { continue }
+            var path = VectorPath(); path.move(to: actor.scenePosition)
+            for point in route { path.addLine(to: point) }
+            let geometry = ShapeGeometry.path(path)
+            if line.components[ShapeComponent.self]?.geometry != geometry { line.components[ShapeComponent.self]?.geometry = geometry }
         }
     }
 }

@@ -8,7 +8,7 @@ public enum DemoBotsPhase: Equatable, Sendable {
 enum BotKind: String, Codable, Sendable { case player, ground, flying }
 enum BotMode: String, EntityState, Codable { case active, patrol, hunt, flee, zapped, recharging }
 
-struct BotComponent: Component {
+struct BotComponent: Component, Codable {
     var kind: BotKind
     var isBad = false
     var corruption: Float = 100
@@ -25,7 +25,7 @@ struct BotComponent: Component {
 }
 
 /// Beam charge and cooldown are independent of whether a target is available.
-struct DebugBeam: Equatable {
+struct DebugBeam: Equatable, Codable {
     static let capacity: Float = 2
     var remaining: Float = capacity
     var cooling = false
@@ -43,7 +43,7 @@ struct DebugBeam: Equatable {
     }
 }
 
-struct PlayerCharge: Equatable {
+struct PlayerCharge: Equatable, Codable {
     var value: Float = 100
     var invulnerability: Float = 0
     var rechargeTime: Float = 0

@@ -21,6 +21,14 @@ public struct DemoBotsView: View {
                 GameView(debug: game.isInspecting ? sceneDebug : nil) { content in
                     game.build(in: content)
                     await game.prepareResources()
+                } attachments: {
+                    GameAttachment(id: "bot-status") { context in
+                        if !game.isInspecting, let status = game.botStatuses[context.entity.id],
+                           !status.isPlayer || status.isRecharging {
+                            botStatus(charge: status.charge, isBad: status.isBad,
+                                      isPlayer: status.isPlayer, isRecharging: status.isRecharging)
+                        }
+                    }
                 }
                     .contentShape(Rectangle())
                     .gesture(SpatialTapGesture().onEnded { game.sendPlayer(toView: $0.location) })
@@ -113,6 +121,13 @@ public struct DemoBotsView: View {
                 .buttonStyle(.plain).foregroundStyle(.black)
                 .background(Color(red: 0.7, green: 0.95, blue: 0.15), in: RoundedRectangle(cornerRadius: 16))
                 .accessibilityIdentifier("start-game")
+                if game.hasCheckpoint {
+                    Button("Resume checkpoint", systemImage: "arrow.counterclockwise") { game.loadCheckpoint() }
+                        .buttonStyle(.bordered).tint(.mint)
+                        .accessibilityLabel("Resume saved checkpoint")
+                        .accessibilityIdentifier("checkpoint-resume")
+                }
+                checkpointFeedback
                 Button("How to play", systemImage: "gamecontroller") { showsHelp = true }
                     .font(.subheadline).foregroundStyle(.white.opacity(0.8)).buttonStyle(.plain)
                 if !game.message.isEmpty && game.message.hasPrefix("Couldn’t") {
@@ -210,9 +225,45 @@ public struct DemoBotsView: View {
         }
     }
 
+    private func botStatus(charge: Float, isBad: Bool, isPlayer: Bool, isRecharging: Bool) -> some View {
+        let label = isRecharging ? "Recharging" : (isBad ? "Corrupted" : "Restored")
+        let color: Color = isPlayer ? .cyan : (isBad ? .red : .green)
+        let fraction = max(0, min(1, charge))
+        return VStack(spacing: 4) {
+            Label(label, systemImage: isRecharging ? "bolt.fill" : (isBad ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"))
+                .font(.caption2.bold()).foregroundStyle(.white)
+                .fixedSize()
+            meter(value: fraction, color: color).frame(width: 76, height: 5)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 8))
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(isPlayer ? "Player" : "Bot"), \(label.lowercased())")
+        .accessibilityValue("Charge \(Int((fraction * 100).rounded())) percent")
+    }
+
+    @ViewBuilder private var checkpointFeedback: some View {
+        if !game.checkpointMessage.isEmpty {
+            Text(game.checkpointMessage)
+                .font(.footnote).foregroundStyle(.white.opacity(0.8))
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel("Checkpoint: \(game.checkpointMessage)")
+        }
+    }
+
     private var pauseMenu: some View {
         menu(title: "Taking a breather?", subtitle: "The circuit can wait.") {
             Button("Resume", systemImage: "play.fill") { game.resume() }.buttonStyle(BotPrimaryButton())
+            Button("Save checkpoint", systemImage: "square.and.arrow.down") { game.saveCheckpoint() }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Save checkpoint")
+                .accessibilityIdentifier("checkpoint-save")
+            Button("Restore checkpoint", systemImage: "arrow.counterclockwise") { game.loadCheckpoint() }
+                .buttonStyle(.bordered).disabled(!game.hasCheckpoint)
+                .accessibilityLabel("Restore saved checkpoint")
+                .accessibilityIdentifier("checkpoint-restore")
+            checkpointFeedback
             Button("Scene tools", systemImage: "ladybug") { game.beginInspection() }.buttonStyle(.bordered)
             Toggle("Show bot paths", isOn: $game.showsPaths).tint(.mint)
             Toggle("Sound effects", isOn: $game.soundEnabled).tint(.mint)
@@ -233,14 +284,24 @@ public struct DemoBotsView: View {
             Button("Level select") { game.home() }.buttonStyle(.plain).foregroundStyle(.secondary)
         }
     }
-    private func menu<Content: View>(title: String, subtitle: String, @ViewBuilder content: () -> Content) -> some View {
+    private func menu<Content: View>(title: String, subtitle: String, @ViewBuilder content: @escaping () -> Content) -> some View {
         ZStack {
             Color.black.opacity(0.7).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text(title).font(.title.bold())
-                Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                content()
-            }.padding(28).frame(maxWidth: 350).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28)).padding(20)
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(spacing: 20) {
+                        Text(title).font(.title.bold()).multilineTextAlignment(.center)
+                        Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        content()
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(28).frame(maxWidth: 350)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+                    .padding(20)
+                    .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+            }
         }
     }
     private var instructions: some View {

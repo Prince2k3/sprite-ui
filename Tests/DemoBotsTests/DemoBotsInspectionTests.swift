@@ -64,7 +64,7 @@ import Testing
         bot.components[BotComponent.self]?.decisionDelay = 10
         let botSteering = try #require(bot.components[SteeringComponent.self])
         let botRoute = try #require(bot.components[BotComponent.self]).route
-        let beamLine = Entity(components: SpriteComponent(color: .cyan, size: [20, 3]))
+        let beamLine = Entity(components: ShapeComponent(.rectangle(size: [20, 3]), stroke: .cyan))
         world.addEntity(beamLine)
         game.beamLines = [beamLine]
 
@@ -73,7 +73,7 @@ import Testing
         #expect(game.destination == nil && game.playerRoute.isEmpty)
         #expect(player.components[SteeringComponent.self]?.velocity == .zero)
         #expect(player.components[SteeringComponent.self]?.goals.isEmpty == true)
-        #expect(beamLine.components[SpriteComponent.self]?.opacity == 0)
+        #expect(!beamLine.isEnabled)
         #expect(bot.components[SteeringComponent.self] == botSteering)
         #expect(bot.components[BotComponent.self]?.route == botRoute)
         #expect(bot.components[BotComponent.self]?.decisionDelay == 0)

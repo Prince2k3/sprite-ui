@@ -1,6 +1,7 @@
 import Foundation
 import SpriteUI
 import Testing
+import simd
 @testable import DemoBotsGame
 
 @Suite struct DemoBotsMechanicsTests {
@@ -84,6 +85,8 @@ import Testing
         bot.components[BotComponent.self]?.corruption = 100
         bot.enter(BotMode.patrol)
         game.player = player; game.bots = [bot]; game.camera = nil; game.beamLines = []
+        game.resetPresentation()
+        game.refreshHUD()
         return (game, world, player, bot)
     }
 
@@ -124,13 +127,26 @@ import Testing
         #expect(game.phase == .won)
     }
 
-    @Test func beamIsVisibleFromTheOriginalSpawn() {
+    @Test func beamIsVisibleFromTheOriginalSpawn() throws {
         let world = World(); let game = DemoBotsSession(); game.attach(to: world)
         game.start(level: 2)
         game.aim([0, -1], firing: true)
         for _ in 0..<20 { world.update(deltaTime: 1 / 60) }
-        let lengths = game.beamLines.map { $0.components[SpriteComponent.self]?.size?.x ?? 0 }
-        #expect(lengths.reduce(0, +) > 100)
+        #expect(game.beamLines.count == 2)
+        for line in game.beamLines {
+            #expect(line.isActive)
+            let shape = try #require(line.components[ShapeComponent.self])
+            guard case .path(let path) = shape.geometry else {
+                Issue.record("The beam must render a vector path")
+                return
+            }
+            let points = path.elements.compactMap { element -> SIMD2<Float>? in
+                switch element { case .move(let point), .line(let point): point; default: nil }
+            }
+            #expect(points.count == 3)
+            let length = zip(points, points.dropFirst()).reduce(Float.zero) { $0 + simd_distance($1.0, $1.1) }
+            #expect(length > 100 && shape.opacity > 0)
+        }
     }
 
     @Test func beamCannotPassThroughAWallOrShootBehindItsAim() {
@@ -148,20 +164,21 @@ import Testing
         #expect(bot.components[BotComponent.self]?.corruption == 100)
     }
 
-    @Test func emptyBeamStopsAtTheExactSceneQueryHit() {
+    @Test func emptyBeamStopsAtTheExactSceneQueryHit() throws {
         let (game, world, _, bot) = fixture()
         let wall = Entity(components: CollisionComponent(shape: .rectangle(size: [2, 200]), filter: .init(group: BotCollisionGroups.walls)))
         wall.position = [75, 0]; world.addEntity(wall)
-        game.beamLines = (0..<4).map { _ in
-            let line = Entity(components: SpriteComponent(color: .cyan, size: [1, 1]))
-            world.addEntity(line); return line
-        }
         game.beam.active = true
         game.applyBeam(deltaTime: 0.1)
-        let last = game.beamLines[2]
-        let length = last.components[SpriteComponent.self]!.size!.x
-        let end = last.position + SIMD2<Float>(cos(last.rotation), sin(last.rotation)) * length / 2
-        #expect(abs(end.x - 74) < 0.001 && abs(end.y - 60) < 0.001)
+        #expect(game.beamLines.count == 2)
+        for line in game.beamLines {
+            let shape = try #require(line.components[ShapeComponent.self])
+            guard case .path(let path) = shape.geometry, case .line(let end) = path.elements.last else {
+                Issue.record("The beam path must end at the scene query hit")
+                return
+            }
+            #expect(abs(end.x - 74) < 0.001 && abs(end.y - 60) < 0.001)
+        }
         #expect(bot.components[BotComponent.self]?.corruption == 100)
     }
 
