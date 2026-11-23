@@ -1,4 +1,4 @@
-import ECSCore
+@_spi(Backend) import ECSCore
 import Foundation
 import SwiftUI
 
@@ -8,7 +8,13 @@ public extension View {
     /// Pointer buttons are observed without consuming gestures or button clicks.
     /// Gamepads are sampled at 60 Hz; controls held on activation must go neutral.
     func gameInput(_ input: InputController, isActive: Bool = true) -> some View {
-        modifier(GameInputModifier(input: input, isActive: isActive))
+        modifier(GameInputModifier(input: input, hub: nil, isActive: isActive))
+    }
+
+    /// Routes native input to explicitly assigned player sessions. A hub can be
+    /// attached to one host at a time; player assignment remains game policy.
+    func gameInput(_ hub: PlayerInputHub, isActive: Bool = true) -> some View {
+        modifier(GameInputModifier(input: nil, hub: hub, isActive: isActive))
     }
 }
 
@@ -26,26 +32,85 @@ struct GameInputAvailability {
 @MainActor
 final class GameInputRouter {
     private(set) var input: InputController?
+    private(set) var hub: PlayerInputHub?
+    let backendOwner = UUID()
+    private(set) var hasBackendLease = false
     private var active = false
     private var devices: Set<InputDevice> = []
     private var heldKeys: Set<String> = []
     private var heldButtons: Set<Int> = []
     private var activityRevision: UInt64 = 0
     private var configurationRevision: UInt64 = 0
-    var isActive: Bool { active && input?.isEnabled == true }
+    var isActive: Bool {
+        active && (hub.map { hasBackendLease && $0.isEnabled } ?? (input?.isEnabled == true))
+    }
+    var routingIdentity: ObjectIdentifier? {
+        if let hub { return ObjectIdentifier(hub) }
+        return input.map(ObjectIdentifier.init)
+    }
+
+    func configure(_ hub: PlayerInputHub, feedback: any InputFeedbackProvider) {
+        if self.hub === hub {
+            if !hasBackendLease {
+                hasBackendLease = hub.attachBackend(owner: backendOwner, feedbackProvider: feedback)
+            }
+            return
+        }
+        configurationRevision &+= 1
+        let revision = configurationRevision
+        let activity = activityRevision
+        let wasActive = active
+        active = false
+        cancelAll()
+        guard revision == configurationRevision else { return }
+        detachBackend()
+        guard revision == configurationRevision else { return }
+        self.input = nil
+        self.hub = hub
+        heldKeys.removeAll(); heldButtons.removeAll(); devices.removeAll()
+        hasBackendLease = hub.attachBackend(owner: backendOwner, feedbackProvider: feedback)
+        if activityRevision == activity { active = wasActive && hasBackendLease }
+        else { active = active && hasBackendLease }
+    }
+
+    func detachBackend() {
+        guard let hub, hasBackendLease else { return }
+        hasBackendLease = false
+        hub.detachBackend(owner: backendOwner)
+    }
+
+    func cancelAll() {
+        if let hub {
+            if hasBackendLease { hub.cancelAll() }
+        } else { input?.cancelAll() }
+    }
+
+    func handles(_ control: InputControl, device: InputDevice) -> Bool {
+        if let hub { return hasBackendLease && hub.owner(of: device)?.input.handles(control: control) == true }
+        return input?.handles(control: control) == true
+    }
+
+    private func submit(_ values: [(InputControl, InputValue)], device: InputDevice) {
+        if let hub {
+            if hasBackendLease { hub.submit(values, device: device) }
+        } else { input?.setValues(values, device: device) }
+    }
 
     func configure(_ input: InputController) {
-        guard self.input !== input else { return }
+        guard self.input !== input || hub != nil else { return }
         configurationRevision &+= 1
         let configuration = configurationRevision
         let activity = activityRevision
         let wasActive = active
         active = false
-        self.input?.cancelAll()
+        cancelAll()
         guard configurationRevision == configuration else { return }
         cancelOwnedDevices()
         guard configurationRevision == configuration else { return }
         heldKeys.removeAll(); heldButtons.removeAll()
+        detachBackend()
+        guard configurationRevision == configuration else { return }
+        hub = nil
         self.input = input
         if activityRevision == activity { active = wasActive && input.isEnabled }
         else { active = active && input.isEnabled }
@@ -53,41 +118,50 @@ final class GameInputRouter {
 
     func setActive(_ active: Bool) {
         activityRevision &+= 1
-        let next = active && input?.isEnabled == true
+        let next = active && (hub.map { hasBackendLease && $0.isEnabled } ?? (input?.isEnabled == true))
         let wasActive = self.active
         self.active = next
         if wasActive && !next {
             devices.removeAll()
-            input?.cancelAll()
+            cancelAll()
         }
     }
 
     func send(_ values: [(InputControl, InputValue)], device: InputDevice) {
         guard isActive else { return }
         devices.insert(device)
-        input?.setValues(values, device: device)
+        submit(values, device: device)
     }
 
     func cancel(device: InputDevice) {
         guard devices.remove(device) != nil else { return }
-        input?.cancel(device: device)
+        if let hub {
+            if hasBackendLease, let player = hub.owner(of: device) {
+                player.input.cancel(device: device)
+                player.stopFeedback()
+            }
+        } else { input?.cancel(device: device) }
     }
+
+    func forgetTrackedDevices(_ devices: [InputDevice]) { self.devices.subtract(devices) }
 
     private func cancelOwnedDevices() {
         let owned = devices
         devices.removeAll()
-        for device in owned { input?.cancel(device: device) }
+        for device in owned {
+            if hub == nil { input?.cancel(device: device) }
+        }
     }
 
     @discardableResult
     func key(_ name: String, pressed: Bool, isRepeat: Bool = false, shortcut: Bool = false) -> Bool {
         let control = InputControl.key(name)
-        let bound = input?.handles(control: control) == true
+        let bound = handles(control, device: .keyboard)
         if !pressed {
             // Context changes may remove a binding while its source is gated.
             // Forward its release even when unfocused, disabled or unbound.
             guard heldKeys.remove(name) != nil else { return false }
-            input?.setValue(.button(false), for: control, device: .keyboard)
+            submit([(control, .button(false))], device: .keyboard)
             return isActive && bound
         }
         guard isActive, bound, !shortcut, !isRepeat || heldKeys.contains(name) else { return false }
@@ -104,11 +178,11 @@ final class GameInputRouter {
         guard button >= 0 else { return }
         let control = InputControl.pointerButton(button)
         if pressed {
-            guard isActive, input?.handles(control: control) == true else { return }
+            guard isActive, handles(control, device: .pointer) else { return }
             heldButtons.insert(button)
             send([(control, .button(true))], device: .pointer)
         } else if heldButtons.remove(button) != nil {
-            input?.setValue(.button(false), for: control, device: .pointer)
+            submit([(control, .button(false))], device: .pointer)
         }
     }
 
@@ -135,29 +209,64 @@ final class GameInputRouter {
 @MainActor
 final class GameInputSession {
     let router = GameInputRouter()
-    lazy var controllers = GameControllerInput(router: router)
+    private let feedback: NativeControllerFeedback
+    lazy var controllers = GameControllerInput(router: router, feedback: feedback)
     var availability = GameInputAvailability()
     weak var host: GameHost?
     var requestFocus: (() -> Void)?
+    private var lifecycleRevision: UInt64 = 0
+
+    init(feedback: NativeControllerFeedback = NativeControllerFeedback()) { self.feedback = feedback }
 
     func bind(_ references: [GameHostReference]) {
         let next = references.count == 1 ? references.first?.host : nil
-        if host !== next, host?.actionInput === router.input { host?.actionInput = nil }
+        if host !== next {
+            if host?.actionInput === router.input { host?.actionInput = nil }
+            if host?.nativeInputSession === self { host?.nativeInputSession = nil }
+        }
         host = next
-        if let host, host.actionInput == nil || host.actionInput === router.input {
-            host.actionInput = router.input
+        if let host, host.nativeInputSession == nil || host.nativeInputSession === self {
+            host.nativeInputSession = self
+            if host.actionInput == nil || host.actionInput === router.input { host.actionInput = router.input }
         }
     }
 
     func refresh() {
+        // Stop and reject feedback before cancellation callbacks can request it.
+        if !availability.acceptsInput { controllers.suspend() }
         router.setActive(availability.acceptsInput)
         if !router.isActive { controllers.suspend() }
     }
-    func start() { controllers.start { [weak self] in self?.refresh() } }
-    func stop() {
-        availability.visible = false; refresh()
-        router.input?.cancelAll()
+    func cancelFromHost() {
+        controllers.suspend()
+        router.cancelAll()
+    }
+
+    func configure(_ input: InputController?, hub: PlayerInputHub?) {
+        lifecycleRevision &+= 1
+        let revision = lifecycleRevision
         controllers.stop()
+        guard lifecycleRevision == revision else { return }
+        if let hub { router.configure(hub, feedback: controllers.feedback) }
+        else if let input { router.configure(input) }
+    }
+
+    func start() {
+        lifecycleRevision &+= 1
+        controllers.start { [weak self] in self?.refresh() }
+    }
+    func stop() {
+        lifecycleRevision &+= 1
+        let revision = lifecycleRevision
+        availability.visible = false; refresh()
+        guard lifecycleRevision == revision else { return }
+        router.cancelAll()
+        guard lifecycleRevision == revision else { return }
+        controllers.stop()
+        guard lifecycleRevision == revision else { return }
+        router.detachBackend()
+        guard lifecycleRevision == revision else { return }
+        if host?.nativeInputSession === self { host?.nativeInputSession = nil }
         if host?.actionInput === router.input { host?.actionInput = nil }
         requestFocus = nil
     }
@@ -175,7 +284,8 @@ final class GameInputSession {
 
 @MainActor
 private struct GameInputModifier: ViewModifier {
-    let input: InputController
+    let input: InputController?
+    let hub: PlayerInputHub?
     let isActive: Bool
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focused: Bool
@@ -196,7 +306,7 @@ private struct GameInputModifier: ViewModifier {
                 MainActor.assumeIsolated { session.bind(references) }
             }
             .onAppear {
-                session.router.configure(input)
+                session.configure(input, hub: hub)
                 session.availability.visible = true
                 session.availability.scopeActive = isActive
                 session.availability.sceneActive = scenePhase == .active
@@ -206,9 +316,11 @@ private struct GameInputModifier: ViewModifier {
                 session.bind(session.host.map { [GameHostReference(id: $0.inputHostID, host: $0)] } ?? [])
             }
             .onDisappear { session.stop() }
-            .onChange(of: ObjectIdentifier(input)) { _, _ in
+            .onChange(of: hub.map(ObjectIdentifier.init) ?? input.map(ObjectIdentifier.init)) { _, _ in
+                guard session.availability.visible else { return }
                 if session.host?.actionInput === session.router.input { session.host?.actionInput = nil }
-                session.router.configure(input)
+                session.configure(input, hub: hub)
+                session.start()
                 session.bind(session.host.map { [GameHostReference(id: $0.inputHostID, host: $0)] } ?? [])
             }
             .onChange(of: focused, initial: true) { _, value in session.availability.focused = value; session.refresh() }
@@ -218,7 +330,7 @@ private struct GameInputModifier: ViewModifier {
                 if value && session.availability.visible { focused = true }
                 session.refresh()
             }
-            .onChange(of: input.isEnabled) { _, _ in session.refresh() }
+            .onChange(of: hub?.isEnabled ?? input?.isEnabled ?? false) { _, _ in session.refresh() }
     }
 }
 

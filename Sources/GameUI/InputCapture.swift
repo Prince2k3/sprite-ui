@@ -51,7 +51,8 @@ extension GameHost {
         inputContacts.removeAll()
         manipulationInput?.cancel()
         renderer.cancelManipulations()
-        actionInput?.cancelAll()
+        if let nativeInputSession { nativeInputSession.cancelFromHost() }
+        else { actionInput?.cancelAll() }
     }
     func contact(startingAt start: CGPoint?, after completedID: UInt64 = 0) -> InputContact? {
         let now = ProcessInfo.processInfo.systemUptime

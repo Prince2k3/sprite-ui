@@ -1,0 +1,63 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Sharing devices between players") {
+        Create two independent player sessions, transfer held virtual input safely, and adapt prompts and feedback to optional hardware.
+
+        @Image(source: "spriteui-player-sessions.svg", alt: "Two virtual pads route exclusively to two players; an optional controller starts unassigned.")
+    }
+
+    @Section(title: "Route two virtual pads to independent players") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to the SpriteUI product. Each resource completely replaces `ContentView.swift`; use one stage at a time with your existing `ContentView()` entry point. No controller, image assets, or additional source files are required. <doc:controlling-a-player-with-input-actions> introduces action maps and held movement, but this tutorial stands alone.
+
+            Retain the observable main-actor model in `@State`. A shared ``PlayerInputHub`` creates two ``PlayerInputSession`` objects, each with its own action controller. Two connected virtual devices are explicitly assigned to different players. Samples enter through the hub, which routes them only to their owner. Retained action subscriptions count `.pressed` edges, including a press and release within one SwiftUI update.
+        }
+
+        @Steps {
+            @Step {
+                Replace `ContentView.swift` with stage one. Run and select Fire Pad A twice, then Fire Pad B once. P1 reads two presses and P2 reads one. Both actions end with a released phase. The phase describes the last transition, not a per-frame flag. The ownership readouts show one pad for each player.
+
+                @Code(name: "ContentView.swift", file: "spriteui-player-sessions-01.swift") {
+                    @Image(source: "spriteui-player-sessions-01-preview.svg", alt: "Expected result: Pad A belongs to P1 with two presses; Pad B belongs to P2 with one press.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Transfer a held pad without a surprise press") {
+        @ContentAndMedia {
+            Stage two adds a held toggle and an explicit transfer button. The toggle submits from `.onChange`, keeping view evaluation free of side effects. A transfer cancels the old contribution and gates held controls through neutral before the new owner can use them. Device ownership is exclusive; player sessions remain independent.
+
+            The short Fire Pad A pulse is disabled while that pad's Fire control is held, so it cannot accidentally release the held sample. On disappearance, cancel the hub and submit neutral for the held virtual control. Assignment errors appear in the status text.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage two and start from zero counts. Enable Hold Fire on Pad A: P1 reads one press. Select Transfer Pad A while still holding: Pad A now belongs to P2, P1 reports cancelled, and P2 still reads zero. Turn Hold Fire off, then on: P2 now reads one press. Release again and use Fire Pad B: P2 reads two because it now owns both pads. Transfer Pad A back to restore separate owners.
+
+                @Code(name: "ContentView.swift", file: "spriteui-player-sessions-02.swift", previousFile: "spriteui-player-sessions-01.swift") {
+                    @Image(source: "spriteui-player-sessions-02-preview.svg", alt: "Expected result immediately after held transfer: P1 has one press and a cancelled action; P2 owns both pads but has zero presses until release and repress.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Adapt prompts and report feedback outcomes") {
+        @ContentAndMedia {
+            Stage three adds keyboard, pointer, and positional south-button bindings plus `.gameInput(model.hub, isActive:)` on a focusable hardware surface. Native controllers appear in the assignment list without an owner. Keyboard and Pointer are logical sources, not physical attachment indicators. Choose each source's owner explicitly. Hardware remains optional.
+
+            Each player renders `activeDevice` and `prompt(for:)`, including an optional system-provided symbol. Meaningful bound input changes the active device; neutral samples and unbound activity do not. Controller presentations follow operating-system remapping. A prompt may fall back to another owned device that can express the action.
+
+            Try feedback stores the returned result from `playFeedback(.selection)`. It targets the last meaningful device, so virtual input reports unsupported instead of vibrating a different controller. Accepted means scheduled, not confirmed vibration. Disabling input cancels held actions and feedback; re-enabling requires neutral before another press. See <doc:player-input-sessions-and-feedback> for lifecycle and capability details.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage three. Select Fire Pad A, then Try feedback for P1: last meaningful reads Pad A, the prompt reads Fire on Pad A, and feedback reads unsupported. Select feedback for P2 before using its pad: it reads unavailable. Use Fire Pad B to give P2 its own active device and prompt. Optionally assign Keyboard to P1, focus the hardware surface, and press Space: P1's hint switches to Space. If a controller is connected, assign it, release any held controls, then press its south button to inspect its supplied label and feedback capability. Finally hold Pad A's Fire, disable input, re-enable, release, then press again to verify cancellation gating.
+
+                @Code(name: "ContentView.swift", file: "spriteui-player-sessions-03.swift", previousFile: "spriteui-player-sessions-02.swift") {
+                    @Image(source: "spriteui-player-sessions-03-preview.svg", alt: "Expected result without hardware: P1 last used Pad A, its prompt is Fire on Pad A, and feedback reports unsupported; an optional controller remains unassigned.")
+                }
+            }
+        }
+    }
+}

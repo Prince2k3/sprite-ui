@@ -203,6 +203,7 @@ final class GameHost {
     let inputHostID = UUID()
     weak var actionInput: InputController?
     var manipulationInput: GameManipulationInput?
+    weak var nativeInputSession: GameInputSession?
     var isCancellingInputs = false
     var nextInputID: UInt64 = 0
     var inputContacts: [UInt64: InputContact] = [:]

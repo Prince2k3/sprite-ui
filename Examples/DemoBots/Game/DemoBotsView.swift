@@ -51,14 +51,19 @@ public struct DemoBotsView: View {
         }
         .ignoresSafeArea()
         .preferredColorScheme(.dark)
-        .gameInput(controls.input, isActive: scenePhase == .active && !showsHelp)
+        .gameInput(controls.hub, isActive: scenePhase == .active && !showsHelp)
         .onChange(of: scenePhase) { _, phase in if phase != .active { controls.suspend() } }
-        .onChange(of: game.phase) { _, _ in controls.synchronizeContext() }
-        .onChange(of: game.isInspecting) { _, _ in controls.synchronizeContext() }
+        .onChange(of: scenePhase == .active && !showsHelp, initial: true) { _, active in
+            controls.setInputActive(active)
+        }
+        .onChange(of: controls.feedbackState) { _, _ in
+            controls.synchronizeContext()
+            controls.synchronizeFeedback()
+        }
         .onChange(of: sceneDebug.isAttached) { _, attached in
             if attached, game.isInspecting { sceneDebug.select(game.player) }
         }
-        .onDisappear { controls.suspend() }
+        .onDisappear { controls.setInputActive(false); controls.suspend() }
         .sheet(isPresented: $showsHelp) { instructions }
 #if os(iOS)
         .statusBarHidden()
@@ -90,6 +95,7 @@ public struct DemoBotsView: View {
                 .buttonStyle(.plain).foregroundStyle(.black)
                 .background(Color(red: 0.7, green: 0.95, blue: 0.15), in: RoundedRectangle(cornerRadius: 16))
                 .accessibilityIdentifier("start-game")
+                inputPrompt(DemoBotsInput.confirm, title: "Confirm")
                 if game.hasCheckpoint {
                     Button("Resume checkpoint", systemImage: "arrow.counterclockwise") { controls.loadCheckpoint() }
                         .buttonStyle(.bordered).tint(.mint)
@@ -142,7 +148,11 @@ public struct DemoBotsView: View {
                     .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Pause game")
             }
             .padding(16).background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 20))
-            HStack {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    inputPrompt(DemoBotsInput.fire, title: "Fire")
+                    inputPrompt(DemoBotsInput.pause, title: "Pause")
+                }
                 if game.isRecharging {
                     Text("RECHARGING…").font(.system(size: 12, weight: .bold, design: .monospaced))
                         .padding(10).background(.black.opacity(0.8), in: Capsule()).foregroundStyle(.cyan)
@@ -262,6 +272,7 @@ public struct DemoBotsView: View {
                         Text(title).font(.title.bold()).multilineTextAlignment(.center)
                         Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         content()
+                        inputPrompt(DemoBotsInput.confirm, title: "Confirm")
                     }
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(28).frame(maxWidth: 350)
@@ -273,6 +284,19 @@ public struct DemoBotsView: View {
             }
         }
     }
+    @ViewBuilder private func inputPrompt(_ action: InputAction, title: String) -> some View {
+        if let prompt = controls.prompt(for: action) {
+            Label {
+                Text("\(title): \(prompt.label)")
+            } icon: {
+                if let symbol = prompt.symbolName { Image(systemName: symbol) }
+            }
+            .font(.caption).foregroundStyle(.white.opacity(0.8))
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel("\(title): \(prompt.label)")
+        }
+    }
+
     private var instructions: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text("Field guide").font(.largeTitle.bold())

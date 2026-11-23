@@ -18,6 +18,8 @@ public final class InputController {
     @ObservationIgnored private var queuedEvents: [(event: InputActionEvent, revision: UInt64)] = []
     @ObservationIgnored private var revisions: [InputAction: UInt64] = [:]
     @ObservationIgnored private var isDelivering = false
+    @ObservationIgnored var onCancellation: (@MainActor () -> Void)?
+    @ObservationIgnored var onDeviceCancellation: (@MainActor (InputDevice) -> Void)?
 
     private struct Source: Hashable {
         let device: InputDevice
@@ -46,6 +48,24 @@ public final class InputController {
     /// leave unrelated shortcuts to their surrounding interface.
     public func handles(control: InputControl) -> Bool {
         contexts.contains { $0.bindings.contains { $0.control.canonical == control.canonical } }
+    }
+
+    /// Bindings currently able to contribute to this action, after context
+    /// shadowing and consumption. Use these when presenting control prompts.
+    public func bindings(for action: InputAction) -> [InputBinding] {
+        effectiveBindings().filter { $0.action == action }
+    }
+
+    func hasEffectiveBinding(for control: InputControl) -> Bool {
+        effectiveBindings().contains { $0.control == control.canonical }
+    }
+
+    /// Permanent device handoff removes both samples and their neutral gates.
+    /// Cancellation alone deliberately retains those gates for focus recovery.
+    func removeDevice(_ device: InputDevice) {
+        samples = samples.filter { $0.key.device != device }
+        blocked = blocked.filter { $0.key.device != device }
+        resolve(cancelling: true)
     }
 
     /// Whether a device sample is inactive under the effective bindings for a
@@ -92,6 +112,7 @@ public final class InputController {
     /// Cancels one producer, preserving other devices' contributions. A disconnected
     /// controller must send neutral before reusing its identity.
     public func cancel(device: InputDevice) {
+        onDeviceCancellation?(device)
         for source in samples.keys where source.device == device { block(source) }
         resolve(cancelling: true)
     }
@@ -104,6 +125,7 @@ public final class InputController {
     }
 
     private func cancelState() -> [InputActionEvent] {
+        onCancellation?()
         for source in samples.keys { block(source) }
         var events: [InputActionEvent] = []
         for action in ordered(states.keys) where states[action]!.isPressed {

@@ -255,7 +255,15 @@ Use `cancelAll()` when abandoning a session, or `cancel(device:)` when one produ
 
 For a hands-on implementation, follow <doc:controlling-a-player-with-input-actions>. It includes on-screen buttons, system-driven 2D movement, an action-state readout, and optional hardware bindings.
 
+## Assign input to local players
+
+For multiple local players, use a shared ``SpriteUI/PlayerInputHub`` and independent ``SpriteUI/PlayerInputSession`` objects. Assign connected devices explicitly and submit virtual samples through the hub so ownership, safe transfer, and last-meaningful-device tracking stay consistent. Apply `.gameInput(hub, isActive:)` to the game surface. The existing single-``SpriteUI/InputController`` host remains useful for a single action stream.
+
+See <doc:player-input-sessions-and-feedback> for device ownership, adaptive prompts, and capability-checked controller feedback, or follow <doc:sharing-devices-between-players> for three standalone stages without required hardware.
+
 ## See also
+
+- <doc:player-input-sessions-and-feedback>
 
 - <doc:systems-and-input>
 - <doc:entity-and-scene-lifecycle>

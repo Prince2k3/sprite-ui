@@ -19,11 +19,17 @@ final class DemoBotsInput {
     static let aimDevice = InputDevice.virtual("demobots-aim-stick")
     static let hudDevice = InputDevice.virtual("demobots-hud")
 
-    let input: InputController
+    let hub: PlayerInputHub
+    let player: PlayerInputSession
+    /// Compatibility access for existing action-level callers and tests.
+    var input: InputController { player.input }
     var selectedLevel = 1
     @ObservationIgnored private let game: DemoBotsSession
     @ObservationIgnored private let toggleDebugPause: @MainActor () -> Void
     @ObservationIgnored private var subscription: InputSubscription?
+    @ObservationIgnored private var deviceSubscription: InputDeviceSubscription?
+    @ObservationIgnored private var previousFeedbackState: FeedbackState?
+    @ObservationIgnored private var isInputActive = true
     @ObservationIgnored private var phase: DemoBotsPhase?
     @ObservationIgnored private var inspecting = false
     @ObservationIgnored private var lastMove = SIMD2<Float>.zero
@@ -31,10 +37,31 @@ final class DemoBotsInput {
     @ObservationIgnored private var lastFiring = false
     @ObservationIgnored private var lastSelectionDirection = 0
 
-    init(game: DemoBotsSession, toggleDebugPause: @escaping @MainActor () -> Void = {}) {
+    init(game: DemoBotsSession, hub: PlayerInputHub = PlayerInputHub(),
+         toggleDebugPause: @escaping @MainActor () -> Void = {}) {
         self.game = game
         self.toggleDebugPause = toggleDebugPause
-        input = InputController()
+        self.hub = hub
+        player = hub.addPlayer(named: "Player")
+        for device in [InputDevice.keyboard, .pointer] {
+            try? hub.assign(device, to: player)
+        }
+        for (device, name, presentations) in [
+            (Self.moveDevice, "Move stick", [InputControl.virtual("move"): InputControlPresentation(label: "Move stick")]),
+            (Self.aimDevice, "Aim stick", [.virtual("aim"): .init(label: "Aim stick"), .virtual("fire"): .init(label: "Aim + Debug", symbolName: "bolt.fill")]),
+            (Self.hudDevice, "HUD", [.virtual("pause"): .init(label: "Pause", symbolName: "pause.fill"),
+                                    .virtual("confirm"): .init(label: "Confirm", symbolName: "checkmark"),
+                                    .virtual("inspect"): .init(label: "Scene tools", symbolName: "ladybug")]),
+        ] {
+            hub.connect(.init(id: device, name: name, presentations: presentations))
+            try? hub.assign(device, to: player)
+        }
+        // Single-player policy belongs to the example, not the native adapter.
+        deviceSubscription = hub.observe { [weak self] event in
+            guard case .connected(let info) = event else { return }
+            self?.assignControllerIfUnclaimed(info.id)
+        }
+        for info in hub.devices { assignControllerIfUnclaimed(info.id) }
         synchronizeContext()
         subscription = input.observe { [weak self] event in self?.receive(event) }
     }
@@ -91,7 +118,7 @@ final class DemoBotsInput {
     /// phase changes. Context replacement gates held sources until neutral.
     func synchronizeContext(reset: Bool = false) {
         guard reset || phase != game.phase || inspecting != game.isInspecting else { return }
-        if reset { input.cancelAll() }
+        if reset { hub.cancelAll() }
         phase = game.phase
         inspecting = game.isInspecting
         let context = inspecting ? Self.inspection : (phase == .playing ? Self.gameplay : (phase == .home ? Self.homeMenu : Self.menu))
@@ -100,14 +127,15 @@ final class DemoBotsInput {
         lastAim = .zero
         lastFiring = false
         lastSelectionDirection = 0
+        synchronizeFeedback(reset: reset)
     }
 
     func moveStick(_ vector: SIMD2<Float>) {
-        input.setValue(.axis2D(vector), for: .virtual("move"), device: Self.moveDevice)
+        hub.submit([(.virtual("move"), .axis2D(vector))], device: Self.moveDevice)
     }
 
     func aimStick(_ vector: SIMD2<Float>, pressed: Bool) {
-        input.setValues([
+        hub.submit([
             (.virtual("aim"), .axis2D(vector)),
             (.virtual("fire"), .button(pressed)),
         ], device: Self.aimDevice)
@@ -118,21 +146,79 @@ final class DemoBotsInput {
     func confirmSelection() { tap(.virtual("confirm")) }
 
     func start(level: Int) { game.start(level: level); synchronizeContext(reset: true) }
-    func loadCheckpoint() { game.loadCheckpoint(); synchronizeContext() }
+    func loadCheckpoint() {
+        player.stopFeedback()
+        game.loadCheckpoint()
+        synchronizeContext()
+        synchronizeFeedback(reset: true)
+    }
     func home() { game.home(); synchronizeContext() }
 
     func suspend() {
-        input.cancelAll()
+        player.stopFeedback()
+        hub.cancelAll()
         game.pause()
         synchronizeContext()
     }
 
     private func tap(_ control: InputControl) {
-        input.setValue(.button(true), for: control, device: Self.hudDevice)
-        input.setValue(.button(false), for: control, device: Self.hudDevice)
+        hub.submit([(control, .button(true))], device: Self.hudDevice)
+        hub.submit([(control, .button(false))], device: Self.hudDevice)
+    }
+
+    private func assignControllerIfUnclaimed(_ device: InputDevice) {
+        guard case .controller = device, hub.owner(of: device) == nil else { return }
+        try? hub.assign(device, to: player)
+    }
+
+    func prompt(for action: InputAction) -> InputPrompt? { player.prompt(for: action) }
+
+    /// Read by SwiftUI observation; excludes beam depletion and frame timers.
+    struct FeedbackState: Equatable {
+        let phase: DemoBotsPhase
+        let inspecting: Bool
+        let playerID: Entity.ID?
+        let badBots: Int
+        let charge: Float
+    }
+
+    var feedbackState: FeedbackState {
+        .init(phase: game.phase, inspecting: game.isInspecting, playerID: game.player?.id,
+              badBots: game.badBots, charge: game.charge)
+    }
+
+    func setInputActive(_ active: Bool) {
+        guard isInputActive != active else { return }
+        isInputActive = active
+        if !active { hub.cancelAll(); player.stopFeedback() }
+        synchronizeFeedback(reset: true)
+    }
+
+    /// One pulse per observed event, with terminal outcomes taking precedence
+    /// over repairs/damage published in the same HUD update. No per-frame loop.
+    func synchronizeFeedback(reset: Bool = false) {
+        let current = feedbackState
+        let previous = previousFeedbackState
+        previousFeedbackState = current
+        guard !reset, isInputActive, hub.isEnabled, player.isEnabled,
+              !current.inspecting, current.phase != .paused, current.phase != .home else {
+            player.stopFeedback()
+            return
+        }
+        guard let previous, previous.playerID == current.playerID,
+              previous.phase == .playing, !previous.inspecting else { return }
+        let feedback: ControllerFeedback?
+        if current.phase == .won { feedback = .success }
+        else if current.phase == .lost { feedback = .failure }
+        else if current.charge < previous.charge { feedback = .impact }
+        else if current.badBots < previous.badBots { feedback = .selection }
+        else { feedback = nil }
+        if let feedback { _ = player.playFeedback(feedback) }
     }
 
     private func receive(_ event: InputActionEvent) {
+        if event.phase == .cancelled { player.stopFeedback() }
+
         if event.action == Self.move {
             let vector = input.value(for: Self.move).vector
             guard vector != lastMove else { return }

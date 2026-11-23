@@ -17,6 +17,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Run frame logic and handle targeted gestures | <doc:systems-and-input> |
 | Drag, rotate, and scale entities with automatic gestures or buttons | <doc:manipulating-entities> |
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
+| Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Plan routes and move characters | <doc:gameplay-and-movement> |
 | Load assets and assemble visual content | <doc:rendering-and-resources> |
 | Save progress and inspect a running scene | <doc:saving-and-debugging> |
@@ -44,6 +45,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:entity-and-scene-lifecycle>
 - <doc:systems-and-input>
 - <doc:input-actions-and-controllers>
+- <doc:player-input-sessions-and-feedback>
 - <doc:manipulating-entities>
 - <doc:gameplay-and-movement>
 - <doc:rendering-and-resources>
@@ -97,6 +99,19 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/InputSubscription``
 - ``SpriteUI/GamepadButton``
 - ``SpriteUI/GamepadAxis``
+
+### Player input sessions and feedback
+
+- ``SpriteUI/PlayerInputHub``
+- ``SpriteUI/PlayerInputSession``
+- ``SpriteUI/InputDeviceInfo``
+- ``SpriteUI/InputControlPresentation``
+- ``SpriteUI/InputPrompt``
+- ``SpriteUI/InputDeviceEvent``
+- ``SpriteUI/InputDeviceSubscription``
+- ``SpriteUI/ControllerFeedback``
+- ``SpriteUI/InputFeedbackResult``
+- ``SpriteUI/InputFeedbackProvider``
 
 ### Gameplay and movement
 

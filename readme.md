@@ -81,7 +81,7 @@ Create entities and install systems in `GameView`'s setup closure. Use its `upda
 | Resources | Scene and tile-map loading, resource caching, animation and audio playback |
 | Movement | Collision shapes and queries, character controllers, physics bodies, joints, and transform constraints |
 | Gameplay | Agents and goals, pathfinding, navigation meshes, spatial indexes, state machines, decisions, rules, strategists, noise, and seeded random generators |
-| Input | Observable actions, stacked and Codable binding maps, virtual controls, and focused keyboard, pointer-button, and gamepad input |
+| Input | Observable actions, stacked and Codable binding maps, virtual controls, focused hardware input, explicit local-player device ownership, adaptive prompts, and capability-checked controller feedback |
 | Presentation | Automatic entity dragging, rotation, and scaling; targeted gestures; SwiftUI attachments; particles and contact effects |
 | Persistence and debugging | Registered component snapshots, entity-reference remapping, scene inspection, and frame diagnostics |
 
@@ -100,7 +100,7 @@ The module boundaries let pure gameplay algorithms run independently of renderin
 
 ## Documentation and tutorials
 
-The DocC catalog lives in [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md]]. It includes a getting-started guide, conceptual articles, the public API reference, and five hands-on tutorials covering your first scene, systems and targeted input, collision-aware agents, player input actions, and direct entity manipulation.
+The DocC catalog lives in [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md]]. It includes a getting-started guide, conceptual articles, the public API reference, and six hands-on tutorials covering your first scene, systems and targeted input, collision-aware agents, player input actions, direct entity manipulation, and local-player device ownership and feedback.
 
 The tutorial sequence includes complete Swift code for every stage and expected-result illustrations:
 
@@ -109,8 +109,11 @@ The tutorial sequence includes complete Swift code for every stage and expected-
 3. **Steering and collision-aware movement:** combine agent goals, collision queries, character movement, and a route around a wall.
 4. **Controlling a player with input actions:** build on-screen controls, read held 2D movement from a system, observe press transitions, and add optional keyboard, pointer, and gamepad bindings. No physical keyboard or gamepad is required.
 5. **Manipulating sprites with gestures:** opt into automatic drag, rotation, and scale, constrain a child under a rotated and scaled parent, observe lifecycle events, and add accessible session controls with physics release.
+6. **Sharing devices between players:** create independent action sessions, assign two virtual pads, transfer held input through neutral, and add adaptive prompts and optional native controller feedback. All three stages run without physical hardware.
 
-The eight guides cover getting started, entity and scene lifecycle, systems and input, input actions and controllers, direct manipulation, gameplay and movement, rendering and resources, and saving and debugging. [[Sources/SpriteUI/SpriteUI.docc/Articles/input-actions-and-controllers.md]] explains context priority, cancellation and dead zones, shared controller ownership, and persisted rebinding.
+The nine guides cover getting started, entity and scene lifecycle, systems and input, input actions and controllers, player input sessions and feedback, direct manipulation, gameplay and movement, rendering and resources, and saving and debugging. [[Sources/SpriteUI/SpriteUI.docc/Articles/input-actions-and-controllers.md]] explains context priority, cancellation and dead zones, shared controller ownership, and persisted rebinding.
+
+[[Sources/SpriteUI/SpriteUI.docc/Articles/player-input-sessions-and-feedback.md]] explains exclusive device ownership, transfer cancellation, last meaningful input, remapped control presentations, and feedback results. The **Players** tab in [[Demo/SpriteUIDemo/PlayerInputDemoView.swift]] has two independently moving sprites, assignable virtual pads, a live device list, adaptive Fire hints, and feedback outcome readouts. Tap a direction to hold it, transfer its pad, release, then press again to exercise neutral gating. Assign real controllers when available; none are required. Keyboard and pointer entries represent logical sources rather than hardware discovery. Sessions and assignments are runtime state; save action maps instead.
 
 [[Sources/SpriteUI/SpriteUI.docc/Articles/manipulating-entities.md]] covers parent-local axis locks, bounds and snapping, uniform local scale limits, lifecycle events, and renderer sessions. Add `InputTargetComponent` plus `ManipulationComponent` for automatic `GameView` gestures without an explicit `.gesture` modifier. The [[Demo/SpriteUIDemo/ManipulationDemoView.swift]] playground includes free, constrained-child, and dynamic-body examples with accessible buttons. Physics capture temporarily suspends native bodies without changing component configuration; end/cancel restores dynamics with zero release velocity by default, or `.restoreVelocity`. Placement does not avoid collisions or throw on release. Character-controller, transform-constraint, and joint-connected ownership deliberately reject manipulation.
 
