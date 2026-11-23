@@ -77,7 +77,7 @@ Create entities and install systems in `GameView`'s setup closure. Use its `upda
 | --- | --- |
 | Scene structure | Entity hierarchies, relative transforms, activation, prefabs, cloning, and pooling |
 | Simulation | Query-driven systems, scheduling, typed events, pause, and time control |
-| Rendering | Sprites, shapes, text, materials, cameras, lighting, masks, and effects |
+| Rendering | Sprites, shapes, text, materials, cameras, single-world split screen and minimaps, lighting, masks, and effects |
 | Resources | Scene and tile-map loading, resource caching, animation and audio playback |
 | Movement | Collision shapes and queries, character controllers, physics bodies, joints, and transform constraints |
 | Gameplay | Agents and goals, pathfinding, navigation meshes, spatial indexes, state machines, decisions, rules, strategists, noise, and seeded random generators |
@@ -100,7 +100,7 @@ The module boundaries let pure gameplay algorithms run independently of renderin
 
 ## Documentation and tutorials
 
-The DocC catalog lives in [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md]]. It includes a getting-started guide, conceptual articles, the public API reference, and six hands-on tutorials covering your first scene, systems and targeted input, collision-aware agents, player input actions, direct entity manipulation, and local-player device ownership and feedback.
+The DocC catalog lives in [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md]]. It includes a getting-started guide, conceptual articles, the public API reference, and seven hands-on tutorials covering your first scene, systems and targeted input, collision-aware agents, player input actions, direct entity manipulation, local-player device ownership and feedback, and shared-world viewports.
 
 The tutorial sequence includes complete Swift code for every stage and expected-result illustrations:
 
@@ -110,12 +110,17 @@ The tutorial sequence includes complete Swift code for every stage and expected-
 4. **Controlling a player with input actions:** build on-screen controls, read held 2D movement from a system, observe press transitions, and add optional keyboard, pointer, and gamepad bindings. No physical keyboard or gamepad is required.
 5. **Manipulating sprites with gestures:** opt into automatic drag, rotation, and scale, constrain a child under a rotated and scaled parent, observe lifecycle events, and add accessible session controls with physics release.
 6. **Sharing devices between players:** create independent action sessions, assign two virtual pads, transfer held input through neutral, and add adaptive prompts and optional native controller feedback. All three stages run without physical hardware.
+7. **Sharing a world between viewports:** create two cameras in one world, drive independent players with virtual buttons, change side-by-side, stacked, and single layouts, then add a third-camera minimap, viewport-scoped selection, labels, and actual simulation counters. All three stages are complete replacements for `ContentView.swift`; no hardware is required. [[Sources/SpriteUI/SpriteUI.docc/Tutorials/sharing-a-world-between-viewports.tutorial]] links the staged Swift and SVG previews.
 
-The nine guides cover getting started, entity and scene lifecycle, systems and input, input actions and controllers, player input sessions and feedback, direct manipulation, gameplay and movement, rendering and resources, and saving and debugging. [[Sources/SpriteUI/SpriteUI.docc/Articles/input-actions-and-controllers.md]] explains context priority, cancellation and dead zones, shared controller ownership, and persisted rebinding.
+The ten guides cover getting started, entity and scene lifecycle, systems and input, input actions and controllers, player input sessions and feedback, direct manipulation, gameplay and movement, rendering and resources, viewports and split screen, and saving and debugging. [[Sources/SpriteUI/SpriteUI.docc/Articles/input-actions-and-controllers.md]] explains context priority, cancellation and dead zones, shared controller ownership, and persisted rebinding.
 
 [[Sources/SpriteUI/SpriteUI.docc/Articles/player-input-sessions-and-feedback.md]] explains exclusive device ownership, transfer cancellation, last meaningful input, remapped control presentations, and feedback results. The **Players** tab in [[Demo/SpriteUIDemo/PlayerInputDemoView.swift]] has two independently moving sprites, assignable virtual pads, a live device list, adaptive Fire hints, and feedback outcome readouts. Tap a direction to hold it, transfer its pad, release, then press again to exercise neutral gating. Assign real controllers when available; none are required. Keyboard and pointer entries represent logical sources rather than hardware discovery. Sessions and assignments are runtime state; save action maps instead.
 
 [[Sources/SpriteUI/SpriteUI.docc/Articles/manipulating-entities.md]] covers parent-local axis locks, bounds and snapping, uniform local scale limits, lifecycle events, and renderer sessions. Add `InputTargetComponent` plus `ManipulationComponent` for automatic `GameView` gestures without an explicit `.gesture` modifier. The [[Demo/SpriteUIDemo/ManipulationDemoView.swift]] playground includes free, constrained-child, and dynamic-body examples with accessible buttons. Physics capture temporarily suspends native bodies without changing component configuration; end/cancel restores dynamics with zero release velocity by default, or `.restoreVelocity`. Placement does not avoid collisions or throw on release. Character-controller, transform-constraint, and joint-connected ownership deliberately reject manipulation.
+
+[[Sources/SpriteUI/SpriteUI.docc/Articles/viewports-and-split-screen.md]] covers the single-world Metal viewport host, normalized top-left frames, stable string viewport IDs and camera entity IDs, overlap/input rules, camera bounds, and attachment projection. The **Viewports** tab in [[Demo/SpriteUIDemo/ViewportDemoView.swift]] keeps a 360-point-tall arena above two independent virtual pads. Tap an arrow to keep moving and Stop to release; switch layouts without rebuilding the world. The third-camera map blocks scene input beneath it. Tap entities in a player pane to select only there; name labels project in every viewport, while selection labels use a specific `viewportID`. Optional keyboard and controller assignment is below the controls. One hub is attached once to the game surface.
+
+Its world-update, presentation-completion, and physics-contact counters count actual event callbacks, and scene time sums actual update deltas. They stay continuous through layout changes. Counts are not multiplied by pane count, and presentation completion is not a GPU-pass count. The bouncing probe supplies real contacts; exact totals depend on elapsed simulation. Supplying `viewports: []` chooses one automatic-camera Metal view; omitting the argument preserves the legacy host. The checked-in demo project lists files explicitly: after adding new demo sources, regenerate it with `xcodegen generate` from `Demo/` before building.
 
 With Xcode command-line tools and Python 3 installed, run from the repository root:
 

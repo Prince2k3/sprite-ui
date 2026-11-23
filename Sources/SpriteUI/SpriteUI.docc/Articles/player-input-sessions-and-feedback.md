@@ -112,6 +112,8 @@ Action maps and binding preferences can be saved. Sessions, assignments, active-
 
 ## See also
 
+- <doc:viewports-and-split-screen>
+- <doc:sharing-a-world-between-viewports>
 - <doc:sharing-devices-between-players>
 - <doc:input-actions-and-controllers>
 - <doc:saving-and-debugging>

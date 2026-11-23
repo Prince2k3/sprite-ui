@@ -50,6 +50,7 @@
 		E97EE4905384C3E54DD197A4 /* SpatialDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */; };
 		F4ADA338FC9E58E31452A0A0 /* LightingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98A54802ED807F4B7CCE12F /* LightingDemoView.swift */; };
 		F5AF3D9FCF521AFE474F32DF /* DebugDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2087AC349F8F142CD3B41790 /* DebugDemoView.swift */; };
+		FA5C54AB7E68E50A308504D5 /* ViewportDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A099A0EA0488624FAB7A5D /* ViewportDemoView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -73,6 +74,7 @@
 		5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RandomDemoView.swift; sourceTree = "<group>"; };
 		60458B4819985FB661F0F10A /* JointDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JointDemoView.swift; sourceTree = "<group>"; };
 		64A07FC6D53E7ACB7F7547F5 /* PrefabDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrefabDemoView.swift; sourceTree = "<group>"; };
+		65A099A0EA0488624FAB7A5D /* ViewportDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewportDemoView.swift; sourceTree = "<group>"; };
 		67F776F36226B4DF4AC99FA4 /* Pendulum.prefab */ = {isa = PBXFileReference; path = Pendulum.prefab; sourceTree = "<group>"; };
 		6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpriteUIDemoApp.swift; sourceTree = "<group>"; };
 		7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrategistDemoView.swift; sourceTree = "<group>"; };
@@ -181,6 +183,7 @@
 				D7386C3C0BCBEF0A3A80FFAA /* thud.wav */,
 				E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */,
 				E29CACFB77DBDBD3AD7A8026 /* TimelineDemoView.swift */,
+				65A099A0EA0488624FAB7A5D /* ViewportDemoView.swift */,
 			);
 			path = SpriteUIDemo;
 			sourceTree = "<group>";
@@ -296,6 +299,7 @@
 				08ECB36CACBA538E0BF98695 /* TextShapeDemoView.swift in Sources */,
 				CBB78677B4DAD6DADA4850F2 /* TileMapDemoView.swift in Sources */,
 				166892C6A66777F5549ACE2A /* TimelineDemoView.swift in Sources */,
+				FA5C54AB7E68E50A308504D5 /* ViewportDemoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

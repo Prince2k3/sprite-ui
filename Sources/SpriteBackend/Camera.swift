@@ -218,7 +218,6 @@ extension SpriteRenderer {
     /// Moves every camera toward its target, keeps it in bounds and applies shake.
     /// Runs after physics, so it follows where bodies ended up this frame.
     func updateCameras(deltaTime: TimeInterval, time: TimeInterval) {
-        let viewSize = SIMD2(Float(size.width), Float(size.height))
         let cameras = cameraEntities()
         let ids = Set(cameras.map(\.id))
         var dependencies: [Entity.ID: Set<Entity.ID>] = [:]
@@ -239,7 +238,7 @@ extension SpriteRenderer {
             guard let camera = entity.components[CameraComponent.self] else { continue }
             let goal = camera.target.flatMap(target(of:)).map { presentedSceneMatrix(of: $0).apply(to: .zero) }
             let position = presentedSceneMatrix(of: entity).apply(to: .zero)
-            let next = camera.step(from: position, toward: goal, viewSize: viewSize, deltaTime: Float(deltaTime))
+            let next = camera.step(from: position, toward: goal, viewSize: viewportSize(for: entity), deltaTime: Float(deltaTime))
             if next != position, let inverse = presentedSceneMatrix(of: entity.parent).inverted() {
                 let local = inverse.apply(to: next)
                 if local.x.isFinite, local.y.isFinite {
@@ -274,6 +273,10 @@ extension SpriteRenderer {
     /// The scene-space point under a point in the view, taking the camera into account.
     /// View points have their origin at the top left, like SwiftUI's.
     public func scenePoint(fromView point: CGPoint) -> SIMD2<Float> {
+        if !viewports.isEmpty {
+            guard let viewport = viewport(at: point) else { return .zero }
+            return scenePoint(fromView: point, inViewport: viewport.id) ?? .zero
+        }
         let viewSize = SIMD2(Float(size.width), Float(size.height))
         var local = SIMD2(Float(point.x), Float(point.y)) - viewSize / 2
         local.y = -local.y
@@ -286,6 +289,10 @@ extension SpriteRenderer {
     /// view's top-left coordinate space, using presented nodes and camera shake.
     /// Returns nil for a foreign/detached entity or a nonfinite conversion.
     public func viewPoint(from point: SIMD2<Float>, relativeTo entity: Entity? = nil) -> CGPoint? {
+        if !viewports.isEmpty {
+            guard let viewport = resolvedViewports.first else { return nil }
+            return viewPoint(from: point, relativeTo: entity, inViewport: viewport.id)
+        }
         guard point.x.isFinite, point.y.isFinite else { return nil }
         var native = CGPoint(x: CGFloat(point.x), y: CGFloat(point.y))
         if let entity {

@@ -9,6 +9,7 @@ struct SpriteUIDemoApp: App {
                     Tab("Animation", systemImage: "wand.and.stars") { DemoView() }
                     Tab("Debug", systemImage: "ladybug") { DebugDemoView() }
                     Tab("Players", systemImage: "person.2") { PlayerInputDemoView() }
+                    Tab("Viewports", systemImage: "rectangle.split.2x1") { ViewportDemoView() }
                 }
                 Group {
                     Tab("Random", systemImage: "dice") { RandomDemoView() }

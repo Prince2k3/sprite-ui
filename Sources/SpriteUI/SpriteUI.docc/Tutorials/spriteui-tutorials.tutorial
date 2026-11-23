@@ -1,14 +1,14 @@
 @Tutorials(name: "SpriteUI") {
     @Intro(title: "Build an interactive SpriteUI scene") {
-        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, and share devices between local players.
+        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, and render their shared world through independent viewports.
 
         @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
     }
 
     @Volume(name: "From your first sprite to local multiplayer") {
-        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, and assign devices to independent players.
+        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, and add split screen with a minimap.
 
-        @Image(source: "spriteui-tutorials-overview.svg", alt: "Six stages progress from scene creation through movement, steering, input actions, and direct manipulation to local player ownership and feedback.")
+        @Image(source: "spriteui-tutorials-overview.svg", alt: "Seven tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen and a minimap.")
 
         @Chapter(name: "Create and retain a scene") {
             Learn how a SwiftUI view owns an observable scene and adds entities to GameView.
@@ -50,6 +50,13 @@
 
             @Image(source: "spriteui-player-sessions.svg", alt: "Two virtual pads have exclusive player owners while an optional controller waits for assignment.")
             @TutorialReference(tutorial: "doc:sharing-devices-between-players")
+        }
+
+        @Chapter(name: "Share a world between viewports") {
+            Follow independent players with two cameras, change layouts, and overlay a noninteractive minimap with scoped selection and labels.
+
+            @Image(source: "spriteui-viewports.svg", alt: "One shared world is rendered through two player cameras and a view-only minimap.")
+            @TutorialReference(tutorial: "doc:sharing-a-world-between-viewports")
         }
     }
 }

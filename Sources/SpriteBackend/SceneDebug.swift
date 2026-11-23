@@ -137,6 +137,10 @@ public struct SceneDebugSnapshot: Equatable, Sendable {
     }
     @discardableResult public func select(atView point: CGPoint) -> Entity.ID? {
         guard let renderer else { return nil }
+        if !renderer.viewports.isEmpty, renderer.viewport(at: point) == nil {
+            clearSelection()
+            return nil
+        }
         return select(atScene: renderer.scenePoint(fromView: point))
     }
     public func clearSelection() {

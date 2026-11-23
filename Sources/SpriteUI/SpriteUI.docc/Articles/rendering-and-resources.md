@@ -224,3 +224,7 @@ Release stops playback and clears particles/actions; it is stronger than setting
 - <doc:entity-and-scene-lifecycle>
 - <doc:systems-and-input>
 - <doc:saving-and-debugging>
+
+## Multiple camera views
+
+Use one `GameView(viewports:)` to draw the same world through independent player cameras and a noninteractive minimap. <doc:viewports-and-split-screen> covers normalized layouts, viewport-aware input, scoped attachments, and the single simulation clock. Follow <doc:sharing-a-world-between-viewports> for three complete stages.

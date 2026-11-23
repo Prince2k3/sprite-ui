@@ -28,6 +28,8 @@ final class GameManipulationInput: NSObject {
         let hit: Entity
         let target: Entity
         let revision: UInt64
+        let viewportID: String?
+        let viewportLatch: InputViewportLatch?
     }
 
     weak var host: GameHost?
@@ -77,12 +79,16 @@ final class GameManipulationInput: NSObject {
               host.attachmentStore.acceptsInput, !host.attachmentStore.blocksInput(at: point),
               !host.debugBlocksInput(at: point) else { return false }
         if let contact = contacts[id] { return valid(contact) }
-        let scene = host.renderer.scenePoint(fromView: point)
+        guard let viewport = host.renderer.viewport(at: point) else { return false }
+        let viewportID = host.usesScopedViewports ? viewport.id : nil
+        guard let scene = host.inputScenePoint(fromView: point, viewportID: viewportID) else { return false }
         guard let hit = host.renderer.inputTarget(at: CGPoint(x: CGFloat(scene.x), y: CGFloat(scene.y))),
               let target = manipulationTarget(for: hit),
               session.map({ $0.isActive && $0.entity === target }) ?? true,
-              contacts.values.allSatisfy({ $0.target === target }) else { return false }
-        contacts[id] = Contact(point: point, hit: hit, target: target, revision: hit.activationRevision)
+              capturedContact.map({ $0.viewportID == viewportID }) ?? true,
+              contacts.values.allSatisfy({ $0.target === target && $0.viewportID == viewportID }) else { return false }
+        contacts[id] = Contact(point: point, hit: hit, target: target, revision: hit.activationRevision,
+                              viewportID: viewportID, viewportLatch: viewportID == nil ? nil : InputViewportLatch(viewport: viewport, renderer: host.renderer))
         return true
     }
 
@@ -98,14 +104,16 @@ final class GameManipulationInput: NSObject {
         let admitted = ids.sorted().compactMap { contacts[$0] }
         guard admitted.count == ids.count, admitted.allSatisfy({ valid($0) }),
               let first = admitted.first,
-              admitted.allSatisfy({ $0.target === first.target }),
+              admitted.allSatisfy({ $0.target === first.target && $0.viewportID == first.viewportID }),
               first.target.components[ManipulationComponent.self]?.operations.contains(channel.operation) == true else { return false }
         if let session {
-            guard session.isActive, session.entity === first.target else { return false }
+            guard session.isActive, session.entity === first.target, capturedContact?.viewportID == first.viewportID else { return false }
         } else {
             let revision = generation
             isBeginning = true
-            let scene = host.renderer.scenePoint(fromView: first.point)
+            guard let scene = host.inputScenePoint(fromView: first.point, viewportID: first.viewportID) else {
+                isBeginning = false; return false
+            }
             let hit = host.renderer.inputTarget(at: CGPoint(x: CGFloat(scene.x), y: CGFloat(scene.y)))
             let created = hit.flatMap { manipulationTarget(for: $0) === first.target
                 ? host.renderer.beginManipulation(at: scene) : nil }
@@ -164,7 +172,8 @@ final class GameManipulationInput: NSObject {
         // Use translation, never the changing pinch/pan centroid. Convert the
         // fixed view anchor through the CURRENT camera on every sample.
         let point = CGPoint(x: anchor.x + viewTranslation.x, y: anchor.y + viewTranslation.y)
-        let displacement = host.renderer.scenePoint(fromView: point) - initialScenePoint
+        guard let scene = host.inputScenePoint(fromView: point, viewportID: capturedContact.viewportID) else { cancel(); return false }
+        let displacement = scene - initialScenePoint
         let changed = session.update(translation: displacement, rotation: self.rotation, scale: self.scale)
         if self.session === session, !session.isActive { cancel() }
         return changed
@@ -211,6 +220,7 @@ final class GameManipulationInput: NSObject {
 
     private func valid(_ contact: Contact) -> Bool {
         guard let host, host.attachmentStore.acceptsInput, !host.debugBlocksInput(at: contact.point),
+              contact.viewportLatch?.isValid(in: host.renderer) ?? !host.usesScopedViewports,
               !host.attachmentStore.blocksInput(at: contact.point),
               contact.hit.world === host.world, contact.hit.isInputTarget,
               contact.hit.activationRevision == contact.revision,

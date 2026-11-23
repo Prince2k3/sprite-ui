@@ -62,6 +62,12 @@ public final class SpriteRenderer: SKScene {
     }
 
     public let world: World
+    /// Ordered views into this scene. Empty retains the original full-view camera.
+    /// Rectangles use normalized top-left coordinates; later views draw on top.
+    /// The native multi-viewport host advances this scene once before drawing them.
+    public var viewports: [GameViewport] = []
+    var viewportRenderSurfaceSize: CGSize?
+    private var viewportPhysicsSuspended = false
 
     private var nodes: [Entity.ID: SKNode] = [:]
     /// Which entity each node shows, for mapping physics contacts back.
@@ -187,6 +193,27 @@ public final class SpriteRenderer: SKScene {
 
     // MARK: Frame loop
 
+    /// Rebase the display clock when a viewport host resumes. Simulation time,
+    /// action state and physics settings are preserved.
+    @_spi(Backend) public func resetFrameClock() {
+        lastUpdateTime = nil
+        lastDeltaTime = 0
+    }
+
+    /// SpriteKit may step physics even when its timestamp is unchanged. A
+    /// resumed viewport still delivers its zero-delta ECS/presentation frame,
+    /// but keeps native bodies frozen until the next advancing clock tick.
+    @_spi(Backend) public func withViewportPhysicsSuspended<T>(_ body: () -> T) -> T {
+        let previous = viewportPhysicsSuspended
+        viewportPhysicsSuspended = true
+        worldSimulationDidChange(world)
+        defer {
+            viewportPhysicsSuspended = previous
+            worldSimulationDidChange(world)
+        }
+        return body()
+    }
+
     public override func update(_ currentTime: TimeInterval) {
         let interval = lastUpdateTime.map { currentTime - $0 } ?? 0
         let deltaTime = min(interval, 1.0 / 15.0)
@@ -301,6 +328,7 @@ public final class SpriteRenderer: SKScene {
     /// Copies each dynamic body's position, rotation and velocity back into its entity,
     /// then publishes the contacts the step reported.
     public override func didSimulatePhysics() {
+        guard !viewportPhysicsSuspended else { contacts.removeAll(); return }
         guard world.isDebugStepping || (!world.isPaused && world.timeScale > 0) else { contacts.removeAll(); return }
         for id in bodies { copyPhysicsResult(id) }
         publishContacts()
@@ -580,7 +608,7 @@ extension SpriteRenderer: WorldObserver {
         node(for: world.root)?.isPaused = paused
         let rate = priming ? 0 : world.isDebugStepping ? 1 : world.timeScale
         node(for: world.root)?.speed = CGFloat(rate)
-        physicsWorld.speed = paused ? 0 : CGFloat(rate)
+        physicsWorld.speed = paused || viewportPhysicsSuspended ? 0 : CGFloat(rate)
         let gravity = world.physics.gravity
         physicsWorld.gravity = CGVector(dx: CGFloat(gravity.x), dy: CGFloat(gravity.y))
         chooseCamera()

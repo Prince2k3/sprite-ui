@@ -1,0 +1,67 @@
+@Tutorial(time: 25) {
+    @Intro(title: "Sharing a world between viewports") {
+        Render one world through two player cameras, move each player with an independent virtual pad, and add a view-only minimap with viewport-scoped selection and SwiftUI labels.
+
+        @Image(source: "spriteui-viewports.svg", alt: "One shared world feeds cyan P1 and orange P2 camera views plus a third, noninteractive minimap.")
+    }
+
+    @Section(title: "Show one world through two cameras") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Each resource is a complete replacement for `ContentView.swift`; keep your existing `ContentView()` app entry point and use one stage at a time. No assets, physical controllers, or additional source files are required. <doc:sharing-devices-between-players> explains the player-session APIs used in the next stage.
+
+            Create both camera entities before computing the ``GameViewport`` array. Its string IDs describe stable presentation regions; `camera` holds the corresponding `Entity.ID`. A ``ViewportRect`` uses normalized coordinates with a top-left origin: the first camera occupies the left half and the second the right half. Both players and both cameras enter one `GameView` setup closure and one world.
+
+            Supplying a nonnil `viewports` argument selects the native Metal viewport host. The host advances one world and one SpriteKit simulation, then renders that same scene through each camera. Creating one `GameView` per pane would create separate hosts and worlds. The legacy initializer without `viewports` continues using its existing SKView path.
+        }
+
+        @Steps {
+            @Step {
+                Replace `ContentView.swift` with stage one and run. A cyan square is centered in the left pane and an orange square in the right pane. They have different scene positions; their cameras explain why each appears centered. The mint beacon and grid belong to their shared scene and appear wherever each camera's field of view includes them. The actual arena is 360 points tall.
+
+                @Code(name: "ContentView.swift", file: "spriteui-viewports-01.swift") {
+                    @Image(source: "spriteui-viewports-01-preview.svg", alt: "Schematic result: left and right panes center on the cyan and orange entities at different world positions.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Drive independent players and switch layouts") {
+        @ContentAndMedia {
+            Stage two retains one ``PlayerInputHub`` and assigns different virtual devices to two player sessions. Each on-screen arrow submits a virtual button sample through the hub; a movement system polls each entity's own input controller. Tapping an arrow keeps that direction active until another direction or Stop is selected. This supports simulator use without simultaneous physical touches. Cameras follow their respective players.
+
+            Side by side, Stacked, and Single change only viewport frames and membership. Entity identities and the shared world stay alive; P2 can still move while Single shows only P1. Keep the `GameView` identity stable. Apply `.gameInput(model.hub)` once to the shared surface, so the hub has one native host. Virtual pads work regardless of attached hardware.
+
+            The native host cancels captured gestures when viewport layout or camera configuration changes. Virtual producers belong to the app, so this example also releases their held buttons when changing layouts, leaving the screen, or losing app activity. The world-update subscription counts actual events and accumulates their scene delta time; it never multiplies counts by the number of panes.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage two. Tap P1 Right and P2 Up: each player moves with its own following camera. Stop them independently. Select Stacked, then Single, then Side by side. Movement stops at layout changes and both entities keep their positions. In Single, move P2, stop it, then return to a split to inspect its new position. World update and scene-time totals continue across layout changes; their exact values depend on runtime timing.
+
+                @Code(name: "ContentView.swift", file: "spriteui-viewports-02.swift", previousFile: "spriteui-viewports-01.swift") {
+                    @Image(source: "spriteui-viewports-02-preview.svg", alt: "Schematic result: separate P1 and P2 arrow pads drive their own following cameras; layout choices preserve one world.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Overlay a minimap and scope interaction to a viewport") {
+        @ContentAndMedia {
+            Stage three appends a third camera at a smaller zoom. Its viewport is declared last, so it overlays the player panes, and `isInteractive: false` makes its rectangle block world input beneath it. A tap on the map must not select an entity hidden in the underlying player pane. Its decorative SwiftUI border also disables hit testing.
+
+            A targeted `SpatialTapGesture` receives an ``EntityTargetValue`` whose `viewportID` identifies the starting pane. Store selections by that string, then parent a label anchor to the selected entity with `AttachmentComponent(viewportID:)` scoped to that pane. The normal player-name anchors leave `viewportID` nil, projecting the same definition into every resolved viewport. ``AttachmentContext`` identifies the projection's viewport; each projection has independent SwiftUI identity and is clipped to its viewport.
+
+            A bouncing physics probe now produces real contact-began events. The status area shows actual `WorldEvents.Update`, `RenderingEvents.DidUpdate`, and `PhysicsEvents.ContactBegan` totals plus accumulated scene time. Finished is a presentation-completion event count, not a GPU-pass count. These readouts expose simulation activity without inventing a contact total or assuming a fixed frame rate. Native rendering verification is separate from these event counters. See <doc:viewports-and-split-screen> for coordinate helpers, input lifetime, and camera rules.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage three. Move each player, then stop. Tap its sprite in a player pane: that pane's selection readout changes and a yellow selection label appears only there. Player-name labels appear in each camera that can see their anchor. Tap the same entity through another pane when visible: its selection is stored separately. Tap the map and verify neither player selection changes. Change layouts and confirm the world counters and bouncing probe continue without resetting. The number of contacts depends on the elapsed simulation and actual collisions, not pane count. Optionally expand hardware assignment, assign Keyboard or a controller to a player, focus the arena, then use WASD or the left stick. Release controls before using a newly assigned device.
+
+                @Code(name: "ContentView.swift", file: "spriteui-viewports-03.swift", previousFile: "spriteui-viewports-02.swift") {
+                    @Image(source: "spriteui-viewports-03-preview.svg", alt: "Schematic result: a view-only map overlays P2, name labels project in visible cameras, and a yellow selection label belongs only to P1. Counters display live events without predicted totals.")
+                }
+            }
+        }
+    }
+}

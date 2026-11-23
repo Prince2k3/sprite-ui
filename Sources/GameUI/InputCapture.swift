@@ -16,32 +16,84 @@ struct GameHostPreferenceKey: PreferenceKey {
 }
 
 @MainActor
+struct InputViewportLatch {
+    let viewport: GameViewport
+    let cameraID: Entity.ID?
+    private weak var camera: Entity?
+    private let cameraActivation: UInt64?
+
+    init(viewport: GameViewport, renderer: SpriteRenderer) {
+        self.viewport = viewport
+        cameraID = viewport.camera ?? renderer.activeCamera?.id
+        let resolved = cameraID.flatMap { renderer.world.entity(withID: $0) }
+        camera = resolved
+        cameraActivation = resolved?.activationRevision
+    }
+
+    func isValid(in renderer: SpriteRenderer) -> Bool {
+        guard renderer.resolvedViewports.contains(viewport), viewport.isInteractive,
+              (viewport.camera ?? renderer.activeCamera?.id) == cameraID else { return false }
+        guard let cameraID else { return true }
+        return camera === renderer.world.entity(withID: cameraID) && camera?.activationRevision == cameraActivation
+    }
+}
+
+@MainActor
 final class InputContact {
     let id: UInt64
     let start: CGPoint
     let activationRevision: UInt64?
+    let viewportID: String?
+    var viewportLatch: InputViewportLatch?
     weak var hit: Entity?
     var endedAt: TimeInterval?
     var cancelled = false
-    init(id: UInt64, start: CGPoint, hit: Entity?) { self.id = id; self.start = start; self.hit = hit; activationRevision = hit?.activationRevision }
+    init(id: UInt64, start: CGPoint, hit: Entity?, viewportID: String? = nil) {
+        self.id = id; self.start = start; self.hit = hit; self.viewportID = viewportID
+        activationRevision = hit?.activationRevision
+    }
+
+    func hasValidViewport(in host: GameHost) -> Bool {
+        let valid = viewportLatch?.isValid(in: host.renderer)
+            ?? (host.inputScenePoint(fromView: start, viewportID: viewportID) != nil)
+        if !valid { cancelled = true }
+        return valid
+    }
 }
 
 extension GameHost {
+    /// An explicitly empty viewport configuration still presents the `main` pane.
+    var usesScopedViewports: Bool { configuredViewports != nil || !renderer.viewports.isEmpty }
+
     @discardableResult
     func beginInput(at point: CGPoint, sceneTargetAllowed: Bool = true) -> UInt64 {
         nextInputID &+= 1
+        let viewport = renderer.viewport(at: point)
+        let viewportID = usesScopedViewports ? viewport?.id : nil
         let blocked = !sceneTargetAllowed || !attachmentStore.acceptsInput || attachmentStore.blocksInput(at: point)
-            || debugBlocksInput(at: point)
-        let hit = blocked ? nil : renderer.inputTarget(at: CGPoint(scenePoint: renderer.scenePoint(fromView: point)))
-        let contact = InputContact(id: nextInputID, start: point, hit: hit)
+            || debugBlocksInput(at: point) || viewport == nil
+        let scene = blocked ? nil : inputScenePoint(fromView: point, viewportID: viewportID)
+        let hit = scene.flatMap { renderer.inputTarget(at: CGPoint(scenePoint: $0)) }
+        let contact = InputContact(id: nextInputID, start: point, hit: hit, viewportID: viewportID)
+        if let viewport, viewportID != nil { contact.viewportLatch = InputViewportLatch(viewport: viewport, renderer: renderer) }
         let now = ProcessInfo.processInfo.systemUptime
         inputContacts = inputContacts.filter { $0.value.endedAt.map { now - $0 < 0.5 } ?? true }
         inputContacts[contact.id] = contact
         return contact.id
     }
+    /// A latched pointer may leave its pane, but never switch to another camera.
+    func inputScenePoint(fromView point: CGPoint, viewportID: String?) -> SIMD2<Float>? {
+        if let viewportID {
+            guard renderer.resolvedViewports.contains(where: { $0.id == viewportID && $0.isInteractive }) else { return nil }
+            return renderer.scenePoint(fromView: point, inViewport: viewportID)
+        }
+        guard !usesScopedViewports, point.x.isFinite, point.y.isFinite else { return nil }
+        return renderer.scenePoint(fromView: point)
+    }
     func endInput(_ id: UInt64, cancelled: Bool = false) {
-        inputContacts[id]?.endedAt = ProcessInfo.processInfo.systemUptime
-        inputContacts[id]?.cancelled = cancelled
+        guard let contact = inputContacts[id] else { return }
+        contact.endedAt = ProcessInfo.processInfo.systemUptime
+        contact.cancelled = contact.cancelled || cancelled
     }
     func cancelInputs() {
         guard !isCancellingInputs else { return }
@@ -61,7 +113,9 @@ extension GameHost {
         }
         let matches: [InputContact]
         if let start {
-            matches = recent.filter { hypot($0.start.x - start.x, $0.start.y - start.y) <= 22 }
+            guard let viewport = renderer.viewport(at: start) else { return nil }
+            let viewportID = usesScopedViewports ? viewport.id : nil
+            matches = recent.filter { $0.viewportID == viewportID && hypot($0.start.x - start.x, $0.start.y - start.y) <= 22 }
         } else { matches = Array(recent) }
         let live = matches.filter { $0.endedAt == nil }
         // If a gesture can't identify its pointer unambiguously, don't deliver
@@ -103,7 +157,7 @@ final class TargetedInputCapture<Value> {
             sourceHost = host; contact = input
             if let hit = input.hit, !host.debugBlocksInput(at: input.start) { target = resolver(hit) }
         }
-        guard sourceHost === host, let contact, !contact.cancelled,
+        guard sourceHost === host, let contact, !contact.cancelled, contact.hasValidViewport(in: host),
               let hit = contact.hit, hit.world === host.world, hit.isInputTarget,
               hit.activationRevision == contact.activationRevision,
               hit.components[CollisionComponent.self]?.isEnabled != false,
@@ -114,7 +168,10 @@ final class TargetedInputCapture<Value> {
             target = nil
             return nil
         }
-        return EntityTargetValue(entity: target, gestureValue: value, host: host)
+        var result = EntityTargetValue(entity: target, gestureValue: value, host: host, viewportID: contact.viewportID)
+        result.viewportLatch = contact.viewportLatch
+        result.contact = contact
+        return result
     }
 
     func end() {

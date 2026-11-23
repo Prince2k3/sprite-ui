@@ -76,7 +76,8 @@ private struct TargetedGestureEvent<Value>: Equatable {
     let equals: ((Value, Value) -> Bool)?
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         MainActor.assumeIsolated {
-            lhs.target?.entity === rhs.target?.entity && (lhs.equals?(lhs.rawValue, rhs.rawValue) ?? true)
+            lhs.target?.entity === rhs.target?.entity && lhs.target?.viewportID == rhs.target?.viewportID &&
+                (lhs.equals?(lhs.rawValue, rhs.rawValue) ?? true)
         }
     }
 }
@@ -151,8 +152,17 @@ private struct TargetedGestureModifier<Base: Gesture>: ViewModifier {
 public struct EntityTargetValue<Value> {
     public let entity: Entity
     public let gestureValue: Value
+    /// The pane captured at pointer-down, or nil for a legacy single-view host.
+    /// Conversions keep using this pane's camera even after crossing a split.
+    public let viewportID: String?
     weak var host: GameHost?
     var viewOffset = CGPoint.zero
+    var viewportLatch: InputViewportLatch?
+    var contact: InputContact?
+
+    init(entity: Entity, gestureValue: Value, host: GameHost?, viewportID: String? = nil) {
+        self.entity = entity; self.gestureValue = gestureValue; self.host = host; self.viewportID = viewportID
+    }
 
     public subscript<T>(dynamicMember keyPath: KeyPath<Value, T>) -> T { gestureValue[keyPath: keyPath] }
 
@@ -162,25 +172,32 @@ public struct EntityTargetValue<Value> {
         convertIfAvailable(point, to: space) ?? .zero
     }
     public func convertIfAvailable(_ point: CGPoint, to space: GameCoordinateSpace) -> SIMD2<Float>? {
-        guard let renderer = host?.renderer else { return nil }
-        return renderer.scenePoint(fromView: localPoint(point))
+        scenePoint(point)
     }
     public func convert(_ point: CGPoint, to entity: Entity) -> SIMD2<Float> {
         convertIfAvailable(point, to: entity) ?? .zero
     }
     public func convertIfAvailable(_ point: CGPoint, to entity: Entity) -> SIMD2<Float>? {
         guard let host, entity.world === host.world, let node = host.renderer.node(for: entity) else { return nil }
-        let scene = host.renderer.scenePoint(fromView: localPoint(point))
+        guard let scene = scenePoint(point) else { return nil }
         let point = node.convert(CGPoint(x: CGFloat(scene.x), y: CGFloat(scene.y)), from: host.renderer)
         guard point.x.isFinite, point.y.isFinite else { return nil }
         return [Float(point.x), Float(point.y)]
+    }
+    private func scenePoint(_ point: CGPoint) -> SIMD2<Float>? {
+        guard let host, contact?.cancelled != true else { return nil }
+        if let viewportLatch, !viewportLatch.isValid(in: host.renderer) {
+            contact?.cancelled = true
+            return nil
+        }
+        return host.inputScenePoint(fromView: localPoint(point), viewportID: viewportID)
     }
     private func localPoint(_ point: CGPoint) -> CGPoint { CGPoint(x: point.x - viewOffset.x, y: point.y - viewOffset.y) }
 }
 
 extension EntityTargetValue: Equatable where Value: Equatable {
     public nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
-        MainActor.assumeIsolated { lhs.entity === rhs.entity && lhs.gestureValue == rhs.gestureValue }
+        MainActor.assumeIsolated { lhs.entity === rhs.entity && lhs.viewportID == rhs.viewportID && lhs.gestureValue == rhs.gestureValue }
     }
 }
 
