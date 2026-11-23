@@ -4,7 +4,7 @@ import Gameplay
 
 /// Gives an entity a ``StateMachine``.
 ///
-/// Start one with ``ECSCore/Entity/enter(_:)``, which also runs the state's
+/// Start one with ``ECSCore/Entity/enter(_:)-7molv``, which also runs the state's
 /// `didEnter` hook. Add ``StateMachineSystem`` for the state type so time in
 /// state advances and per-state `update` runs each frame.
 public struct StateMachineComponent<State: GameState>: Component {

@@ -1,0 +1,34 @@
+@Tutorials(name: "SpriteUI") {
+    @Intro(title: "Build an interactive SpriteUI scene") {
+        Create a scene, give its entities frame-based behavior, and steer a character around a wall.
+
+        @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
+    }
+
+    @Volume(name: "From your first sprite to collision-aware movement") {
+        Learn to retain a scene, schedule frame-based behavior, handle targeted input, and guide a character around an obstruction.
+
+        @Image(source: "spriteui-tutorials-overview.svg", alt: "A progression from scene creation through targeted input to collision-aware steering.")
+
+        @Chapter(name: "Create and retain a scene") {
+            Learn how a SwiftUI view owns an observable scene and adds entities to GameView.
+
+            @Image(source: "spriteui-first-scene.svg", alt: "A cyan player and an orange destination inside a scene.")
+            @TutorialReference(tutorial: "doc:creating-your-first-scene")
+        }
+
+        @Chapter(name: "Move with systems and input") {
+            Schedule typed systems and respond to taps on the player.
+
+            @Image(source: "spriteui-systems-input.svg", alt: "A tap on a cyan player reverses its motion between two limits.")
+            @TutorialReference(tutorial: "doc:moving-with-systems-and-input")
+        }
+
+        @Chapter(name: "Steer through a scene with walls") {
+            Turn steering forces into collision-aware movement and inspect the route with scene queries.
+
+            @Image(source: "spriteui-steering-collision.svg", alt: "A cyan character follows a curved route above an orange wall to a green destination.")
+            @TutorialReference(tutorial: "doc:steering-and-collision-aware-movement")
+        }
+    }
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="440" viewBox="0 0 800 440" role="img" aria-labelledby="title desc">
+  <title id="title">Steering with collision-aware movement</title>
+  <desc id="desc">The direct ray from the cyan character to a green destination meets an orange wall. A cyan path travels above the wall.</desc>
+  <rect width="800" height="440" rx="28" fill="#111c30"/>
+  <text x="56" y="62" font-family="system-ui, sans-serif" font-size="28" font-weight="600" fill="#e0ebf4">Choose a route. Resolve every move.</text>
+  <path d="M170 330L630 225" fill="none" stroke="#93adc5" stroke-width="3" stroke-dasharray="7 9"/>
+  <rect x="383" y="177" width="34" height="210" rx="4" fill="#ffb45b"/>
+  <path d="M170 330C168 259 161 143 195 122S561 105 593 128 618 202 630 225" fill="none" stroke="#48d9ec" stroke-width="5" stroke-linecap="round"/>
+  <path d="M620 209l10 16 7-19" fill="none" stroke="#48d9ec" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#111c30" stroke="#48d9ec" stroke-width="3">
+    <circle cx="195" cy="122" r="7"/>
+    <circle cx="593" cy="128" r="7"/>
+  </g>
+  <circle cx="170" cy="330" r="21" fill="#48d9ec"/>
+  <rect x="616" y="211" width="28" height="28" rx="4" fill="#7bdfa2"/>
+  <g fill="#e0ebf4" font-family="system-ui, sans-serif" font-size="20">
+    <text x="100" y="382">Character</text>
+    <text x="527" y="270">Destination</text>
+    <text x="433" y="360">Wall</text>
+    <text x="280" y="99" font-size="17">Authored path</text>
+  </g>
+</svg>

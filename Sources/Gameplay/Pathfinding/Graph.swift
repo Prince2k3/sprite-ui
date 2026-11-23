@@ -88,7 +88,9 @@ extension Graph {
     /// let step = map.nextStep(from: enemy)  // one cell closer to the player
     /// ```
     ///
-    /// - Parameter maxCost: Stop exploring past this cost.
+    /// - Parameters:
+    ///   - sources: Starting nodes, each assigned a cost of zero.
+    ///   - maxCost: Stop exploring past this cost.
     public func costMap(from sources: some Sequence<Node>, maxCost: Float = .infinity) -> CostMap<Node> {
         var open = PriorityQueue<Node>()
         var costs: [Node: Float] = [:]
@@ -128,7 +130,7 @@ extension Graph {
     }
 }
 
-/// The result of ``Graph/costMap(from:maxCost:)-(Sequence,_)``: how cheaply each
+/// The result of ``Graph/costMap(from:maxCost:)-(Sequence<Self.Node>,_)``: how cheaply each
 /// reachable node can be reached from the nearest source.
 public struct CostMap<Node: Hashable>: Hashable {
     private let costs: [Node: Float]

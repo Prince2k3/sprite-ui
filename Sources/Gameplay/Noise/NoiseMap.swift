@@ -20,9 +20,14 @@ public struct NoiseMap: Hashable, Codable, Sendable {
 
     /// Samples `noise` over the rectangle at `origin` with `size`.
     ///
-    /// - Parameter seamless: Blends each sample with ones a whole map away, so the
-    ///   left edge matches the right and the top matches the bottom. Seamless maps
-    ///   look a little smoother and take four times as long to make.
+    /// - Parameters:
+    ///   - noise: The field to sample.
+    ///   - origin: The corner with the lowest x and y, in noise space.
+    ///   - size: The width and height of the sampled area, in noise space.
+    ///   - sampleCount: Columns and rows to sample, each clamped to at least 1.
+    ///   - seamless: Blends each sample with ones a whole map away, so the
+    ///     left edge matches the right and the top matches the bottom. Seamless maps
+    ///     look a little smoother and take four times as long to make.
     public init(
         _ noise: Noise,
         origin: SIMD2<Double> = .zero,

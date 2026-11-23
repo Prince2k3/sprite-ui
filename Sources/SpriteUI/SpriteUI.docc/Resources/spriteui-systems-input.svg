@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="440" viewBox="0 0 800 440" role="img" aria-labelledby="title desc">
+  <title id="title">Systems and targeted input</title>
+  <desc id="desc">A cyan player patrols between two limits. A tap reverses the player. Movement runs before the bounds system.</desc>
+  <rect width="800" height="440" rx="28" fill="#111c30"/>
+  <g font-family="system-ui, sans-serif" fill="#e0ebf4">
+    <text x="56" y="70" font-size="28" font-weight="600">A tap changes velocity</text>
+    <text x="132" y="295" font-size="20">−100</text>
+    <text x="617" y="295" font-size="20">100</text>
+  </g>
+  <path d="M154 133V265M646 133V265" stroke="#ffb45b" stroke-width="4"/>
+  <path d="M176 220H624" stroke="#45607a" stroke-width="2" stroke-dasharray="7 8"/>
+  <rect x="362" y="182" width="76" height="76" rx="5" fill="#48d9ec"/>
+  <rect x="354" y="174" width="92" height="92" rx="8" fill="none" stroke="#48d9ec" stroke-width="2" stroke-dasharray="5 6"/>
+  <path d="M475 220h104m-15-9 15 9-15 9M324 220H220m15-9-15 9 15 9" fill="none" stroke="#48d9ec" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="414" cy="171" r="25" fill="none" stroke="#e0ebf4" stroke-width="2"/>
+  <path d="M406 131l9 54 12-18 21-5z" fill="#e0ebf4" stroke="#111c30" stroke-width="2"/>
+  <rect x="172" y="338" width="196" height="52" rx="13" fill="#233e58"/>
+  <rect x="440" y="338" width="172" height="52" rx="13" fill="#233e58"/>
+  <path d="M384 364h40m-10-7 10 7-10 7" stroke="#93adc5" stroke-width="3" fill="none"/>
+  <g font-family="system-ui, sans-serif" fill="#e0ebf4" font-size="21" text-anchor="middle">
+    <text x="270" y="371">Movement</text>
+    <text x="526" y="371">Bounds</text>
+  </g>
+</svg>

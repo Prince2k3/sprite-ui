@@ -68,6 +68,7 @@ extension Noise {
     ///   - octaves: Layers of finer detail added on top. More is rougher and slower.
     ///   - persistence: How much each octave counts compared with the one before.
     ///   - lacunarity: How much finer each octave is than the one before.
+    ///   - seed: Selects the repeatable noise pattern.
     public static func perlin(
         frequency: Double = 1, octaves: Int = 6, persistence: Double = 0.5, lacunarity: Double = 2, seed: Int32 = 0
     ) -> Noise {
@@ -91,9 +92,11 @@ extension Noise {
     /// Flat cells, each with its own value.
     ///
     /// - Parameters:
+    ///   - frequency: Cells per unit of noise space.
     ///   - displacement: How far apart the cells' values spread.
     ///   - includesDistance: Whether to add the distance to the cell's center, which
     ///     shades each cell from its middle out. Values then reach about -2...2.
+    ///   - seed: Selects the repeatable cell pattern.
     public static func voronoi(
         frequency: Double = 1, displacement: Double = 1, includesDistance: Bool = false, seed: Int32 = 0
     ) -> Noise {
@@ -176,8 +179,10 @@ extension Noise {
     /// Jostles each point by a random amount, roughening edges.
     ///
     /// - Parameters:
+    ///   - frequency: Features per unit in the jostling noise's first octave.
     ///   - power: How far points can move.
     ///   - roughness: Octaves in the jostling noise.
+    ///   - seed: Selects the repeatable jostling pattern.
     public func turbulent(frequency: Double = 1, power: Double = 0.1, roughness: Int = 3, seed: Int32 = 0) -> Noise {
         Noise(.turbulence(node, frequency: frequency, power: power, roughness: max(roughness, 1), seed: seed))
     }

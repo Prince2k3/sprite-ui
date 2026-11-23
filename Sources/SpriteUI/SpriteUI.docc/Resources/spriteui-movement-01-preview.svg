@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="430" viewBox="0 0 640 430">
+  <rect width="640" height="430" rx="24" fill="#102230"/>
+  <rect x="40" y="40" width="560" height="320" rx="12" fill="#07131f" stroke="#38566b"/>
+  <rect x="242.0" y="182.0" width="36" height="36" rx="2" fill="#21d6f1"/><path d="M295 200h100m-14-10 14 10-14 10" fill="none" stroke="#e0edf5" stroke-width="3"/>
+  <text x="320" y="392" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" fill="#e1f1f8">Velocity advances each frame</text>
+  </svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="440" viewBox="0 0 800 440" role="img" aria-labelledby="title desc">
+  <title id="title">Your first SpriteUI scene</title>
+  <desc id="desc">A cyan player and an orange destination sit on opposite sides of the scene origin, inside a rounded dark frame.</desc>
+  <rect width="800" height="440" rx="28" fill="#111c30"/>
+  <rect x="40" y="40" width="720" height="360" rx="20" fill="#182b43" stroke="#45607a" stroke-width="2"/>
+  <path d="M80 240H720M400 95V350" fill="none" stroke="#45607a" stroke-width="2" stroke-dasharray="6 8"/>
+  <path d="M708 233l12 7-12 7M393 107l7-12 7 12" fill="none" stroke="#93adc5" stroke-width="2"/>
+  <rect x="222" y="202" width="76" height="76" rx="4" fill="#48d9ec"/>
+  <rect x="523" y="223" width="34" height="34" rx="3" fill="#ffb45b"/>
+  <circle cx="400" cy="240" r="5" fill="#e0ebf4"/>
+  <g fill="#e0ebf4" font-family="system-ui, sans-serif" font-size="22">
+    <text x="80" y="92" font-size="28" font-weight="600">One retained scene, two entities</text>
+    <text x="221" y="324">Player</text>
+    <text x="487" y="324">Destination</text>
+    <text x="413" y="225" font-size="17">(0, 0)</text>
+    <text x="685" y="274" font-size="17">+x</text>
+    <text x="414" y="116" font-size="17">+y</text>
+  </g>
+</svg>

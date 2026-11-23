@@ -212,7 +212,7 @@ public struct WorldSnapshot: Codable {
         self.entities = entities
     }
 
-    /// Reads a snapshot written by ``jsonData()``.
+    /// Reads a snapshot written by ``WorldSnapshot/jsonData(prettyPrinted:)``.
     public init(data: Data) throws {
         let decoder = JSONDecoder()
         decoder.nonConformingFloatDecodingStrategy = .convertFromString(positiveInfinity: "inf", negativeInfinity: "-inf", nan: "nan")

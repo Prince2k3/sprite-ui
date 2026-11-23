@@ -1,0 +1,135 @@
+# ``SpriteUI``
+
+Build 2D games with entities, reusable gameplay algorithms, a SpriteKit renderer, and a SwiftUI host.
+
+## Overview
+
+SpriteUI gives your game a data model that you can update, inspect, clone, and save. Add components to an ``SpriteUI/Entity``, attach the entity to a ``SpriteUI/World``, and present that world with ``SpriteUI/GameView``. Systems advance game rules each frame; the renderer translates component changes into visuals, physics, and audio.
+
+Start with <doc:getting-started> for a small scene that needs no assets. Then choose a guide by the work you need to do, or follow <doc:spriteui-tutorials> for a guided sequence.
+
+### Choose an entry point
+
+| You want to… | Start here |
+| --- | --- |
+| Install the package and display a scene | <doc:getting-started> |
+| Organize hierarchies, activation, shared state, and events | <doc:entity-and-scene-lifecycle> |
+| Run frame logic and handle targeted gestures | <doc:systems-and-input> |
+| Plan routes and move characters | <doc:gameplay-and-movement> |
+| Load assets and assemble visual content | <doc:rendering-and-resources> |
+| Save progress and inspect a running scene | <doc:saving-and-debugging> |
+
+### Understand the package layers
+
+Use `import SpriteUI` for the complete SDK. The umbrella re-exports the package's five implementation modules, and this archive presents their public APIs together under SpriteUI.
+
+| Layer | Responsibility | Representative APIs |
+| --- | --- | --- |
+| ECSCore | Entities, components, queries, scheduling, events, and snapshots | ``SpriteUI/Entity``, ``SpriteUI/World``, ``SpriteUI/System`` |
+| Gameplay | Value-oriented algorithms independent of a world or renderer | ``SpriteUI/Agent2D``, ``SpriteUI/Graph``, ``SpriteUI/NavigationMesh`` |
+| GameplayECS | Components and systems that connect gameplay algorithms to entities | ``SpriteUI/SteeringComponent``, ``SpriteUI/PathFollowSystem`` |
+| SpriteBackend | Rendering, resources, playback, collision, physics, and diagnostics | ``SpriteUI/SpriteRenderer``, ``SpriteUI/ResourceLibrary`` |
+| GameUI | SwiftUI scene hosting, entity gestures, and attachments | ``SpriteUI/GameView``, ``SpriteUI/GameAttachment`` |
+| SpriteUI | One import for the SDK, plus noise-image and tile-map integration | ``SpriteUI/SpriteImage``, ``SpriteUI/TileMapComponent`` |
+
+Entities, worlds, systems, and scene interaction belong on the main actor. Pure gameplay values can be computed separately where their API permits, then applied to a world on the main actor. Keep app state, per-entity data, and frame simulation in their respective owners; the guides show how those owners meet.
+
+## Topics
+
+### Library guides
+
+- <doc:getting-started>
+- <doc:entity-and-scene-lifecycle>
+- <doc:systems-and-input>
+- <doc:gameplay-and-movement>
+- <doc:rendering-and-resources>
+- <doc:saving-and-debugging>
+
+### Guided tutorials
+
+- <doc:spriteui-tutorials>
+
+### Entities and scene state
+
+- ``SpriteUI/Entity``
+- ``SpriteUI/Component``
+- ``SpriteUI/ComponentSet``
+- ``SpriteUI/World``
+- ``SpriteUI/Transform``
+- ``SpriteUI/AffineTransform2D``
+- ``SpriteUI/EntityQuery``
+- ``SpriteUI/PresentationValues``
+
+### Frame logic and interaction
+
+- ``SpriteUI/System``
+- ``SpriteUI/SystemCollection``
+- ``SpriteUI/SystemDependency``
+- ``SpriteUI/SystemPhase``
+- ``SpriteUI/UpdateContext``
+- ``SpriteUI/EventSubscription``
+- ``SpriteUI/InputTargetComponent``
+- ``SpriteUI/EntityTargetValue``
+
+### Gameplay and movement
+
+- ``SpriteUI/Agent2D``
+- ``SpriteUI/AgentGoal``
+- ``SpriteUI/AgentPath``
+- ``SpriteUI/SteeringComponent``
+- ``SpriteUI/SteeringSystem``
+- ``SpriteUI/PathComponent``
+- ``SpriteUI/PathFollowSystem``
+- ``SpriteUI/SpatialIndexSystem``
+- ``SpriteUI/Graph``
+- ``SpriteUI/GridGraph``
+- ``SpriteUI/NavigationMesh``
+- ``SpriteUI/StateMachine``
+
+### Scene hosting and SwiftUI content
+
+- ``SpriteUI/GameView``
+- ``SpriteUI/GameViewContent``
+- ``SpriteUI/GameAttachment``
+- ``SpriteUI/AttachmentComponent``
+- ``SpriteUI/AttachmentContext``
+
+### Drawing and resource reuse
+
+- ``SpriteUI/SpriteRenderer``
+- ``SpriteUI/SpriteComponent``
+- ``SpriteUI/SpriteMaterial``
+- ``SpriteUI/ShaderResource``
+- ``SpriteUI/TextComponent``
+- ``SpriteUI/ShapeComponent``
+- ``SpriteUI/ResourceLibrary``
+- ``SpriteUI/TextureResource``
+- ``SpriteUI/AnimationResource``
+- ``SpriteUI/AudioResource``
+- ``SpriteUI/PlaybackController``
+- ``SpriteUI/PrefabResource``
+- ``SpriteUI/EntityPool``
+
+### Cameras, effects, and collision
+
+- ``SpriteUI/CameraComponent``
+- ``SpriteUI/TransformConstraintComponent``
+- ``SpriteUI/MaskComponent``
+- ``SpriteUI/RenderGroupComponent``
+- ``SpriteUI/LightComponent``
+- ``SpriteUI/ParticleEmitterComponent``
+- ``SpriteUI/TileMapComponent``
+- ``SpriteUI/CollisionComponent``
+- ``SpriteUI/CharacterControllerComponent``
+- ``SpriteUI/PhysicsBodyComponent``
+- ``SpriteUI/PhysicsJointComponent``
+
+### Persistence and diagnostics
+
+- ``SpriteUI/ComponentRegistry``
+- ``SpriteUI/EntitySnapshot``
+- ``SpriteUI/WorldSnapshot``
+- ``SpriteUI/EntityReferencingComponent``
+- ``SpriteUI/SceneDebugController``
+- ``SpriteUI/SceneDebugOptions``
+- ``SpriteUI/SceneDebugSnapshot``
