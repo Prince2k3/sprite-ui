@@ -7,13 +7,13 @@ import Testing
 private func length(_ v: SIMD2<Float>) -> Float { (v * v).sum().squareRoot() }
 
 /// Runs `steps` frames of `force` at 60 fps.
-private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (SteeringAgent) -> SIMD2<Float>) {
+private func simulate(_ agent: inout Agent2D, steps: Int, force: (Agent2D) -> SIMD2<Float>) {
     for _ in 0..<steps { agent.apply(force(agent), deltaTime: 1 / 60) }
 }
 
-@Suite struct SteeringAgentTests {
+@Suite struct Agent2DTests {
     @Test func applyCapsForceAndSpeed() {
-        var agent = SteeringAgent(maxSpeed: 10, maxForce: 100)
+        var agent = Agent2D(maxSpeed: 10, maxForce: 100)
         agent.apply([1000, 0], deltaTime: 0.05)
         // Force capped at 100 → 5 pt/s after 0.05 s.
         #expect(abs(agent.velocity.x - 5) < 1e-4)
@@ -23,30 +23,30 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
     }
 
     @Test func massSlowsResponse() {
-        var light = SteeringAgent(maxSpeed: 100, maxForce: 50)
-        var heavy = SteeringAgent(maxSpeed: 100, maxForce: 50, mass: 5)
+        var light = Agent2D(maxSpeed: 100, maxForce: 50)
+        var heavy = Agent2D(maxSpeed: 100, maxForce: 50, mass: 5)
         light.apply([50, 0], deltaTime: 0.1)
         heavy.apply([50, 0], deltaTime: 0.1)
         #expect(abs(light.velocity.x - 5 * heavy.velocity.x) < 1e-4)
     }
 
     @Test func standingStillHasNoHeading() {
-        #expect(SteeringAgent(maxSpeed: 1, maxForce: 1).heading == nil)
+        #expect(Agent2D(maxSpeed: 1, maxForce: 1).heading == nil)
     }
 
     @Test func codableRoundTrip() throws {
-        let agent = SteeringAgent(position: [1, 2], velocity: [3, 4], maxSpeed: 5, maxForce: 6, mass: 2, radius: 7)
-        let decoded = try JSONDecoder().decode(SteeringAgent.self, from: JSONEncoder().encode(agent))
+        let agent = Agent2D(position: [1, 2], velocity: [3, 4], maxSpeed: 5, maxForce: 6, mass: 2, radius: 7)
+        let decoded = try JSONDecoder().decode(Agent2D.self, from: JSONEncoder().encode(agent))
         #expect(decoded == agent)
     }
 }
 
-@Suite struct SteeringBehaviorTests {
-    let base = SteeringAgent(maxSpeed: 100, maxForce: 400)
+@Suite struct AgentGoalTests {
+    let base = Agent2D(maxSpeed: 100, maxForce: 400)
 
     @Test func seekReachesTarget() {
         var agent = base
-        simulate(&agent, steps: 120) { Steering.seek($0, toward: [100, 0]) }
+        simulate(&agent, steps: 120) { AgentGoal.seek($0, toward: [100, 0]) }
         // Seek overshoots and orbits, but should have got there.
         #expect(length(agent.position - [100, 0]) < 40)
     }
@@ -54,44 +54,44 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
     @Test func fleeOnlyInsidePanicDistance() {
         var agent = base
         agent.position = [10, 0]
-        #expect(Steering.flee(agent, from: .zero, panicDistance: 5) == .zero)
-        let force = Steering.flee(agent, from: .zero, panicDistance: 50)
+        #expect(AgentGoal.flee(agent, from: .zero, panicDistance: 5) == .zero)
+        let force = AgentGoal.flee(agent, from: .zero, panicDistance: 50)
         #expect(force.x > 0 && abs(force.y) < 1e-4)
         // On top of the threat it still picks a way out.
         agent.position = .zero
-        #expect(Steering.flee(agent, from: .zero) != .zero)
+        #expect(AgentGoal.flee(agent, from: .zero) != .zero)
     }
 
     @Test func arriveStopsOnTarget() {
         var agent = base
-        simulate(&agent, steps: 600) { Steering.arrive($0, at: [200, 50], slowingRadius: $0.brakingDistance * 2) }
+        simulate(&agent, steps: 600) { AgentGoal.arrive($0, at: [200, 50], slowingRadius: $0.brakingDistance * 2) }
         #expect(length(agent.position - [200, 50]) < 1)
         #expect(agent.speed < 1)
     }
 
     @Test func pursueLeadsTheTarget() {
         let agent = base
-        let force = Steering.pursue(agent, target: [100, 0], moving: [0, 100])
+        let force = AgentGoal.pursue(agent, target: [100, 0], moving: [0, 100])
         // Aims ahead of the target, so up as well as right.
         #expect(force.x > 0 && force.y > 0)
-        let away = Steering.evade(agent, threat: [100, 0], moving: [0, 100])
+        let away = AgentGoal.evade(agent, threat: [100, 0], moving: [0, 100])
         #expect(away.x < 0 && away.y < 0)
-        #expect(Steering.evade(agent, threat: [100, 0], moving: .zero, panicDistance: 50) == .zero)
+        #expect(AgentGoal.evade(agent, threat: [100, 0], moving: .zero, panicDistance: 50) == .zero)
     }
 
     @Test func flocking() {
         var agent = base
         agent.velocity = [0, 10]
         let neighbors: [SIMD2<Float>] = [[10, 0], [10, 10]]
-        let apart = Steering.separate(agent, from: neighbors)
+        let apart = AgentGoal.separate(agent, from: neighbors)
         #expect(apart.x < 0)
-        let together = Steering.cohere(agent, with: neighbors)
+        let together = AgentGoal.cohere(agent, with: neighbors)
         #expect(together.x > 0)
-        let aligned = Steering.align(agent, with: [[100, 0], [50, 0]])
+        let aligned = AgentGoal.align(agent, with: [[100, 0], [50, 0]])
         #expect(aligned.x > 0 && aligned.y < 0)
-        #expect(Steering.separate(agent, from: []) == .zero)
-        #expect(Steering.cohere(agent, with: []) == .zero)
-        #expect(Steering.align(agent, with: []) == .zero)
+        #expect(AgentGoal.separate(agent, from: []) == .zero)
+        #expect(AgentGoal.cohere(agent, with: []) == .zero)
+        #expect(AgentGoal.align(agent, with: []) == .zero)
     }
 
     @Test func avoidSwervesAroundObstacle() {
@@ -99,11 +99,11 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
         agent.radius = 5
         agent.velocity = [100, 0]
         let rock = CircleObstacle(center: [60, 3], radius: 20)
-        let force = Steering.avoid(agent, obstacles: [rock])
+        let force = AgentGoal.avoid(agent, obstacles: [rock])
         // Obstacle is slightly left of the line, so swerve right (−y) and brake.
         #expect(force.y < 0 && force.x < 0)
-        #expect(Steering.avoid(agent, obstacles: [CircleObstacle(center: [-60, 0], radius: 20)]) == .zero)
-        #expect(Steering.avoid(agent, obstacles: [CircleObstacle(center: [60, 80], radius: 20)]) == .zero)
+        #expect(AgentGoal.avoid(agent, obstacles: [CircleObstacle(center: [-60, 0], radius: 20)]) == .zero)
+        #expect(AgentGoal.avoid(agent, obstacles: [CircleObstacle(center: [60, 80], radius: 20)]) == .zero)
 
         // Driving straight at it with avoidance never ends up inside.
         var closest = Float.infinity
@@ -111,7 +111,7 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
         agent.radius = 5
         agent.position = [-100, 1]
         for _ in 0..<240 {
-            let force = Steering.seek(agent, toward: [200, 0]) + 3 * Steering.avoid(agent, obstacles: [CircleObstacle(center: .zero, radius: 30)])
+            let force = AgentGoal.seek(agent, toward: [200, 0]) + 3 * AgentGoal.avoid(agent, obstacles: [CircleObstacle(center: .zero, radius: 30)])
             agent.apply(force, deltaTime: 1 / 60)
             closest = min(closest, length(agent.position))
         }
@@ -122,7 +122,7 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
     @Test func overlappingObstaclePushesOut() {
         var agent = base
         agent.position = [5, 0]
-        let force = Steering.avoid(agent, obstacles: [CircleObstacle(center: .zero, radius: 20)])
+        let force = AgentGoal.avoid(agent, obstacles: [CircleObstacle(center: .zero, radius: 20)])
         #expect(force.x > 0)
     }
 
@@ -131,13 +131,13 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
         let box = BoundingBox(center: .zero, size: [200, 200])
         agent.position = [95, 0]
         agent.velocity = [50, 0]
-        #expect(Steering.stay(agent, within: box, margin: 10).x < 0)
+        #expect(AgentGoal.stay(agent, within: box, margin: 10).x < 0)
         agent.position = .zero
-        #expect(Steering.stay(agent, within: box, margin: 10) == .zero)
+        #expect(AgentGoal.stay(agent, within: box, margin: 10) == .zero)
     }
 
     @Test func wanderIsDeterministicAndBounded() {
-        func run() -> SteeringAgent {
+        func run() -> Agent2D {
             var agent = base
             agent.velocity = [50, 0]
             var wander = Wander()
@@ -152,8 +152,8 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
     }
 }
 
-@Suite struct SteeringPathTests {
-    let square = SteeringPath(points: [[0, 0], [100, 0], [100, 100], [0, 100]], radius: 5, isClosed: true)
+@Suite struct AgentPathTests {
+    let square = AgentPath(points: [[0, 0], [100, 0], [100, 100], [0, 100]], radius: 5, isClosed: true)
 
     @Test func measuresAlongThePath() {
         #expect(square.length == 400)
@@ -162,19 +162,19 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
         #expect(square.point(atDistance: -50) == [0, 50])
         #expect(square.distance(closestTo: [110, 30]) == 130)
 
-        let open = SteeringPath(points: [[0, 0], [10, 0]])
+        let open = AgentPath(points: [[0, 0], [10, 0]])
         #expect(open.length == 10)
         #expect(open.point(atDistance: 99) == [10, 0])
-        #expect(SteeringPath(points: [[3, 3]]).point(atDistance: 5) == [3, 3])
+        #expect(AgentPath(points: [[3, 3]]).point(atDistance: 5) == [3, 3])
     }
 
     @Test func followStaysNearAClosedPath() {
-        var agent = SteeringAgent(position: [0, 0], maxSpeed: 80, maxForce: 400)
+        var agent = Agent2D(position: [0, 0], maxSpeed: 80, maxForce: 400)
         var worst: Float = 0
         var travelled: Float = 0
         for step in 0..<600 {
             let before = agent.position
-            agent.apply(Steering.follow(agent, path: square), deltaTime: 1 / 60)
+            agent.apply(AgentGoal.follow(agent, path: square), deltaTime: 1 / 60)
             travelled += length(agent.position - before)
             if step > 60 {
                 let along = square.distance(closestTo: agent.position)
@@ -186,19 +186,19 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
     }
 
     @Test func followStopsAtEndOfOpenPath() {
-        let path = SteeringPath(points: [[0, 0], [100, 0], [100, 100]])
-        var agent = SteeringAgent(maxSpeed: 80, maxForce: 300)
-        simulate(&agent, steps: 900) { Steering.follow($0, path: path) }
+        let path = AgentPath(points: [[0, 0], [100, 0], [100, 100]])
+        var agent = Agent2D(maxSpeed: 80, maxForce: 300)
+        simulate(&agent, steps: 900) { AgentGoal.follow($0, path: path) }
         #expect(length(agent.position - [100, 100]) < 2)
         #expect(agent.speed < 2)
     }
 
     @Test func codableRoundTrip() throws {
-        let decoded = try JSONDecoder().decode(SteeringPath.self, from: JSONEncoder().encode(square))
+        let decoded = try JSONDecoder().decode(AgentPath.self, from: JSONEncoder().encode(square))
         #expect(decoded == square)
         #expect(decoded.length == 400)
         #expect(throws: DecodingError.self) {
-            try JSONDecoder().decode(SteeringPath.self, from: Data(#"{"points":[],"radius":1,"isClosed":false}"#.utf8))
+            try JSONDecoder().decode(AgentPath.self, from: Data(#"{"points":[],"radius":1,"isClosed":false}"#.utf8))
         }
     }
 }
@@ -307,7 +307,7 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
         let component = SteeringComponent(maxSpeed: 1, maxForce: 2, goals: [
             SteeringGoal(.flee(.entity(7), panicDistance: 40), weight: 2),
             SteeringGoal(.stayWithin(BoundingBox(center: .zero, size: [10, 10]), margin: 1)),
-            SteeringGoal(.follow(SteeringPath(points: [[0, 0], [1, 1]]))),
+            SteeringGoal(.follow(AgentPath(points: [[0, 0], [1, 1]]))),
             SteeringGoal(.cohere(radius: 5, categories: .default)),
         ])
         let decoded = try JSONDecoder().decode(SteeringComponent.self, from: JSONEncoder().encode(component))
@@ -315,48 +315,48 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
     }
 }
 
-@Suite struct SteeringAdditionsTests {
+@Suite struct AgentGoalAdditionsTests {
     @Test func reachSpeedSpeedsUpAndSlowsDownWithoutTurning() {
-        var agent = SteeringAgent(velocity: [0, 10], maxSpeed: 100, maxForce: 200)
-        simulate(&agent, steps: 240) { Steering.reachSpeed($0, 60) }
+        var agent = Agent2D(velocity: [0, 10], maxSpeed: 100, maxForce: 200)
+        simulate(&agent, steps: 240) { AgentGoal.reachSpeed($0, 60) }
         #expect(abs(agent.speed - 60) < 0.5)
         #expect(abs(agent.velocity.x) < 1e-3)
 
-        simulate(&agent, steps: 240) { Steering.reachSpeed($0, 20) }
+        simulate(&agent, steps: 240) { AgentGoal.reachSpeed($0, 20) }
         #expect(abs(agent.speed - 20) < 0.5)
         #expect(agent.velocity.y > 0)
 
         // Asking for more than the top speed settles at the top speed.
-        simulate(&agent, steps: 240) { Steering.reachSpeed($0, 500) }
+        simulate(&agent, steps: 240) { AgentGoal.reachSpeed($0, 500) }
         #expect(abs(agent.speed - 100) < 0.5)
     }
 
     @Test func reachSpeedSetsOffAlongXFromRest() {
-        var agent = SteeringAgent(maxSpeed: 50, maxForce: 100)
-        simulate(&agent, steps: 120) { Steering.reachSpeed($0, 30) }
+        var agent = Agent2D(maxSpeed: 50, maxForce: 100)
+        simulate(&agent, steps: 120) { AgentGoal.reachSpeed($0, 30) }
         #expect(agent.velocity.x > 25 && abs(agent.velocity.y) < 1e-3)
     }
 
     @Test func stayOnPathOnlyPushesWhenLeaving() {
-        let path = SteeringPath(points: [[-200, 0], [200, 0]], radius: 10)
+        let path = AgentPath(points: [[-200, 0], [200, 0]], radius: 10)
         // Moving along the path: nothing to correct.
-        let along = SteeringAgent(position: [0, 0], velocity: [50, 0], maxSpeed: 100, maxForce: 200)
-        #expect(Steering.stay(along, on: path) == .zero)
+        let along = Agent2D(position: [0, 0], velocity: [50, 0], maxSpeed: 100, maxForce: 200)
+        #expect(AgentGoal.stay(along, on: path) == .zero)
 
         // Drifting off sideways: pushed back toward the line.
-        let drifting = SteeringAgent(position: [0, 5], velocity: [0, 60], maxSpeed: 100, maxForce: 200)
-        #expect(Steering.stay(drifting, on: path).y < 0)
+        let drifting = Agent2D(position: [0, 5], velocity: [0, 60], maxSpeed: 100, maxForce: 200)
+        #expect(AgentGoal.stay(drifting, on: path).y < 0)
     }
 
     @Test func stayOnPathKeepsAWandererClose() {
-        let path = SteeringPath(points: [[-300, 0], [300, 0]], radius: 15)
-        var agent = SteeringAgent(velocity: [40, 30], maxSpeed: 60, maxForce: 150)
+        let path = AgentPath(points: [[-300, 0], [300, 0]], radius: 15)
+        var agent = Agent2D(velocity: [40, 30], maxSpeed: 60, maxForce: 150)
         var wander = Wander(rate: 6)
         var random = SeededGenerator(seed: 4)
         var worst: Float = 0
         for _ in 0..<600 {
             let force = wander.force(for: agent, deltaTime: 1 / 60, using: &random) * 0.5
-                + Steering.stay(agent, on: path, lookAhead: 0.5) * 3
+                + AgentGoal.stay(agent, on: path, lookAhead: 0.5) * 3
             agent.apply(force, deltaTime: 1 / 60)
             worst = max(worst, abs(agent.position.y))
         }
@@ -439,7 +439,7 @@ private func simulate(_ agent: inout SteeringAgent, steps: Int, force: (Steering
         let component = SteeringComponent(maxSpeed: 1, maxForce: 2, goals: [
             .group("flock", weight: 0.5, isEnabled: false, [
                 SteeringGoal(.reachSpeed(3), name: "cruise"),
-                SteeringGoal(.stayOn(SteeringPath(points: [[0, 0], [5, 0]], radius: 2), lookAhead: 1)),
+                SteeringGoal(.stayOn(AgentPath(points: [[0, 0], [5, 0]], radius: 2), lookAhead: 1)),
             ]),
         ])
         let decoded = try JSONDecoder().decode(SteeringComponent.self, from: JSONEncoder().encode(component))

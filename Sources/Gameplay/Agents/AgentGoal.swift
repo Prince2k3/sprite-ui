@@ -1,22 +1,21 @@
 import Foundation
 
-
 /// Steering behaviors, in place of `GKGoal`.
 ///
 /// Each function returns the force that moves an agent toward what it wants. Forces
 /// add, so weight and sum several, then pass the total to
-/// ``SteeringAgent/apply(_:deltaTime:)``, which caps it at the agent's `maxForce`.
-public enum Steering {
+/// ``Agent2D/apply(_:deltaTime:)``, which caps it at the agent's `maxForce`.
+public enum AgentGoal {
     // MARK: Targets
 
     /// Head straight for `target` at full speed.
-    public static func seek(_ agent: SteeringAgent, toward target: SIMD2<Float>) -> SIMD2<Float> {
+    public static func seek(_ agent: Agent2D, toward target: SIMD2<Float>) -> SIMD2<Float> {
         steer(agent, toward: resized(target - agent.position, to: agent.maxSpeed))
     }
 
     /// Run directly away from `threat` while it's within `panicDistance`.
     public static func flee(
-        _ agent: SteeringAgent,
+        _ agent: Agent2D,
         from threat: SIMD2<Float>,
         panicDistance: Float = .infinity
     ) -> SIMD2<Float> {
@@ -29,9 +28,9 @@ public enum Steering {
 
     /// Head for `target`, slowing down inside `slowingRadius` to stop on it.
     ///
-    /// ``SteeringAgent/brakingDistance`` is a good `slowingRadius`.
+    /// ``Agent2D/brakingDistance`` is a good `slowingRadius`.
     public static func arrive(
-        _ agent: SteeringAgent,
+        _ agent: Agent2D,
         at target: SIMD2<Float>,
         slowingRadius: Float
     ) -> SIMD2<Float> {
@@ -44,14 +43,14 @@ public enum Steering {
 
     /// Speed up or slow down to `speed` without turning, in place of
     /// `GKGoal(toReachTargetSpeed:)`. An agent standing still sets off along +x.
-    public static func reachSpeed(_ agent: SteeringAgent, _ speed: Float) -> SIMD2<Float> {
+    public static func reachSpeed(_ agent: Agent2D, _ speed: Float) -> SIMD2<Float> {
         let target = max(0, min(speed, agent.maxSpeed))
         return steer(agent, toward: (agent.heading ?? [1, 0]) * target)
     }
 
     /// Head for where a moving target is going to be.
     public static func pursue(
-        _ agent: SteeringAgent,
+        _ agent: Agent2D,
         target position: SIMD2<Float>,
         moving velocity: SIMD2<Float>
     ) -> SIMD2<Float> {
@@ -60,7 +59,7 @@ public enum Steering {
 
     /// Run from where a moving threat is going to be.
     public static func evade(
-        _ agent: SteeringAgent,
+        _ agent: Agent2D,
         threat position: SIMD2<Float>,
         moving velocity: SIMD2<Float>,
         panicDistance: Float = .infinity
@@ -71,7 +70,7 @@ public enum Steering {
     }
 
     /// Roughly how long until the agent could reach a moving point.
-    private static func leadTime(_ agent: SteeringAgent, _ position: SIMD2<Float>, _ velocity: SIMD2<Float>) -> Float {
+    private static func leadTime(_ agent: Agent2D, _ position: SIMD2<Float>, _ velocity: SIMD2<Float>) -> Float {
         let closingSpeed = agent.maxSpeed + magnitude(velocity)
         return closingSpeed > 0 ? magnitude(position - agent.position) / closingSpeed : 0
     }
@@ -79,7 +78,7 @@ public enum Steering {
     /// The force that changes the agent's velocity to `desired`. Scaled so a full
     /// reversal at top speed uses twice `maxForce`, which makes the agent respond in
     /// about `maxSpeed / maxForce` seconds whatever units it moves in.
-    public static func steer(_ agent: SteeringAgent, toward desired: SIMD2<Float>) -> SIMD2<Float> {
+    public static func steer(_ agent: Agent2D, toward desired: SIMD2<Float>) -> SIMD2<Float> {
         guard agent.maxSpeed > 0 else { return .zero }
         return (desired - agent.velocity) * (agent.maxForce * agent.mass / agent.maxSpeed)
     }
@@ -87,7 +86,7 @@ public enum Steering {
     // MARK: Groups
 
     /// Move away from neighbors, pushing harder the closer they are.
-    public static func separate(_ agent: SteeringAgent, from neighbors: some Sequence<SIMD2<Float>>) -> SIMD2<Float> {
+    public static func separate(_ agent: Agent2D, from neighbors: some Sequence<SIMD2<Float>>) -> SIMD2<Float> {
         var push = SIMD2<Float>.zero
         for neighbor in neighbors {
             let away = agent.position - neighbor
@@ -98,14 +97,14 @@ public enum Steering {
     }
 
     /// Match the neighbors' average direction.
-    public static func align(_ agent: SteeringAgent, with velocities: some Sequence<SIMD2<Float>>) -> SIMD2<Float> {
+    public static func align(_ agent: Agent2D, with velocities: some Sequence<SIMD2<Float>>) -> SIMD2<Float> {
         var total = SIMD2<Float>.zero
         for velocity in velocities { total += resized(velocity, to: 1) }
         return total == .zero ? .zero : steer(agent, toward: resized(total, to: agent.maxSpeed))
     }
 
     /// Move toward the neighbors' center.
-    public static func cohere(_ agent: SteeringAgent, with neighbors: some Sequence<SIMD2<Float>>) -> SIMD2<Float> {
+    public static func cohere(_ agent: Agent2D, with neighbors: some Sequence<SIMD2<Float>>) -> SIMD2<Float> {
         var total = SIMD2<Float>.zero
         var count: Float = 0
         for neighbor in neighbors {
@@ -120,7 +119,7 @@ public enum Steering {
     /// Swerve around obstacles in the agent's way, looking `lookAhead` seconds ahead.
     /// An agent already overlapping an obstacle is pushed straight out.
     public static func avoid(
-        _ agent: SteeringAgent,
+        _ agent: Agent2D,
         obstacles: some Sequence<CircleObstacle>,
         lookAhead: Float = 1
     ) -> SIMD2<Float> {
@@ -159,7 +158,7 @@ public enum Steering {
     /// turns away from the nearest point on the wall, harder the deeper it would
     /// go. An agent already overlapping a wall is pushed straight out.
     public static func avoid(
-        _ agent: SteeringAgent,
+        _ agent: Agent2D,
         polygons: some Sequence<PolygonObstacle>,
         lookAhead: Float = 0.5
     ) -> SIMD2<Float> {
@@ -187,7 +186,7 @@ public enum Steering {
     }
 
     /// Turn back toward the inside when within `margin` of the edge of `bounds`.
-    public static func stay(_ agent: SteeringAgent, within bounds: BoundingBox, margin: Float = 0) -> SIMD2<Float> {
+    public static func stay(_ agent: Agent2D, within bounds: BoundingBox, margin: Float = 0) -> SIMD2<Float> {
         var desired = agent.velocity
         var turning = false
         for axis in 0..<2 {
@@ -205,7 +204,7 @@ public enum Steering {
     /// Travel along `path`, aiming just past the point on it nearest to where the
     /// agent will be in `lookAhead` seconds. Longer look-aheads cut corners more. An
     /// open path ends with the agent stopping on its last point.
-    public static func follow(_ agent: SteeringAgent, path: SteeringPath, lookAhead: Float = 0.5) -> SIMD2<Float> {
+    public static func follow(_ agent: Agent2D, path: AgentPath, lookAhead: Float = 0.5) -> SIMD2<Float> {
         let along = path.distance(closestTo: agent.predictedPosition(after: lookAhead))
         let ahead = max(path.radius, 1)
         if !path.isClosed, along + ahead >= path.length {
@@ -218,7 +217,7 @@ public enum Steering {
     /// `GKGoal(toStayOn:maxPredictionTime:)`. Nothing happens while the agent, and
     /// where it will be in `lookAhead` seconds, are both on the path; otherwise it
     /// turns back toward the nearest point on it. Pair it with goals that move the agent.
-    public static func stay(_ agent: SteeringAgent, on path: SteeringPath, lookAhead: Float = 0.5) -> SIMD2<Float> {
+    public static func stay(_ agent: Agent2D, on path: AgentPath, lookAhead: Float = 0.5) -> SIMD2<Float> {
         guard !path.points.isEmpty else { return .zero }
         let probe = agent.predictedPosition(after: lookAhead)
         let nearest = path.point(atDistance: path.distance(closestTo: probe))
@@ -250,7 +249,7 @@ public struct Wander: Hashable, Codable, Sendable {
 
     /// Nudges the target around the circle and steers toward it.
     public mutating func force(
-        for agent: SteeringAgent,
+        for agent: Agent2D,
         deltaTime: Float,
         using generator: inout some RandomNumberGenerator
     ) -> SIMD2<Float> {
@@ -260,6 +259,6 @@ public struct Wander: Hashable, Codable, Sendable {
         let heading = agent.heading ?? [1, 0]
         let facing = atan2(heading.y, heading.x) + angle
         let target = agent.position + heading * distance + SIMD2(cos(facing), sin(facing)) * radius
-        return Steering.seek(agent, toward: target)
+        return AgentGoal.seek(agent, toward: target)
     }
 }

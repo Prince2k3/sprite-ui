@@ -261,7 +261,7 @@ final class SteeringScene {
     }
 
     /// A rounded loop inside the view.
-    private func loop(radius: Float) -> SteeringPath {
+    private func loop(radius: Float) -> AgentPath {
         let half = (bounds.size / 2) - [50, 70]
         let points = (0..<48).map { i -> SIMD2<Float> in
             let angle = Float(i) / 48 * 2 * .pi
@@ -270,7 +270,7 @@ final class SteeringScene {
             let x = copysign(pow(abs(c), 0.5), c), y = copysign(pow(abs(s), 0.5), s)
             return [x * half.x, y * half.y]
         }
-        return SteeringPath(points: points, radius: radius, isClosed: true)
+        return AgentPath(points: points, radius: radius, isClosed: true)
     }
 
     private func drawPath() {

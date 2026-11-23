@@ -233,7 +233,7 @@ final class ObstacleScene {
         let size = planner == .graph ? "\(graph.nodes.count) nodes" : "\(mesh.triangles.count) triangles"
         summary = "\(max(route.count - 2, 0)) corners · \(Int(length)) pt · \(size)"
         setGoals([
-            .init(.follow(SteeringPath(points: route, radius: 4), lookAhead: 0.25)),
+            .init(.follow(AgentPath(points: route, radius: 4), lookAhead: 0.25)),
             .init(.avoidObstacles(lookAhead: 0.4), weight: 1.5),
         ])
         redraw()

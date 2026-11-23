@@ -35,10 +35,10 @@ public enum SteeringBehavior: Hashable, Codable, Sendable {
     /// Turn back inside a scene-space box when within `margin` of its edge.
     case stayWithin(BoundingBox, margin: Float = 0)
     /// Travel along a path.
-    case follow(SteeringPath, lookAhead: Float = 0.5)
+    case follow(AgentPath, lookAhead: Float = 0.5)
     /// Keep within a path's radius, turning back when about to leave it. It doesn't
     /// move the entity along; pair it with `wander`, `reachSpeed` or a target.
-    case stayOn(SteeringPath, lookAhead: Float = 0.5)
+    case stayOn(AgentPath, lookAhead: Float = 0.5)
     /// Speed up or slow down to this many points per second, keeping the heading.
     case reachSpeed(Float)
     /// Several goals acting as one, in place of `GKCompositeBehavior`. Their
@@ -193,8 +193,8 @@ public struct SteeringComponent: Component, Hashable, Codable, Sendable {
     }
 
     /// The pure agent this component describes, standing at `position`.
-    public func agent(at position: SIMD2<Float>) -> SteeringAgent {
-        SteeringAgent(
+    public func agent(at position: SIMD2<Float>) -> Agent2D {
+        Agent2D(
             position: position, velocity: velocity,
             maxSpeed: maxSpeed, maxForce: maxForce, mass: mass, radius: radius
         )
@@ -231,8 +231,8 @@ public struct SteeringSystem: System {
         guard dt > 0 else { return }
 
         // Snapshot first, so every force sees the same moment.
-        var members: [(entity: Entity, steering: SteeringComponent, agent: SteeringAgent)] = []
-        var snapshot: [Entity.ID: SteeringAgent] = [:]
+        var members: [(entity: Entity, steering: SteeringComponent, agent: Agent2D)] = []
+        var snapshot: [Entity.ID: Agent2D] = [:]
         for entity in context.entities(matching: Self.steered) {
             guard let steering = entity.components[SteeringComponent.self] else { continue }
             let agent = steering.agent(at: entity.scenePosition)
@@ -273,17 +273,17 @@ public struct SteeringSystem: System {
             return world.entity(withID: id).flatMap { $0.isActive ? ($0.scenePosition, .zero) : nil }
         }
 
-        func neighbors(of entity: Entity, _ agent: SteeringAgent, radius: Float, _ categories: SpatialCategories) -> [SteeringAgent] {
+        func neighbors(of entity: Entity, _ agent: Agent2D, radius: Float, _ categories: SpatialCategories) -> [Agent2D] {
             world.entities(within: radius, of: agent.position, matching: categories).compactMap { other in
                 other === entity ? nil : snapshot[other.id]
             }
         }
 
         var random = world.random
-        var results: [(Entity, SteeringComponent, SteeringAgent)] = []
+        var results: [(Entity, SteeringComponent, Agent2D)] = []
         results.reserveCapacity(members.count)
 
-        func totalForce(of goals: inout [SteeringGoal], _ entity: Entity, _ start: SteeringAgent) -> SIMD2<Float> {
+        func totalForce(of goals: inout [SteeringGoal], _ entity: Entity, _ start: Agent2D) -> SIMD2<Float> {
             var total = SIMD2<Float>.zero
             for index in goals.indices {
                 let goal = goals[index]
@@ -291,39 +291,39 @@ public struct SteeringSystem: System {
                 let force: SIMD2<Float>
                 switch goal.behavior {
                 case .seek(let target):
-                    force = position(of: target).map { Steering.seek(start, toward: $0) } ?? .zero
+                    force = position(of: target).map { AgentGoal.seek(start, toward: $0) } ?? .zero
                 case .flee(let target, let panic):
-                    force = position(of: target).map { Steering.flee(start, from: $0, panicDistance: panic) } ?? .zero
+                    force = position(of: target).map { AgentGoal.flee(start, from: $0, panicDistance: panic) } ?? .zero
                 case .arrive(let target, let slowing):
                     force = position(of: target).map {
-                        Steering.arrive(start, at: $0, slowingRadius: slowing ?? start.brakingDistance)
+                        AgentGoal.arrive(start, at: $0, slowingRadius: slowing ?? start.brakingDistance)
                     } ?? .zero
                 case .pursue(let id):
-                    force = motion(of: id).map { Steering.pursue(start, target: $0.0, moving: $0.1) } ?? .zero
+                    force = motion(of: id).map { AgentGoal.pursue(start, target: $0.0, moving: $0.1) } ?? .zero
                 case .evade(let id, let panic):
                     force = motion(of: id).map {
-                        Steering.evade(start, threat: $0.0, moving: $0.1, panicDistance: panic)
+                        AgentGoal.evade(start, threat: $0.0, moving: $0.1, panicDistance: panic)
                     } ?? .zero
                 case .wander(var wander):
                     force = wander.force(for: start, deltaTime: dt, using: &random)
                     goals[index].behavior = .wander(wander)
                 case .separate(let radius, let categories):
-                    force = Steering.separate(start, from: neighbors(of: entity, start, radius: radius, categories).map(\.position))
+                    force = AgentGoal.separate(start, from: neighbors(of: entity, start, radius: radius, categories).map(\.position))
                 case .align(let radius, let categories):
-                    force = Steering.align(start, with: neighbors(of: entity, start, radius: radius, categories).map(\.velocity))
+                    force = AgentGoal.align(start, with: neighbors(of: entity, start, radius: radius, categories).map(\.velocity))
                 case .cohere(let radius, let categories):
-                    force = Steering.cohere(start, with: neighbors(of: entity, start, radius: radius, categories).map(\.position))
+                    force = AgentGoal.cohere(start, with: neighbors(of: entity, start, radius: radius, categories).map(\.position))
                 case .avoidObstacles(let lookAhead):
-                    force = Steering.avoid(start, obstacles: allObstacles(), lookAhead: lookAhead)
-                        + Steering.avoid(start, polygons: allPolygons(), lookAhead: min(lookAhead, 0.5))
+                    force = AgentGoal.avoid(start, obstacles: allObstacles(), lookAhead: lookAhead)
+                        + AgentGoal.avoid(start, polygons: allPolygons(), lookAhead: min(lookAhead, 0.5))
                 case .stayWithin(let bounds, let margin):
-                    force = Steering.stay(start, within: bounds, margin: margin)
+                    force = AgentGoal.stay(start, within: bounds, margin: margin)
                 case .follow(let path, let lookAhead):
-                    force = Steering.follow(start, path: path, lookAhead: lookAhead)
+                    force = AgentGoal.follow(start, path: path, lookAhead: lookAhead)
                 case .stayOn(let path, let lookAhead):
-                    force = Steering.stay(start, on: path, lookAhead: lookAhead)
+                    force = AgentGoal.stay(start, on: path, lookAhead: lookAhead)
                 case .reachSpeed(let speed):
-                    force = Steering.reachSpeed(start, speed)
+                    force = AgentGoal.reachSpeed(start, speed)
                 case .group(var inner):
                     force = totalForce(of: &inner, entity, start)
                     // Keep nested wander state.

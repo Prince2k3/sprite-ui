@@ -1,14 +1,14 @@
 /// Something that moves by steering, in place of `GKAgent2D`.
 ///
-/// Steering functions such as ``Steering/seek(_:toward:)`` return a force; add up
+/// Goal functions such as ``AgentGoal/seek(_:toward:)`` return a force; add up
 /// the ones you want, weighted, and pass the total to ``apply(_:deltaTime:)``:
 ///
 /// ```swift
-/// var agent = SteeringAgent(position: .zero, maxSpeed: 120, maxForce: 300)
-/// let force = Steering.seek(agent, toward: goal) + 2 * Steering.avoid(agent, obstacles: rocks)
+/// var agent = Agent2D(position: .zero, maxSpeed: 120, maxForce: 300)
+/// let force = AgentGoal.seek(agent, toward: goal) + 2 * AgentGoal.avoid(agent, obstacles: rocks)
 /// agent.apply(force, deltaTime: 1 / 60)
 /// ```
-public struct SteeringAgent: Hashable, Codable, Sendable {
+public struct Agent2D: Hashable, Codable, Sendable {
     public var position: SIMD2<Float>
     public var velocity: SIMD2<Float>
     /// Points per second the agent never goes faster than.

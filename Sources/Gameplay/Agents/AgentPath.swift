@@ -1,8 +1,8 @@
 /// A line of points for agents to follow, in place of `GKPath`.
 ///
 /// Measure along it with ``distance(closestTo:)`` and ``point(atDistance:)``, or
-/// hand it to ``Steering/follow(_:path:lookAhead:)``.
-public struct SteeringPath: Hashable, Sendable {
+/// hand it to ``AgentGoal/follow(_:path:lookAhead:)``.
+public struct AgentPath: Hashable, Sendable {
     public let points: [SIMD2<Float>]
     /// How far from the line an agent may drift.
     public let radius: Float
@@ -73,7 +73,7 @@ public struct SteeringPath: Hashable, Sendable {
     }
 }
 
-extension SteeringPath: Codable {
+extension AgentPath: Codable {
     private enum CodingKeys: String, CodingKey { case points, radius, isClosed }
 
     public init(from decoder: any Decoder) throws {

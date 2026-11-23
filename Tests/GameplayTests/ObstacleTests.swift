@@ -247,30 +247,30 @@ private func keepsClear(_ path: [SIMD2<Float>], of obstacles: [PolygonObstacle],
 @Suite struct PolygonAvoidanceTests {
     @Test func turnsAwayFromAWallAhead() {
         let wall = box(-50, 30, 50, 40)
-        let agent = SteeringAgent(position: [0, 0], velocity: [0, 60], maxSpeed: 60, maxForce: 100, radius: 10)
-        let force = Steering.avoid(agent, polygons: [wall], lookAhead: 0.5)
+        let agent = Agent2D(position: [0, 0], velocity: [0, 60], maxSpeed: 60, maxForce: 100, radius: 10)
+        let force = AgentGoal.avoid(agent, polygons: [wall], lookAhead: 0.5)
         #expect(force.y < 0, "pushes back from the wall")
     }
 
     @Test func ignoresWallsItIsNotHeadingFor() {
         let wall = box(-50, 30, 50, 40)
-        let agent = SteeringAgent(position: [0, 0], velocity: [0, -60], maxSpeed: 60, maxForce: 100, radius: 10)
-        #expect(Steering.avoid(agent, polygons: [wall], lookAhead: 0.5) == .zero)
+        let agent = Agent2D(position: [0, 0], velocity: [0, -60], maxSpeed: 60, maxForce: 100, radius: 10)
+        #expect(AgentGoal.avoid(agent, polygons: [wall], lookAhead: 0.5) == .zero)
     }
 
     @Test func pushesAnOverlappingAgentOut() {
         let wall = box(-50, 0, 50, 10)
-        let agent = SteeringAgent(position: [0, 14], velocity: .zero, maxSpeed: 60, maxForce: 100, radius: 10)
-        let force = Steering.avoid(agent, polygons: [wall])
+        let agent = Agent2D(position: [0, 14], velocity: .zero, maxSpeed: 60, maxForce: 100, radius: 10)
+        let force = AgentGoal.avoid(agent, polygons: [wall])
         #expect(force.y > 0 && abs(force.x) < 1e-3)
     }
 
     @Test func neverDrivesIntoAWall() {
         // Head straight at a wall with avoidance only; the agent must stop short of it.
         let wall = box(-100, 50, 100, 60)
-        var agent = SteeringAgent(position: [0, 0], velocity: [0, 80], maxSpeed: 80, maxForce: 200, radius: 8)
+        var agent = Agent2D(position: [0, 0], velocity: [0, 80], maxSpeed: 80, maxForce: 200, radius: 8)
         for _ in 0..<240 {
-            agent.apply(Steering.avoid(agent, polygons: [wall]), deltaTime: 1 / 60)
+            agent.apply(AgentGoal.avoid(agent, polygons: [wall]), deltaTime: 1 / 60)
             #expect(wall.distance(to: agent.position) > 0)
         }
     }
