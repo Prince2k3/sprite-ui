@@ -16,6 +16,8 @@ extension SpriteRenderer {
     /// sounds point at files in an app bundle that may have moved.
     public nonisolated static func registerComponents() {
         SpriteComponent.registerComponent()
+        TextComponent.registerComponent()
+        ShapeComponent.registerComponent()
         LightComponent.registerComponent()
         RenderGroupComponent.registerComponent()
         PhysicsBodyComponent.registerComponent()

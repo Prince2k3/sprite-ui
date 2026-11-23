@@ -106,6 +106,8 @@ public final class SpriteRenderer: SKScene {
         Self.registerComponents()
         register(Transform.self, Self.transformBinding)
         register(SpriteComponent.self, Self.spriteBinding)
+        register(TextComponent.self, Self.textBinding)
+        register(ShapeComponent.self, Self.shapeBinding)
         register(LightComponent.self, Self.lightBinding)
         register(RenderGroupComponent.self, Self.renderGroupBinding)
         register(PhysicsBodyComponent.self, Self.physicsBinding)
@@ -298,20 +300,22 @@ public final class SpriteRenderer: SKScene {
 
     private static let animationKeys: [AnimationChannel: String] = [
         .position: "transform.position", .rotation: "transform.rotation",
-        .scale: "transform.scale", .opacity: "sprite.opacity"
+        .scale: "transform.scale"
     ]
     func isAnimationControlled(_ key: String, entityID: Entity.ID) -> Bool {
-        guard let channel = Self.animationKeys.first(where: { $0.value == key })?.key else { return false }
+        let opacity = VisualOpacityTarget.allCases.first { $0.key == key }
+        guard let channel = opacity == nil ? Self.animationKeys.first(where: { $0.value == key })?.key : .opacity else { return false }
         return world.entity(withID: entityID)?.components[PlaybackStorage.self]?.controllers.contains {
             guard let animation = $0 as? AnimationPlaybackController else { return false }
             return !animation.isTerminal && animation.resource.channels.contains(channel)
+                && (opacity == nil || animation.baseline.opacityTarget == opacity)
         } ?? false
     }
-    func cancelAnimationActions(_ channels: Set<AnimationChannel>, for entity: Entity) {
+    func cancelAnimationActions(_ channels: Set<AnimationChannel>, for entity: Entity, opacityTarget: VisualOpacityTarget?) {
         guard let node = node(for: entity) else { return }
         for channel in channels {
-            guard let key = Self.animationKeys[channel] else { continue }
-            let target = channel == .opacity ? node.childNode(withName: Self.spriteNodeName) : node
+            guard let key = channel == .opacity ? opacityTarget?.key : Self.animationKeys[channel] else { continue }
+            let target = channel == .opacity ? opacityTarget.flatMap { node.childNode(withName: $0.nodeName) } : node
             if let target { cancelAction(key, entityID: entity.id, node: target) }
         }
     }

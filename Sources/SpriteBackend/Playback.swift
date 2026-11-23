@@ -13,6 +13,8 @@ public enum PlaybackStopReason: Sendable { case user, replaced, removed }
 public enum PlaybackError: Error, Equatable, Sendable {
     case invalidOptions
     case invalidSeek, terminalController, missingSprite, dynamicPhysicsBody, invalidAnimationValue
+    /// A fade needs a sprite, text or shape; its selected component was absent or removed.
+    case missingVisual
     /// A single advance would emit over 4,096 markers; seek instead of simulating that gap.
     case markerEventLimitExceeded
     case audioUnavailable
@@ -207,14 +209,21 @@ public final class AnimationPlaybackController: PlaybackController {
         for track in resolvedTracks where currentTime >= track.start { values[track.channel] = try track.value(at: currentTime) }
         var transform = entity.transform
         var sprite = entity.components[SpriteComponent.self]
+        var text = entity.components[TextComponent.self]
+        var shape = entity.components[ShapeComponent.self]
         for (channel, value) in values {
             switch (channel, value) {
             case (.position, .vector(let v)): transform.translation = v
             case (.rotation, .scalar(let v)): transform.rotation = v
             case (.scale, .vector(let v)): transform.scale = v
             case (.opacity, .scalar(let v)):
-                guard sprite != nil else { throw PlaybackError.missingSprite }
-                sprite?.opacity = min(1, max(0, v))
+                let opacity = min(1, max(0, v))
+                switch baseline.opacityTarget {
+                case .sprite: guard sprite != nil else { throw PlaybackError.missingVisual }; sprite?.opacity = opacity
+                case .text: guard text != nil else { throw PlaybackError.missingVisual }; text?.opacity = opacity
+                case .shape: guard shape != nil else { throw PlaybackError.missingVisual }; shape?.opacity = opacity
+                case nil: throw PlaybackError.missingVisual
+                }
             case (.texture, .texture(let texture)):
                 guard sprite != nil else { throw PlaybackError.missingSprite }
                 sprite?.texture = texture
@@ -227,6 +236,8 @@ public final class AnimationPlaybackController: PlaybackController {
         ActionTransaction.perform(nil, completion: nil) {
             if transform != entity.transform { entity.transform = transform }
             if let sprite, sprite != entity.components[SpriteComponent.self] { entity.components.set(sprite) }
+            if let text, text != entity.components[TextComponent.self] { entity.components.set(text) }
+            if let shape, shape != entity.components[ShapeComponent.self] { entity.components.set(shape) }
         }
     }
     override func didSeek() { initialMarkersPending = false }
@@ -341,15 +352,17 @@ extension Entity {
         let firstFrame = resource.tracks.first(where: { $0.channel == .texture })?.frames.first
         var sprite = presentation[SpriteComponent.self]
         if sprite == nil, let firstFrame { sprite = SpriteComponent(texture: firstFrame) }
-        if (channels.contains(.opacity) || channels.contains(.texture)), sprite == nil { throw PlaybackError.missingSprite }
-        let baseline = AnimationPose(transform: presentation.transform, sprite: sprite)
+        if channels.contains(.texture), sprite == nil { throw PlaybackError.missingSprite }
+        let baseline = AnimationPose(transform: presentation.transform, sprite: sprite,
+                                     text: presentation[TextComponent.self], shape: presentation[ShapeComponent.self])
+        if channels.contains(.opacity), baseline.opacityTarget == nil { throw PlaybackError.missingVisual }
         guard channels.allSatisfy({ baseline.value(for: $0).isFinite }) else { throw PlaybackError.invalidAnimationValue }
         let previous = components[PlaybackStorage.self]?.controllers.compactMap { $0 as? AnimationPlaybackController }
             .filter { !$0.resource.channels.isDisjoint(with: channels) } ?? []
         if components[SpriteComponent.self] == nil, let sprite { components.set(sprite) }
         let controller = AnimationPlaybackController(entity: self, resource: resource, options: options, baseline: baseline)
         addPlayback(controller)
-        (world?.observer as? SpriteRenderer)?.cancelAnimationActions(channels, for: self)
+        (world?.observer as? SpriteRenderer)?.cancelAnimationActions(channels, for: self, opacityTarget: baseline.opacityTarget)
         controller.synchronize()
         for previous in previous { previous.stop(reason: .replaced) }
         return controller

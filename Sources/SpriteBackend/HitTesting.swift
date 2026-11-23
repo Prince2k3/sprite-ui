@@ -4,8 +4,8 @@ import SpriteKit
 extension SpriteRenderer {
     /// Entities hit by a displayed point, front-most first. Explicit collision
     /// shapes can be invisible; physics shapes are used when no collider is set.
-    /// Sprite bounds remain a compatibility fallback for hierarchies without a
-    /// collider. A collider on an ancestor suppresses implicit child sprite bounds,
+    /// Sprite/text bounds and drawn shape paths are a visual fallback without a
+    /// collider. A collider on an ancestor suppresses implicit child visual hits,
     /// while children with their own colliders remain independent targets.
     /// Uses displayed transforms, including camera-independent animation poses.
     public func entities(at scenePoint: CGPoint, filter: CollisionQueryFilter = .init()) -> [Entity] {
@@ -30,11 +30,8 @@ extension SpriteRenderer {
                     }
                 }
             } else if !hasColliderAncestor, filter.includes(entity, filter: .init()),
-                      let sprite = node.childNode(withName: Self.spriteNodeName) as? SKSpriteNode, sprite.alpha > 0 {
-                let local = sprite.convert(scenePoint, from: self)
-                let bounds = CGRect(x: -sprite.size.width * sprite.anchorPoint.x, y: -sprite.size.height * sprite.anchorPoint.y,
-                                    width: sprite.size.width, height: sprite.size.height)
-                if bounds.contains(local) { hits.append((entity, scope + [Layer(z: localZ + sprite.zPosition, order: order)])) }
+                      let visualZ = drawingHitZ(at: scenePoint, on: node) {
+                hits.append((entity, scope + [Layer(z: localZ + visualZ, order: order)]))
             }
             order += 1
             for child in entity.children { visit(child, parentZ: localZ, groups: scope, hasColliderAncestor: hasColliderAncestor || collider != nil) }

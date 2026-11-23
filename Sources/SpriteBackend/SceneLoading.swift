@@ -89,9 +89,11 @@ public enum SceneLoadingError: Error, Equatable {
 /// and User Data a ``SceneUserDataComponent``. Sprite materials keep normal maps and
 /// lighting/shadow masks. Enabled effect nodes become ``RenderGroupComponent`` values;
 /// Gaussian blur, bloom and color controls are supported. Unknown filters retain
-/// compositing but their filter effect is omitted. Other kinds
-/// of node (labels, shapes, emitters) become plain entities, and their children
-/// still load.
+/// compositing but their filter effect is omitted. Labels and shapes become
+/// TextComponent and ShapeComponent, including curves, fill and stroke. Attributed
+/// strings load as plain text with the label's base style; shape textures and
+/// custom shape shaders are not imported. Emitters become plain entities, and
+/// their children still load.
 ///
 /// The root entity stands for the scene. It's placed so the scene looks the way it
 /// did in the editor in a view centered on the origin, whatever the scene's anchor point.
@@ -171,6 +173,8 @@ public struct SceneLoader {
             if let sprite = node as? SKSpriteNode {
                 entity.components.set(Self.spriteComponent(from: sprite))
             }
+            if let label = node as? SKLabelNode { entity.components.set(Self.textComponent(from: label)) }
+            if let shape = node as? SKShapeNode { entity.components.set(Self.shapeComponent(from: shape)) }
             if let light = node as? SKLightNode {
                 entity.components.set(LightComponent(color: Color(light.lightColor), ambientColor: Color(light.ambientColor),
                     shadowColor: Color(light.shadowColor), falloff: Float(light.falloff), categoryBitMask: light.categoryBitMask,
@@ -211,6 +215,37 @@ public struct SceneLoader {
     }
 
     // MARK: Conversions
+
+    static func textComponent(from node: SKLabelNode) -> TextComponent {
+        let horizontal: TextComponent.HorizontalAlignment = switch node.horizontalAlignmentMode {
+        case .left: .left; case .right: .right; default: .center
+        }
+        let vertical: TextComponent.VerticalAlignment = switch node.verticalAlignmentMode {
+        case .baseline: .baseline; case .top: .top; case .bottom: .bottom; default: .center
+        }
+        let lineBreak: TextComponent.LineBreak = switch node.lineBreakMode {
+        case .byCharWrapping: .characterWrap; case .byClipping: .clip; case .byTruncatingHead: .truncateHead
+        case .byTruncatingTail: .truncateTail; case .byTruncatingMiddle: .truncateMiddle; default: .wordWrap
+        }
+        let base = ColorCoding.components(of: Color(node.fontColor ?? .white))
+        let tint = ColorCoding.components(of: Color(node.color ?? .white))
+        let fraction = Float(node.colorBlendFactor)
+        let color = (try? ColorCoding.color(from: zip(base, tint).map { $0 + ($1 - $0) * fraction })) ?? .white
+        return TextComponent(node.attributedText?.string ?? node.text ?? "",
+            font: node.fontName.map { .named($0, size: Float(node.fontSize)) } ?? .system(size: Float(node.fontSize)), color: color,
+            horizontalAlignment: horizontal, verticalAlignment: vertical,
+            maxWidth: node.preferredMaxLayoutWidth > 0 ? Float(node.preferredMaxLayoutWidth) : nil,
+            numberOfLines: node.numberOfLines, lineBreak: lineBreak, opacity: node.isHidden ? 0 : Float(node.alpha),
+            blendMode: SpriteBlendMode(node.blendMode))
+    }
+
+    static func shapeComponent(from node: SKShapeNode) -> ShapeComponent {
+        let cap: ShapeComponent.LineCap = switch node.lineCap { case .round: .round; case .square: .square; default: .butt }
+        let join: ShapeComponent.LineJoin = switch node.lineJoin { case .round: .round; case .bevel: .bevel; default: .miter }
+        return ShapeComponent(.path(node.path.map(VectorPath.init) ?? VectorPath()), fill: Color(node.fillColor), stroke: Color(node.strokeColor),
+            lineWidth: Float(node.lineWidth), glowWidth: Float(node.glowWidth), lineCap: cap, lineJoin: join, miterLimit: Float(node.miterLimit),
+            isAntialiased: node.isAntialiased, opacity: node.isHidden ? 0 : Float(node.alpha), blendMode: SpriteBlendMode(node.blendMode))
+    }
 
     /// A sprite's size before its scale. SpriteKit reports `size` already scaled, while
     /// the entity's transform applies the scale again.

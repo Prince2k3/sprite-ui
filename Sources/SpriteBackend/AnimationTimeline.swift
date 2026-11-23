@@ -52,7 +52,9 @@ extension AnimationResource {
                              curve: ActionAnimation.Curve = .linear) throws -> Self {
         try property(.scale, from: from.map(AnimationValue.vector), to: .vector(to), duration: duration, curve: curve)
     }
-    /// Sprite opacity, clamped to 0...1 even when a spring overshoots. Requires a sprite.
+    /// Visual opacity, clamped to 0...1 even when a spring overshoots. Targets the
+    /// sprite, otherwise text, otherwise shape on the entity, selected when played.
+    /// Use child entities to fade different visuals independently.
     public static func fade(from: Float? = nil, to: Float, duration: TimeInterval,
                             curve: ActionAnimation.Curve = .linear) throws -> Self {
         guard (0...1).contains(to), from.map({ (0...1).contains($0) }) ?? true else { throw ResourceLoadingError.invalidAnimation }
@@ -123,15 +125,24 @@ extension AnimationResource {
 struct AnimationPose {
     let transform: Transform
     let sprite: SpriteComponent?
+    let text: TextComponent?
+    let shape: ShapeComponent?
+    var opacityTarget: VisualOpacityTarget? { sprite != nil ? .sprite : text != nil ? .text : shape != nil ? .shape : nil }
     func value(for channel: AnimationChannel) -> AnimationValue {
         switch channel {
         case .position: .vector(transform.translation)
         case .rotation: .scalar(transform.rotation)
         case .scale: .vector(transform.scale)
-        case .opacity: .scalar(sprite?.opacity ?? 1)
+        case .opacity: .scalar(sprite?.opacity ?? text?.opacity ?? shape?.opacity ?? 1)
         case .texture: .texture(sprite?.texture)
         }
     }
+}
+
+enum VisualOpacityTarget: CaseIterable {
+    case sprite, text, shape
+    var key: String { switch self { case .sprite: "sprite.opacity"; case .text: "text.opacity"; case .shape: "shape.opacity" } }
+    var nodeName: String { switch self { case .sprite: "__sprite"; case .text: "__text"; case .shape: "__shape" } }
 }
 
 extension AnimationTrack {
