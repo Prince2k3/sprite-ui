@@ -308,7 +308,7 @@ public struct DemoBotsView: View {
         VStack(alignment: .leading, spacing: 24) {
             Text("Field guide").font(.largeTitle.bold())
             Label("Move with the left stick, or tap the floor to walk there.", systemImage: "move.3d")
-            Label("Hold the right stick to fire. Drag it to aim; press its center to target the nearest visible bad bot.", systemImage: "bolt.fill")
+            Label("Hold the right stick to target a nearby visible bad bot. Drag to favor your aim; without a target, the beam fires where you face.", systemImage: "bolt.fill")
             Label("Keep the beam on a red bot until it turns green. Watch your beam’s charge.", systemImage: "battery.75percent")
             Label("GroundBots chase and infect. FlyingBots blast nearby bots—curing one can cure its neighbors too.", systemImage: "airplane")
             Label("Out of charge? You recover automatically. Restore all bots before the clock runs out.", systemImage: "clock")

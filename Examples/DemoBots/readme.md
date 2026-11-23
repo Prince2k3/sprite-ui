@@ -27,7 +27,7 @@ xcodebuild -project Examples/DemoBots/DemoBots.xcodeproj -scheme DemoBots -desti
 ## Play
 
 - Left stick: move. Tap an open floor point to walk there using A*.
-- Right stick: hold to fire, drag to aim. Hold its center to automatically aim at the nearest visible corrupted bot within beam range.
+- Right stick: hold to fire, drag to aim. Center-fire assists nearby visible corrupted bots, favoring your facing direction; dragging narrows assistance to your aim. The lock stays steady between similar targets. Without a valid target, the beam fires where you face, including your last tap-to-walk direction.
 - Keep a beam on a red bot until it becomes green. The beam has a two-second battery and a forced recharge interval.
 - GroundBots chase and attack; bad bots can infect good bots. FlyingBots produce area attacks; curing a FlyingBot also cures nearby bad bots.
 - Your charge recovers automatically after depletion. You are protected while recharging.

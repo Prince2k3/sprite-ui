@@ -48,6 +48,7 @@ public final class DemoBotsSession {
     @ObservationIgnored var moveInput = SIMD2<Float>.zero
     @ObservationIgnored var aimInput = SIMD2<Float>.zero
     @ObservationIgnored var isFiring = false
+    @ObservationIgnored var beamTargetID: Entity.ID?
     @ObservationIgnored var destination: SIMD2<Float>?
     @ObservationIgnored var playerRoute: [SIMD2<Float>] = []
     @ObservationIgnored var playerCharge = PlayerCharge()
@@ -340,10 +341,7 @@ public final class DemoBotsSession {
         data.previousPosition = player.position
         data.hitFlash = max(0, data.hitFlash - dt)
         if simd_length_squared(aimInput) > 0.04 { data.heading = atan2(aimInput.y, aimInput.x) }
-        else if isFiring, let target = nearestBad(to: player.position, range: 300, visible: true) {
-            let delta = target.position - player.position
-            data.heading = atan2(delta.y, delta.x)
-        } else if simd_length_squared(moveInput) > 0.04 { data.heading = atan2(moveInput.y, moveInput.x) }
+        else if simd_length_squared(moveInput) > 0.04 { data.heading = atan2(moveInput.y, moveInput.x) }
         player.components.set(data)
         var steering = player.components[SteeringComponent.self]!
         steering.maxSpeed = 210
@@ -483,23 +481,33 @@ public final class DemoBotsSession {
                         filter: .init(mask: BotCollisionGroups.actors, excluding: excluding)).map(\.entity) ?? []
     }
 
-    func nearestBad(to position: SIMD2<Float>, range: Float, visible: Bool) -> Entity? {
-        actors(near: position, radius: range).filter {
-            $0.components[BotComponent.self]?.isBad == true && simd_distance(position, $0.position) <= range &&
-                (!visible || hasLineOfSight(from: position, to: $0.position))
-        }.min { simd_distance_squared(position, $0.position) < simd_distance_squared(position, $1.position) }
+    /// Center-fire assists nearby visible bots, favoring the player's facing.
+    /// Explicit aim narrows acquisition to that direction. A small lock bonus
+    /// prevents equally good moving targets from swapping every frame. Assistance
+    /// never overwrites facing, so losing a target has a predictable fallback.
+    func assistedBeamTarget(from player: Entity, facing: Float) -> Entity? {
+        let direction = SIMD2<Float>(cos(facing), sin(facing))
+        let isAiming = simd_length_squared(aimInput) > 0.04
+        let origin = player.scenePosition
+        let candidates = actors(near: origin, radius: 300, excluding: [player.id]).compactMap { bot -> (Entity, Float)? in
+            guard bot.components[BotComponent.self]?.isBad == true else { return nil }
+            let delta = bot.scenePosition - origin
+            let distance = simd_length(delta)
+            guard distance <= 300, hasLineOfSight(from: origin, to: bot.scenePosition) else { return nil }
+            let alignment = distance > 0.001 ? simd_dot(delta / distance, direction) : 1
+            guard !isAiming || alignment >= cos(.pi / 4) - 0.000001 else { return nil }
+            let lockBonus: Float = bot.id == beamTargetID ? (isAiming ? 0.025 : 0.12) : 0
+            let score = (alignment + 1) / 2 * 0.65 + (1 - distance / 300) * 0.35 + lockBonus
+            return (bot, score)
+        }
+        return candidates.sorted { $0.1 == $1.1 ? $0.0.id < $1.0.id : $0.1 > $1.1 }.first?.0
     }
 
     func applyBeam(deltaTime dt: Float) {
         guard beam.active, let player, let info = player.components[BotComponent.self] else { hideBeam(); return }
         let direction = SIMD2<Float>(cos(info.heading), sin(info.heading))
-        let target = actors(near: player.position, radius: 300, excluding: [player.id]).filter { bot in
-            guard bot.components[BotComponent.self]?.isBad == true else { return false }
-            let delta = bot.position - player.position
-            let distance = simd_length(delta)
-            return distance <= 300 && (distance < 50 || simd_dot(delta / max(distance, 1), direction) >= cos(.pi / 8)) &&
-                hasLineOfSight(from: player.position, to: bot.position)
-        }.min { simd_distance_squared(player.position, $0.position) < simd_distance_squared(player.position, $1.position) }
+        let target = assistedBeamTarget(from: player, facing: info.heading)
+        beamTargetID = target?.id
         let origin = player.position + SIMD2<Float>(0, 60)
         var end = target.map { $0.position + SIMD2<Float>(0, 50) } ?? (origin + direction * 300)
         if target == nil, let hit = world?.raycast(from: player.position, to: player.position + direction * 300,
@@ -532,6 +540,7 @@ public final class DemoBotsSession {
         if bot.corruption <= 0 { cure(target) }
     }
     func hideBeam() {
+        beamTargetID = nil
         for line in beamLines { line.isEnabled = false }
         targetReticle?.isEnabled = false
     }
@@ -569,7 +578,8 @@ public final class DemoBotsSession {
                 steering.velocity = .zero
             }
             let delta = entity.position - info.previousPosition
-            if info.kind != .player && simd_length_squared(delta) > 0.5 { info.heading = atan2(delta.y, delta.x) }
+            let followsRoute = info.kind == .player && destination != nil && simd_length_squared(aimInput) <= 0.04
+            if (info.kind != .player || followsRoute) && simd_length_squared(delta) > 0.5 { info.heading = atan2(delta.y, delta.x) }
             entity.components.set(info); entity.components.set(steering)
         }
     }
@@ -675,7 +685,7 @@ public final class DemoBotsSession {
     }
     func resetPresentation() {
         for entity in world?.entities ?? [] where entity.components.has(DemoBotsTransient.self) { entity.removeFromParent() }
-        beamLines = []; pathLines = []; activeClips = [:]; targetReticle = nil
+        beamLines = []; pathLines = []; activeClips = [:]; targetReticle = nil; beamTargetID = nil
         guard let world else { return }
         effects = try? DemoBotsEffects(world: world)
         for (index, width): (Int, Float) in [(0, 10), (1, 3)] {

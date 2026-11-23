@@ -149,7 +149,7 @@ import simd
         }
     }
 
-    @Test func beamCannotPassThroughAWallOrShootBehindItsAim() {
+    @Test func beamCannotPassThroughAWallOrShootBehindExplicitAim() {
         let (game, world, player, bot) = fixture()
         game.beam.active = true
         let wall = Entity(components: CollisionComponent(shape: .rectangle(size: [15, 200]), filter: .init(group: BotCollisionGroups.walls)))
@@ -160,6 +160,7 @@ import simd
         wall.removeFromParent()
         #expect(game.hasLineOfSight(from: player.position, to: bot.position))
         player.components[BotComponent.self]?.heading = .pi
+        game.aim([-1, 0], firing: true)
         game.applyBeam(deltaTime: 1)
         #expect(bot.components[BotComponent.self]?.corruption == 100)
     }
