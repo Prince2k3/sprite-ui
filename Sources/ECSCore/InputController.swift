@@ -15,10 +15,12 @@ public final class InputController {
     @ObservationIgnored private var samples: [Source: InputValue] = [:]
     @ObservationIgnored private var blocked: [Source: [InputBinding]] = [:]
     @ObservationIgnored private var handlers: [Handler] = []
-    @ObservationIgnored private var queuedEvents: [(event: InputActionEvent, revision: UInt64)] = []
+    @ObservationIgnored private var queuedEvents: [(event: InputActionEvent, revision: UInt64, cancellationRevision: UInt64)] = []
     @ObservationIgnored private var revisions: [InputAction: UInt64] = [:]
     // Invalidates deferred transitions even when no held action emits cancellation.
     @ObservationIgnored internal private(set) var cancellationRevision: UInt64 = 0
+    // Buffers invalidate stale edges without changing ordinary observer delivery.
+    @ObservationIgnored internal private(set) var currentDispatchCancellationRevision: UInt64?
     @ObservationIgnored private var suppressionOwners: Set<UUID> = []
     @ObservationIgnored private var isDelivering = false
     @ObservationIgnored private var isCancellingCoordinateSpace = false
@@ -225,14 +227,15 @@ public final class InputController {
     }
 
     private func deliver(_ events: [InputActionEvent]) {
-        queuedEvents.append(contentsOf: events.map { ($0, revisions[$0.action, default: 0]) })
+        queuedEvents.append(contentsOf: events.map { ($0, revisions[$0.action, default: 0], cancellationRevision) })
         guard !isDelivering else { return }
         isDelivering = true
-        defer { isDelivering = false }
+        defer { isDelivering = false; currentDispatchCancellationRevision = nil }
         while !queuedEvents.isEmpty {
             let queued = queuedEvents.removeFirst()
             let event = queued.event
             guard revisions[event.action] == queued.revision else { continue }
+            currentDispatchCancellationRevision = queued.cancellationRevision
             handlers.removeAll { $0.token == nil || $0.token!.isCancelled }
             let current = handlers
             for handler in current where handler.token?.isCancelled == false && (handler.action == nil || handler.action == event.action) {

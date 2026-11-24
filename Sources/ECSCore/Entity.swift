@@ -42,6 +42,12 @@ open class Entity: Identifiable {
             entity.activationRevision &+= 1
             changes.append((entity, value, entity.activationRevision))
         }
+        // Invalidate the whole transition before callbacks can capture fresh poses.
+        for (entity, _, _) in changes {
+            guard let world = entity.world else { continue }
+            if entity === world.root { world.resetFixedStepClock() }
+            world.invalidateFixedTransform(for: entity)
+        }
         // Finish backend transitions before user handlers can reenter this setter.
         for (entity, _, _) in changes {
             if let world = entity.world { world.observer?.world(world, activationDidChange: entity) }

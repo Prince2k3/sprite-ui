@@ -47,16 +47,27 @@ struct FixedPresentedPose {
 }
 
 extension SpriteRenderer {
-    func restoreFixedTransformPresentation() {
+    func restoreFixedTransformPresentation(affecting changed: Entity? = nil, includingHierarchy: Bool = true) {
         guard !fixedPresentedPoses.isEmpty else { return }
         // Clear first: restoration must never become an animation/model write.
-        let previous = fixedPresentedPoses
-        fixedPresentedPoses.removeAll(keepingCapacity: true)
+        let previous = fixedPresentedPoses.filter { id, _ in
+            guard let changed, let entity = world.entity(withID: id) else { return true }
+            return entity === changed || (includingHierarchy && (entity.isDescendant(of: changed) || changed.isDescendant(of: entity)))
+        }
+        for id in previous.keys { fixedPresentedPoses[id] = nil }
         for (id, pose) in previous {
             if pose.restore(), let entity = world.entity(withID: id) {
                 world.resetFixedTransformHistory(for: entity)
             }
         }
+    }
+
+    /// Picking needs pending bindings and the pose that was actually displayed.
+    /// During native update/physics there is no displayed override to reapply.
+    func flushForDisplayedPicking() {
+        let wasPresented = !fixedPresentedPoses.isEmpty
+        flush()
+        if wasPresented && fixedPresentedPoses.isEmpty { applyFixedTransformPresentation() }
     }
 
     /// Interpolation owns only the stable entity node's displayed local pose.
@@ -74,7 +85,8 @@ extension SpriteRenderer {
         // A native action, custom binding, or direct node edit wins over history.
         // Discard the pair, so releasing ownership before the next fixed tick
         // cannot resume an old interpolation and snap the displayed pose back.
-        guard !hasFixedInterpolationConflict(in: entity, node: node),
+        guard !manipulationSessions.values.contains(where: { $0.isActive && $0.entity === entity }),
+              !hasFixedInterpolationConflict(in: entity, node: node),
               entity.presentation.transform == sample.current else {
             world.resetFixedTransformHistory(for: entity)
             return nil
@@ -133,6 +145,15 @@ extension SpriteRenderer {
     /// Cameras need the proposed pose before the final flush. Nil preserves the
     /// existing camera path when neither the target nor an ancestor interpolates.
     func proposedFixedTargetPosition(of entity: Entity) -> SIMD2<Float>? {
+        guard let matrix = proposedFixedTargetMatrix(of: entity, canonicalPose: { $0.presentation.transform }) else { return nil }
+        let position = matrix.apply(to: .zero)
+        return position.x.isFinite && position.y.isFinite ? position : nil
+    }
+
+    /// Constraint targets need full displayed rotation/scale as well as position.
+    /// The caller supplies canonical poses so already-evaluated constraints keep
+    /// their authority. Constraint sources continue to use their own baseline.
+    func proposedFixedTargetMatrix(of entity: Entity, canonicalPose: (Entity) -> Transform) -> AffineTransform2D? {
         guard world.fixedStep != nil, !world.isPaused, world.timeScale > 0 else { return nil }
         var chain: [Entity] = [], current: Entity? = entity
         while let value = current { chain.append(value); current = value.parent }
@@ -141,11 +162,10 @@ extension SpriteRenderer {
         for value in chain.reversed() {
             let proposed = fixedInterpolatedPose(for: value)
             interpolated = interpolated || proposed != nil
-            matrix = matrix * (proposed ?? value.presentation.transform).matrix
+            matrix = matrix * (proposed ?? canonicalPose(value)).matrix
         }
         guard interpolated else { return nil }
-        let position = matrix.apply(to: .zero)
-        return position.x.isFinite && position.y.isFinite ? position : nil
+        return matrix
     }
 
     /// Called after cameras and the last flush. Capture every canonical value

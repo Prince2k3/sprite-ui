@@ -205,6 +205,7 @@ public enum PlayerInputError: Error, Equatable {
     @ObservationIgnored private var gates: [InputDevice: [InputControl: InputController]] = [:]
     @ObservationIgnored private var needsBaseline: Set<InputDevice> = []
     @ObservationIgnored private var revisions: [InputDevice: UInt64] = [:]
+    @ObservationIgnored private var pending: [InputDevice: (revision: UInt64, values: [InputControl: InputValue])] = [:]
     @ObservationIgnored private var usage: [InputDevice: UInt64] = [:]
     @ObservationIgnored private var clock: UInt64 = 0
     @ObservationIgnored fileprivate var cancelling = false
@@ -281,14 +282,14 @@ public enum PlayerInputError: Error, Equatable {
     /// solely to establish a safe neutral baseline when ownership changes.
     public func submit(_ values: [(InputControl, InputValue)], device: InputDevice) {
         guard infos[device] != nil else { return }
-        // Any newer snapshot supersedes a pending one, including a release
-        // supplied reentrantly by an active-device observer.
+        // Reentrant partial snapshots replace the same controls while retaining
+        // other undelivered controls from the immediately preceding revision.
+        let previousRevision = revisions[device, default: 0]
         revisions[device, default: 0] &+= 1
         let previous = raw[device] ?? [:]
         var latest: [InputControl: InputValue] = [:]
         for (control, value) in values { latest[control.canonical] = Self.sanitized(value) }
-        let normalized = latest.sorted { String(describing: $0.key) < String(describing: $1.key) }
-        for (control, value) in normalized { raw[device, default: [:]][control] = value }
+        for (control, value) in latest { raw[device, default: [:]][control] = value }
         let player = owner(of: device)
         if needsBaseline.remove(device) != nil {
             captureGates(device, using: player?.input)
@@ -299,6 +300,14 @@ public enum PlayerInputError: Error, Equatable {
             return
         }
         let revision = revisions[device, default: 0]
+        if let previousPending = pending[device], previousPending.revision == previousRevision {
+            latest = previousPending.values.merging(latest) { _, newest in newest }
+        }
+        pending[device] = (revision, latest)
+        defer {
+            if pending[device]?.revision == revision { pending[device] = nil }
+        }
+        let normalized = latest.sorted { String(describing: $0.key) < String(describing: $1.key) }
         var routed: [(InputControl, InputValue)] = []
         var meaningful = false
         for (control, value) in normalized {
@@ -318,6 +327,7 @@ public enum PlayerInputError: Error, Equatable {
         }
         guard revisions[device, default: 0] == revision, owner(of: device) === player,
               player.input.acceptsInput, acceptsInput else { return }
+        pending[device] = nil
         player.input.setValues(routed, device: device)
     }
     /// Suspends held actions and feedback while preserving assignments. Held

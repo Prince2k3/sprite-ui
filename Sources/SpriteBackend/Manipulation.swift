@@ -83,12 +83,13 @@ public final class ManipulationSession {
         guard validate() else { return false }
         renderer.cancelAnimationActions(channels, for: entity, opacityTarget: nil)
         guard validate() else { return false }
+        world?.resetFixedTransformHistory(for: entity)
         expected = initialTransform
         writing = true
         withAnimation(.disabled) { entity.transform = initialTransform }
         writing = false
         guard validate() else { return false }
-        renderer.flush()
+        renderer.flushForDisplayedPicking()
         guard validate() else { return false }
         holdBodies()
         hasBegun = true
@@ -126,7 +127,7 @@ public final class ManipulationSession {
             withAnimation(.disabled) { entity.transform = constrained }
             writing = false
             guard validate() else { return false }
-            renderer.flush()
+            renderer.flushForDisplayedPicking()
             guard validate() else { return false }
             holdBodies()
             world?.publish(ManipulationEvents.Changed(entity: entity, initialTransform: initialTransform, transform: entity.transform), from: entity)
@@ -231,7 +232,7 @@ extension SpriteRenderer {
     /// owner. A nonmanipulable foreground target does not click through.
     public func beginManipulation(at scenePoint: SIMD2<Float>, operations: ManipulationComponent.Operations = .all, inViewport viewportID: String? = nil) -> ManipulationSession? {
         guard scenePoint.x.isFinite, scenePoint.y.isFinite else { return nil }
-        flush()
+        flushForDisplayedPicking()
         guard let hit = inputTarget(at: CGPoint(x: CGFloat(scenePoint.x), y: CGFloat(scenePoint.y)), inViewport: viewportID),
               let owner = manipulationOwner(for: hit) else { return nil }
         return beginManipulation(of: owner, hit: hit, at: scenePoint, operations: operations, inViewport: viewportID)
@@ -241,7 +242,7 @@ extension SpriteRenderer {
     /// It must be active and pickable, but this overload does not require a hit
     /// at the anchor. This supports accessible controls and custom input adapters.
     public func beginManipulation(of entity: Entity, at scenePoint: SIMD2<Float>, operations: ManipulationComponent.Operations = .all, inViewport viewportID: String? = nil) -> ManipulationSession? {
-        flush()
+        flushForDisplayedPicking()
         return beginManipulation(of: entity, hit: entity, at: scenePoint, operations: operations, inViewport: viewportID)
     }
 

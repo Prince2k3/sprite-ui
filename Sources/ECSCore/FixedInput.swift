@@ -80,6 +80,7 @@ public final class FixedInputBuffer {
 
     private func append(_ event: InputActionEvent) {
         discardCancelledEvents()
+        guard input.currentDispatchCancellationRevision == cancellationRevision else { return }
         if events.count == capacity {
             events.removeFirst()
             didOverflow = true

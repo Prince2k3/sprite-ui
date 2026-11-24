@@ -91,7 +91,8 @@ public final class World {
         get { storedTimeScale }
         set {
             guard newValue.isFinite, newValue >= 0, newValue != storedTimeScale else { return }
-            resetFixedStepClock()
+            // Debug frames already reset the clock and advance at 1×.
+            if !isDebugStepping { resetFixedStepClock() }
             storedTimeScale = newValue
             simulationDidChange()
         }
@@ -219,10 +220,6 @@ public final class World {
     /// Publishes an event that involves several entities, such as a contact between two
     /// bodies. Subscribers on any of them get it, and each subscriber gets it once.
     public func publish<E: Event>(_ event: E, from sources: [Entity]) {
-        if let activation = event as? WorldEvents.DidChangeEntityActivation {
-            if activation.entity === root { resetFixedStepClock() }
-            invalidateFixedTransform(for: activation.entity)
-        }
         observer?.worldWillPublishEvent(self)
         for handler in events.handlers(for: E.self, sources: sources) {
             handler(event)

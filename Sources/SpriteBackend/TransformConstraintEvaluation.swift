@@ -135,7 +135,8 @@ extension SpriteRenderer {
                         guard let entity = targetEntity(target) else { return .failure(.missingTarget) }
                         guard entity.isActive else { return .failure(.inactiveTarget) }
                         guard !cameraControlled(entity) else { return .failure(.cameraControlled) }
-                        return .success(matrix(of: entity))
+                        let displayed = proposedFixedTargetMatrix(of: entity) { poses[$0.id] ?? $0.transform }
+                        return .success(displayed ?? matrix(of: entity))
                     }
                 }
                 switch result {

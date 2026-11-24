@@ -120,6 +120,7 @@ public final class SpriteRenderer: SKScene {
     var fixedPresentedPoses: [Entity.ID: FixedPresentedPose] = [:]
     private var lastDeltaTime: TimeInterval = 0
     private var currentFrame: WorldFrame?
+    private var isPublishingRenderUpdate = false
     /// Capture must not render a partially updated native scene from a callback.
     @_spi(Backend) public private(set) var isUpdatingPresentation = false
     private var simulationTime: TimeInterval = 0
@@ -301,7 +302,12 @@ public final class SpriteRenderer: SKScene {
         flush()
         if settled { applyFixedTransformPresentation() }
         finishDebugFrame()
-        world.publish(RenderingEvents.DidUpdate(scene: world))
+        do {
+            let wasPublishing = isPublishingRenderUpdate
+            isPublishingRenderUpdate = true
+            defer { isPublishingRenderUpdate = wasPublishing }
+            world.publish(RenderingEvents.DidUpdate(scene: world))
+        }
         applyRenderVisibility(visibilityMask() ?? .all)
         applyBackgroundPresentation(camera: camera, size: size)
     }
@@ -327,7 +333,9 @@ public final class SpriteRenderer: SKScene {
     /// Pushes pending component changes, resolves body connections, then lets
     /// transactions that started no actions complete.
     public func flush() {
+        let preserveDisplayed = isPublishingRenderUpdate && !fixedPresentedPoses.isEmpty
         restoreFixedTransformPresentation()
+        defer { if preserveDisplayed { applyFixedTransformPresentation() } }
         restoreRenderVisibility()
         validateManipulations()
         if !dirty.isEmpty {
@@ -448,7 +456,8 @@ public final class SpriteRenderer: SKScene {
     // MARK: Running actions (used by Animator)
 
     func hasFixedInterpolationNativeConflict(_ node: SKNode, includingEntityChildren: Bool) -> Bool {
-        if node.physicsBody != nil || node.hasActions() { return true }
+        if node.physicsBody != nil || node.hasActions()
+            || node.constraints?.contains(where: { $0.enabled }) == true { return true }
         return node.children.contains { child in
             if !includingEntityChildren && entityIDs[ObjectIdentifier(child)] != nil { return false }
             return hasFixedInterpolationNativeConflict(child, includingEntityChildren: includingEntityChildren)
@@ -803,7 +812,10 @@ extension SpriteRenderer: WorldObserver {
             || componentType == PhysicsBodyComponent.self || componentType == CameraComponent.self
             || componentType == CharacterControllerComponent.self || componentType == TransformConstraintComponent.self
             || componentType == PlaybackStorage.self {
-            restoreFixedTransformPresentation()
+            // An unrelated edit during DidUpdate must not remove the displayed
+            // poses later attachment/input subscribers are about to consume.
+            restoreFixedTransformPresentation(affecting: entity,
+                includingHierarchy: componentType != Transform.self && componentType != TransformInterpolationComponent.self)
         }
         restoreRenderVisibility()
         let key = ObjectIdentifier(componentType)
