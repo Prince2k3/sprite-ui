@@ -157,16 +157,32 @@ struct OptionalExternalPresentation: View {
 
 This helper requests the general noninteractive external-display role. It does not grant Duo's outer camera-display role. `CameraCaptureAccessory` on Duo requires the full inner display and an active camera, and belongs only in camera apps. SpriteUI creates no camera capability and requests no camera permission for game presentation. Surface reservations and hinge input remain separate; see <doc:adaptive-game-surfaces> and <doc:hinge-input-and-effects>.
 
+## DemoBots display settings
+
+DemoBots exposes **Display & performance** from home and pause with these requests:
+
+| Preset | Resolution scale | Preferred FPS | Render-plan pixel budget |
+| --- | --- | --- | --- |
+| Balanced | 1 | 60 | 16 MP |
+| Battery Saver | 0.75 | 30 | 8 MP |
+| High Refresh | 1 | 120 | 16 MP |
+
+Every preset enables `adaptsToSystemPressure`; OS pressure may lower the request, and target-plan limits may further reduce resolution. FPS remains preferred cadence, not measured achieved FPS, and the budget is not a global memory limit. Opening the panel immediately disables the existing `PlayerInputSession`, cancelling held gameplay input and gating late virtual-control samples. Closing it returns to the same home or paused phase with the existing world pause state untouched.
+
+The optional local `GamePresentationView` displays only the existing `main` pane, excluding the SwiftUI HUD, menus, and native attachments. It is read-only and adds no simulation or input route. DemoBots attaches its source to the primary while the local preview panel is visible or external presentation is enabled, passing nil otherwise; toggling these settings keeps the same world and clock. The optional iOS 27 native noninteractive accessory distinguishes **source available** (completed pixels) from **role available** (OS accessory availability), with no Duo outer-camera entitlement.
+
 ## Native verification checklist
 
-The SVGs are schematic expected results. Record device, OS, observed values, and result for each check; source review and policy fixtures do not verify hardware behavior.
+The SVGs are schematic expected results. Record simulator/device, OS, observed values, and result for each check; source review and policy fixtures do not verify hardware behavior. DemoBots was verified on the Duo simulator running iOS 27.2 in open, Book, Tabletop, closed outer-display, and reopened layouts. Preset changes and preview toggles preserved the paused match; checkpoint recovery after folding kept the saved bot count and remaining time and awaited Resume. The source was available while the external role remained unavailable. Synthetic preparation/transition/cancellation tests verify retained entities, assignments, and neutral gating. Native held-touch and measured-clock stress, connected external output, and physical-hardware verification remain manual checks; no physical-hardware session is claimed here.
 
-- On native Duo hardware, exercise Book and Tabletop postures, outer-display transitions, and rotation. Observe reported point geometry and source availability without inferring a general outer-display role. In a game app, do not activate a camera to force that role.
+- In the Duo simulator (and repeat on hardware before release), start open, exercise Book and Tabletop postures, outer-display transitions, and rotation, then return to open. Hold DemoBots movement and fire through folds; check that effective layout changes release stale controls until fresh input, retaining the match and input session. Observe reported point geometry and source availability without inferring a general outer-display role. In a game app, do not activate a camera to force that role.
+- In DemoBots, save a checkpoint and pause. Open **Display & performance**, cycle Balanced → Battery Saver → High Refresh → Balanced, then close it. Check retained world/player/camera IDs, input session, phase, and world pause state. Fold, restore the checkpoint, and check restored state and remaining time; play must wait for Resume.
 - Change quality and FPS while touching or manipulating an entity. Check point-space targeting, camera framing, and native-resolution attachments; quality changes must preserve the retained Metal clock driver.
 - Add, remove, and resize local mirror consumers. Compare actual world-update deltas, simulation elapsed time, and physics contact progression at the same primary cadence. Mirror count must not multiply the world clock or route input.
+- Toggle DemoBots local preview and external presentation independently. Check that only the `main` game pixels appear, with no HUD, menus, or native attachments. With both disabled, check that the primary receives nil for its source while retaining the world and clock.
 - Hide or suspend the primary and verify that source availability clears. Resume and verify that elapsed time and physics do not catch up for the hidden interval. Check that quality and camera identity survive.
 - Exercise pane and full-canvas sources, missing-pane unavailability, exclusive publisher ownership, pressure caps, tight budgets, and repeated resize. Observe bounded plan statistics and safe dropped mirror frames without treating them as measured global GPU allocation.
-- Test the iOS 27 external accessory only when the OS reports it available. Check enable/disable, disconnect/reconnect, aspect fit, and independence from source availability. If no external role is available, explicitly record **external-display presentation unverified**; a working local mirror is not external-display evidence.
+- Enable the optional iOS 27 external accessory with no available role and check its unavailable status and continued local play independently of source availability. When the OS offers the role, check enable/disable, disconnect/reconnect, and aspect fit. If no external role is available, explicitly record **external-display presentation unverified**; a working local mirror is not external-display evidence.
 
 ## See also
 

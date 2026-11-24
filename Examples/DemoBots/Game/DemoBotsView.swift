@@ -7,6 +7,8 @@ public struct DemoBotsView: View {
     @State private var game: DemoBotsSession
     @State private var controls: DemoBotsInput
     @State private var showsHelp = false
+    @State private var showsDisplaySettings = false
+    @State private var display = DemoBotsDisplaySettings()
     @State private var surfaceGeometry: GameSurfaceGeometry?
     private let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
     @State private var sceneDebug: SceneDebugController
@@ -29,6 +31,9 @@ public struct DemoBotsView: View {
             ZStack(alignment: .topLeading) {
                 Color(red: 0.025, green: 0.07, blue: 0.06)
                 GameView(viewports: DemoBotsSurfaceLayout.viewports,
+                         rendering: display.configuration,
+                         renderMonitor: showsDisplaySettings ? display.monitor : nil,
+                         presentation: showsDisplaySettings || display.externalEnabled ? display.presentation : nil,
                          surfaceRegions: surfaceRegions,
                          debug: game.isInspecting ? sceneDebug : nil) { content in
                     game.build(in: content)
@@ -43,7 +48,11 @@ public struct DemoBotsView: View {
                     }
                 }
                     .contentShape(Rectangle())
-                    .gesture(SpatialTapGesture().onEnded { game.sendPlayer(toView: $0.location) })
+                    .gesture(SpatialTapGesture().onEnded {
+                        guard !showsHelp, !showsDisplaySettings else { return }
+                        game.sendPlayer(toView: $0.location)
+                    })
+                    .modifier(DemoBotsExternalDisplay(settings: display))
                     .onGameSurfaceChange { surface in
                         controls.surfaceDidChange(surface)
                         surfaceGeometry = surface
@@ -77,9 +86,9 @@ public struct DemoBotsView: View {
         }
         .ignoresSafeArea()
         .preferredColorScheme(.dark)
-        .gameInput(controls.hub, isActive: scenePhase == .active && !showsHelp)
+        .gameInput(controls.hub, isActive: scenePhase == .active && !showsHelp && !showsDisplaySettings)
         .onChange(of: scenePhase) { _, phase in if phase != .active { controls.suspend() } }
-        .onChange(of: scenePhase == .active && !showsHelp, initial: true) { _, active in
+        .onChange(of: scenePhase == .active && !showsHelp && !showsDisplaySettings, initial: true) { _, active in
             controls.setInputActive(active)
         }
         .onChange(of: controls.feedbackState) { _, _ in
@@ -90,8 +99,16 @@ public struct DemoBotsView: View {
             if attached, game.isInspecting { sceneDebug.select(game.player) }
         }
         .onDisappear { controls.setInputActive(false); controls.suspend() }
+        .accessibilityHidden(showsHelp || showsDisplaySettings)
         .overlay(alignment: .topLeading) {
-            if showsHelp, let surfaceGeometry {
+            if showsDisplaySettings, let surfaceGeometry {
+                let layout = DemoBotsSurfaceLayout(surface: surfaceGeometry)
+                Color.black.opacity(0.8)
+                surfaceElement(in: layout.menu) { _ in
+                    DemoBotsDisplayPanel(settings: display) { showsDisplaySettings = false }
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                }
+            } else if showsHelp, let surfaceGeometry {
                 let layout = DemoBotsSurfaceLayout(surface: surfaceGeometry)
                 Color.black.opacity(0.7)
                 surfaceElement(in: layout.menu) { _ in
@@ -140,6 +157,7 @@ public struct DemoBotsView: View {
                 checkpointFeedback
                 Button("How to play", systemImage: "gamecontroller") { showsHelp = true }
                     .font(.subheadline).foregroundStyle(.white.opacity(0.8)).buttonStyle(.plain)
+                displaySettingsButton
                 if !game.message.isEmpty && game.message.hasPrefix("Couldn’t") {
                     Text(game.message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
                 }
@@ -309,9 +327,20 @@ public struct DemoBotsView: View {
             Button("Scene tools", systemImage: "ladybug") { controls.toggleInspection() }.buttonStyle(.bordered)
             Toggle("Show bot paths", isOn: $game.showsPaths).tint(.mint)
             Toggle("Sound effects", isOn: $game.soundEnabled).tint(.mint)
+            displaySettingsButton
             Button("Restart level") { controls.start(level: game.levelNumber) }.buttonStyle(.bordered)
             Button("Level select") { controls.home() }.buttonStyle(.plain).foregroundStyle(.secondary)
         }
+    }
+
+    private var displaySettingsButton: some View {
+        Button("Display & performance", systemImage: "display") {
+            // Release immediately, before the next SwiftUI lifecycle callback.
+            controls.setInputActive(false)
+            showsDisplaySettings = true
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier("display-settings")
     }
     private var resultMenu: some View {
         let won = game.phase == .won

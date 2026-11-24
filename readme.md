@@ -193,6 +193,10 @@ The new top-level `Tools/` folder contains documentation tooling. The `.docc` di
 - **Feature demo:** open `Demo/SpriteUIDemo.xcodeproj` and run the **SpriteUIDemo** scheme on an iOS simulator. Its tabs demonstrate individual SDK features.
 - **DemoBots:** open `Examples/DemoBots/DemoBots.xcodeproj` and choose **DemoBots** for iOS or **DemoBotsMac** for macOS. [[Examples/DemoBots/readme.md]] describes controls, checkpoints, scene tools, and the features used by the game.
 
+DemoBots exposes **Display & performance** on home and pause: Balanced requests scale 1 / 60 FPS / 16 MP, Battery Saver 0.75 / 30 / 8 MP, and High Refresh 1 / 120 / 16 MP. All enable system-pressure adaptation, so the OS may lower the request. FPS is preferred cadence, not achieved FPS; pixel budgets bound planned render targets, not global GPU memory. Opening the panel immediately disables the existing `PlayerInputSession` to cancel held input and gate late virtual-control samples, then closing it returns to the same home or paused phase with the existing world pause state untouched.
+
+Its optional read-only `GamePresentationView` shares only the existing `main` pane, excluding HUD, menus, and native attachments. The source is attached only while local preview or external presentation is enabled; otherwise the host receives nil, retaining the same world and clock. The optional iOS 27 native noninteractive external accessory reports OS-role availability separately from completed-source availability and grants no Duo outer-camera entitlement. The DemoBots readme contains planned Duo simulator open/Book/Tabletop/outer, held-input, paused-preset, unavailable-external, preview-clock, and checkpoint-after-fold checks, pending main verification. Repeat on hardware before release; no physical-hardware session is claimed.
+
 Both projects reference the local package. To regenerate either project, run `xcodegen generate` in its containing directory.
 
 ## Build and test

@@ -212,6 +212,10 @@ final class DemoBotsInput {
     func setInputActive(_ active: Bool) {
         guard isInputActive != active else { return }
         isInputActive = active
+        // Menu overlays must gate new virtual/direct samples immediately,
+        // before SwiftUI updates the native input scope. Keep the session and
+        // its device assignments; InputController retains neutral rearm gates.
+        player.isEnabled = active
         if !active { hub.cancelAll(); player.stopFeedback() }
         synchronizeFeedback(reset: true)
     }

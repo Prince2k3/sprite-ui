@@ -40,9 +40,38 @@ xcodebuild -project Examples/DemoBots/DemoBots.xcodeproj -scheme DemoBots -desti
 - GroundBots chase and attack; bad bots can infect good bots. FlyingBots produce area attacks; curing a FlyingBot also cures nearby bad bots.
 - Your charge recovers automatically after depletion. You are protected while recharging.
 - The radar shows the player in cyan, corrupted bots in red, and healthy bots in green.
-- Pause to save or restore a checkpoint, restart, select a level, toggle sound, or see bot paths. A saved checkpoint is also available from the home screen; restoring waits for Resume.
+- Pause to save or restore a checkpoint, restart, select a level, toggle sound, see bot paths, or open **Display & performance**. A saved checkpoint is also available from the home screen; restoring waits for Resume.
 - Bot status labels stay readable while the camera zooms. Hits flash red, the beam marks its locked target, and repairs show a rising caption. Blast rings mark the area affected.
 - Keyboard: WASD or arrow keys move, F/Space fires, P/Escape pauses or resumes, and I opens scene tools. Window deactivation pauses a match. Pausing, changing levels, opening tools, or leaving the game clears held movement, aiming, and firing; release keys/buttons and center sticks before reusing them.
+
+## Display & performance
+
+Open **Display & performance** from the home screen or pause menu. Opening the panel immediately disables the existing `PlayerInputSession`, cancelling held gameplay input and gating late virtual-control samples while open. Closing it returns to the same home or paused phase and preserves the world's existing pause state; changing settings does not resume a paused match or rebuild its world, player, camera, or input session. Release buttons and center sticks before reusing them.
+
+| Preset | Requested resolution scale | Preferred FPS | Render-plan pixel budget |
+| --- | --- | --- | --- |
+| Balanced | 1 | 60 | 16 MP |
+| Battery Saver | 0.75 | 30 | 8 MP |
+| High Refresh | 1 | 120 | 16 MP |
+
+All three presets set `adaptsToSystemPressure: true`; native thermal or low-power pressure may lower the request, and render-plan limits may reduce resolution further. Preferred FPS is a requested cadence, not measured achieved FPS. The pixel budget bounds planned render targets, not global GPU memory; any byte estimate is a target reservation estimate. Point-space controls and native-resolution attachments keep their geometry.
+
+The optional local `GamePresentationView` preview shares only the existing `main` gameplay pane's completed pixels. It is read-only and excludes the SwiftUI HUD, menus, and native attachments; it adds no simulation updates or input route. The primary host receives the presentation source while the local preview panel is visible or external presentation is enabled, and receives nil otherwise. These toggles retain the same world and rendering clock.
+
+On iOS 27 or later, external presentation optionally requests the native noninteractive accessory. **Source available** means completed game pixels exist; **role available** means the OS offers the external accessory. Neither status proves the other. An unavailable role leaves local play available. This general role grants no Duo outer-display camera entitlement and requests no camera permission. See [[../../Sources/SpriteUI/SpriteUI.docc/Articles/bounded-rendering-and-read-only-presentation.md]] for the rendering contract and [[Game/DemoBotsSurfaceLayout.swift]] for point-space layout.
+
+### Simulator verification and remaining QA
+
+Verified on the iPhone Duo simulator with iOS 27.2: open, Book, Tabletop, closed outer-display, and reopened layouts; the panel fits a usable region and keeps the paused match unchanged. Battery Saver requested 75% / 30 FPS, and High Refresh requested 100% / 120 FPS. The gameplay-only preview reported a completed source while the external role correctly remained unavailable. Saving, folding, and restoring a checkpoint retained two of six restored bots and 2:49 remaining, awaiting Resume. The final iOS and macOS builds pass.
+
+Automated tests exercise synthetic folds during preparation, installation, fade, cross-fade, failure, and cancellation; they preserve player/camera identity and device assignments and enforce fresh neutral input. Repeat the checks below on hardware before release. Native held-touch stress during folds, measured game-clock comparisons, and connected external-display output remain manual checks; no physical-hardware session is claimed.
+
+- Start a match in the Duo simulator (and repeat on hardware before release) in the open posture, then move through Book, Tabletop, outer-display transitions, and back to open. Check reported usable regions, fitting controls, and retained match/player/camera state. An outer transition does not establish external-role availability.
+- Hold movement and firing while folding. Check that effective layout changes release held controls, stale gestures stay gated until release, and fresh input works without an unintended phase or pause change.
+- Save a checkpoint, pause, and switch Balanced → Battery Saver → High Refresh → Balanced in the panel. Close and reopen it; check that the phase and pause state remain unchanged and that the same world and input session survive. Inspect requested/effective settings without labeling cadence as achieved FPS.
+- Enable local preview, resize or fold, then disable it. Compare actual world-update deltas at the same primary cadence; preview must add no updates or input. With external presentation also disabled, check that the primary receives nil for its source.
+- Enable the external option on iOS 27 with no available role. Check the unavailable status, continued local play, and independent source status. If a role is available, exercise enable/disable and disconnect/reconnect; otherwise record **external-display presentation unverified**.
+- After folding, restore the saved checkpoint from pause. Check restored bot/player state and remaining time, release held input, and verify that play waits for Resume.
 
 ## Scene tools
 
