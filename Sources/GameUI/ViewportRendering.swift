@@ -13,6 +13,7 @@ final class ViewportFrameRenderer {
         case unavailableCommandQueue, unavailableCommandBuffer, unavailableTexture
         case unavailableEncoder, unavailableShader
         case incompletePaneRender
+        case resourceBudgetExceeded
     }
 
     let scene: SpriteRenderer
@@ -22,6 +23,7 @@ final class ViewportFrameRenderer {
     private let compositor: any MTLRenderPipelineState
     private var textures: [String: any MTLTexture] = [:]
     private struct Pane {
+        let id: String
         let texture: any MTLTexture
         let x: Int, y: Int, width: Int, height: Int
     }
@@ -33,15 +35,23 @@ final class ViewportFrameRenderer {
     }
     private var completedFrame: CompletedFrame?
     private var isEncodingFrame = false
-    var hasCaptureFrame: Bool { completedFrame != nil && !isEncodingFrame }
+    private var isAdvancingScene = false
+    var hasCaptureFrame: Bool { completedFrame != nil && !isEncodingFrame && !isAdvancingScene }
     private var lastDisplayTime: TimeInterval?
     private var nativeTime: TimeInterval = 1
     private var hasNativeUpdate = false
     private var suspendPhysicsOnNextUpdate = false
+    private(set) var frameNumber: UInt64 = 0
+    private(set) var droppedPresentationFrames: UInt64 = 0
+    private(set) var lastPlan: GameRenderPlan?
 
     init(scene: SpriteRenderer, device: any MTLDevice) throws {
         self.scene = scene
         self.device = device
+        if let time = scene.presentationClockTime, time.isFinite {
+            nativeTime = time
+            hasNativeUpdate = true
+        }
         guard let queue = device.makeCommandQueue() else { throw Failure.unavailableCommandQueue }
         commandQueue = queue
         spriteKit = SKRenderer(device: device)
@@ -96,8 +106,10 @@ final class ViewportFrameRenderer {
     /// Updates once and finishes the independent pane draws, then encodes their
     /// composition into the supplied buffer. The caller presents once.
     func encodeFrame(atTime time: TimeInterval, logicalSize: CGSize,
-                     into output: any MTLTexture, commandBuffer: any MTLCommandBuffer) throws {
-        guard !isEncodingFrame else { throw LevelLoadingError.presentationUnavailable }
+                     into output: any MTLTexture, commandBuffer: any MTLCommandBuffer,
+                     plan suppliedPlan: GameRenderPlan? = nil, updatesScene: Bool = true,
+                     presentation: GamePresentationSource? = nil, presentationOwner: UUID? = nil) throws {
+        guard !isEncodingFrame, !isAdvancingScene else { throw LevelLoadingError.presentationUnavailable }
         isEncodingFrame = true
         // A partial draw may overwrite textures belonging to the previous frame.
         completedFrame = nil
@@ -105,43 +117,22 @@ final class ViewportFrameRenderer {
         guard logicalSize.width.isFinite, logicalSize.height.isFinite,
               logicalSize.width > 0, logicalSize.height > 0 else { return }
         precondition(output.pixelFormat == .bgra8Unorm && output.sampleCount == 1)
-        // resizeFill asks SpriteKit to obtain dimensions from its presenting
-        // SKView. There is deliberately no presenting SKView in this path, so
-        // update would otherwise replace the logical canvas with CGSize.zero.
-        let oldScaleMode = scene.scaleMode
-        scene.scaleMode = .fill
-        defer { scene.scaleMode = oldScaleMode; scene.size = logicalSize }
-        scene.size = logicalSize
-        if time.isFinite {
-            if let previous = lastDisplayTime {
-                let interval = time - previous
-                if interval.isFinite { nativeTime += min(max(interval, 0), 1.0 / 15.0) }
-            }
-            lastDisplayTime = time
-        }
-        let suspendPhysics = suspendPhysicsOnNextUpdate
-        suspendPhysicsOnNextUpdate = false
-        hasNativeUpdate = true
-        if suspendPhysics {
-            // SpriteKit can perform a minimum physics step at an unchanged
-            // timestamp. Resume still delivers its zero-delta ECS/action frame,
-            // while the backend holds bodies and contacts for this update only.
-            scene.withViewportPhysicsSuspended { spriteKit.update(atTime: nativeTime) }
-        } else {
-            spriteKit.update(atTime: nativeTime)
-        }
+        if updatesScene { advanceScene(atTime: time, logicalSize: logicalSize) }
+
+        let viewports = scene.resolvedViewports
+        let rects = viewports.map { scene.viewportRect(id: $0.id) ?? .zero }
+        let plan = suppliedPlan ?? GameRenderPlan(logicalSize: logicalSize,
+            existingDrawableSize: CGSize(width: output.width, height: output.height), viewportRects: rects)
+        guard plan.isValid, plan.drawableSize == CGSize(width: output.width, height: output.height),
+              plan.panePixelRects.count == viewports.count else { throw Failure.resourceBudgetExceeded }
+        lastPlan = plan
 
         var panes: [Pane] = []
         var retainedTextures: [String: any MTLTexture] = [:]
-        let scaleX = CGFloat(output.width) / logicalSize.width
-        let scaleY = CGFloat(output.height) / logicalSize.height
-        for viewport in scene.resolvedViewports {
-            guard let rect = scene.viewportRect(id: viewport.id) else { continue }
-            // Round shared edges identically, including at fractional display scales.
-            let left = max(0, min(output.width, Int((rect.minX * scaleX).rounded())))
-            let top = max(0, min(output.height, Int((rect.minY * scaleY).rounded())))
-            let right = max(left, min(output.width, Int((rect.maxX * scaleX).rounded())))
-            let bottom = max(top, min(output.height, Int((rect.maxY * scaleY).rounded())))
+        for (index, viewport) in viewports.enumerated() {
+            let pixels = plan.panePixelRects[index]
+            let left = Int(pixels.minX), top = Int(pixels.minY)
+            let right = Int(pixels.maxX), bottom = Int(pixels.maxY)
             let width = right - left, height = bottom - top
             guard width > 0, height > 0 else { continue }
             let texture: any MTLTexture
@@ -173,7 +164,7 @@ final class ViewportFrameRenderer {
                 paneCommand.waitUntilCompleted()
             }
             guard paneCommand.status == .completed else { throw Failure.incompletePaneRender }
-            if rendered != nil { panes.append(Pane(texture: texture, x: left, y: top, width: width, height: height)) }
+            if rendered != nil { panes.append(Pane(id: viewport.id, texture: texture, x: left, y: top, width: width, height: height)) }
         }
         textures = retainedTextures
 
@@ -181,12 +172,68 @@ final class ViewportFrameRenderer {
         try composite(panes, background: background, into: output, commandBuffer: commandBuffer)
         completedFrame = CompletedFrame(panes: panes, width: output.width, height: output.height,
                                         background: background, commandBuffer: commandBuffer)
+        frameNumber &+= 1
+        if let presentation, let presentationOwner {
+            try exportPresentation(presentation, owner: presentationOwner, panes: panes,
+                                   width: output.width, height: output.height, background: background,
+                                   commandBuffer: commandBuffer)
+        }
+    }
+
+    /// The primary host alone calls this once, before acquiring a drawable sized
+    /// for the updated scene. Exporting and consuming frames never calls it.
+    func advanceScene(atTime time: TimeInterval, logicalSize: CGSize) {
+        guard !isAdvancingScene else { return }
+        isAdvancingScene = true
+        defer { isAdvancingScene = false }
+        guard logicalSize.width.isFinite, logicalSize.height.isFinite,
+              logicalSize.width > 0, logicalSize.height > 0 else { return }
+        let oldScaleMode = scene.scaleMode
+        scene.scaleMode = .fill
+        defer { scene.scaleMode = oldScaleMode; scene.size = logicalSize }
+        scene.size = logicalSize
+        if time.isFinite {
+            if let previous = lastDisplayTime {
+                let interval = time - previous
+                if interval.isFinite { nativeTime += min(max(interval, 0), 1.0 / 15.0) }
+            }
+            lastDisplayTime = time
+        }
+        let suspendPhysics = suspendPhysicsOnNextUpdate
+        suspendPhysicsOnNextUpdate = false
+        hasNativeUpdate = true
+        if suspendPhysics {
+            scene.withViewportPhysicsSuspended { spriteKit.update(atTime: nativeTime) }
+        } else { spriteKit.update(atTime: nativeTime) }
+    }
+
+    private func exportPresentation(_ source: GamePresentationSource, owner: UUID, panes: [Pane],
+                                    width: Int, height: Int, background: MTLClearColor,
+                                    commandBuffer: any MTLCommandBuffer) throws {
+        let imagePanes: [Pane], imageWidth: Int, imageHeight: Int
+        if let id = source.viewportID {
+            guard let pane = panes.first(where: { $0.id == id }) else {
+                source.suspend(owner: owner)
+                return
+            }
+            imageWidth = pane.width; imageHeight = pane.height
+            imagePanes = [Pane(id: pane.id, texture: pane.texture, x: 0, y: 0,
+                               width: pane.width, height: pane.height)]
+        } else { imagePanes = panes; imageWidth = width; imageHeight = height }
+        guard let lease = source.beginFrame(owner: owner, device: device, width: imageWidth, height: imageHeight) else {
+            droppedPresentationFrames &+= 1
+            return
+        }
+        do {
+            try composite(imagePanes, background: background, into: lease.texture, commandBuffer: commandBuffer)
+            lease.complete(commandBuffer: commandBuffer, frameNumber: frameNumber)
+        } catch { lease.cancel(); throw error }
     }
 
     /// Recompose exactly the last frame's pixels, geometry and ordering. This
     /// deliberately never reads the current cameras or invokes SpriteKit.
     func capturePresentation() throws -> SpriteImage {
-        guard !isEncodingFrame, let frame = completedFrame,
+        guard !isEncodingFrame, !isAdvancingScene, let frame = completedFrame,
               frame.commandBuffer.status == .committed || frame.commandBuffer.status == .scheduled ||
                 frame.commandBuffer.status == .completed else { throw LevelLoadingError.presentationUnavailable }
         frame.commandBuffer.waitUntilCompleted()
@@ -240,6 +287,8 @@ final class ViewportRendering: NSObject {
     private let metalView: MTKView
     private let frames: ViewportFrameRenderer
     private var isRunning = false
+    private var isSurfaceVisible = true
+    private var activityGeneration: UInt64 = 0
     private var lastBoundsSize: CGSize = .zero
     private nonisolated let drawPending = Mutex(false)
 
@@ -255,7 +304,7 @@ final class ViewportRendering: NSObject {
         metalView.depthStencilPixelFormat = .invalid
         metalView.sampleCount = 1
         metalView.framebufferOnly = true
-        metalView.autoResizeDrawable = true
+        metalView.autoResizeDrawable = false
         metalView.isPaused = true
         metalView.enableSetNeedsDisplay = false
 #if os(macOS)
@@ -272,6 +321,7 @@ final class ViewportRendering: NSObject {
     func setActive(_ active: Bool) {
         guard active != isRunning else { return }
         isRunning = active
+        activityGeneration &+= 1
         frames.resetClock()
         metalView.isPaused = !active
     }
@@ -285,9 +335,21 @@ final class ViewportRendering: NSObject {
 
     func setShowsStatistics(_ enabled: Bool) { frames.setShowsStatistics(enabled) }
 
+    /// Keep the native callback alive while an attached ancestor is hidden so
+    /// showing it again can resume without requiring a SwiftUI remount.
+    func synchronizeVisibility() {
+        let visible = (container as? GameSKView)?.isNativeSurfaceVisible == true
+        guard visible != isSurfaceVisible else { return }
+        isSurfaceVisible = visible
+        activityGeneration &+= 1
+        frames.resetClock()
+        if !visible { host?.suspendPresentationSource() }
+    }
+
     func synchronizeGeometry() {
         guard let container else { return }
         metalView.frame = container.bounds
+        metalView.preferredFramesPerSecond = resolvedConfiguration.preferredFramesPerSecond
         let size = container.bounds.size
         guard size != lastBoundsSize else { return }
         lastBoundsSize = size
@@ -302,21 +364,87 @@ final class ViewportRendering: NSObject {
     }
 
     private func drawFrame() {
-        guard isRunning else { return }
+        guard isRunning, let host else { return }
+        synchronizeVisibility()
+        guard isSurfaceVisible else { return }
         (container as? GameSKView)?.synchronizeSurfaceGeometry()
         synchronizeGeometry()
         guard let container, container.window != nil,
-              container.bounds.width > 0, container.bounds.height > 0,
-              let drawable = metalView.currentDrawable else { return }
-        guard let commandBuffer = frames.commandQueue.makeCommandBuffer() else {
-            preconditionFailure("Could not create viewport command buffer.")
+              container.bounds.width > 0, container.bounds.height > 0 else { return }
+        let logicalSize = container.bounds.size
+        // A world update may change cameras or pane layout. Plan the targets only
+        // after that single update, without asking a mirror to update the scene.
+        frames.advanceScene(atTime: CACurrentMediaTime(), logicalSize: logicalSize)
+        synchronizeVisibility()
+        guard isRunning, isSurfaceVisible, host.isPresentationActive, container.window != nil,
+              container.bounds.size == logicalSize else { return }
+        let configuration = resolvedConfiguration
+        metalView.preferredFramesPerSecond = configuration.preferredFramesPerSecond
+        let viewports = frames.scene.resolvedViewports
+        let rects = viewports.map { frames.scene.viewportRect(id: $0.id) ?? .zero }
+        var source = host.activePresentationSource
+        let selection = source?.viewportID.flatMap { id in viewports.firstIndex { $0.id == id } }
+        if source?.viewportID != nil && selection == nil {
+            source?.suspend(owner: host.presentationOwner)
+            source = nil
         }
+        let plan = GameRenderPlan(logicalSize: logicalSize,
+            displayScale: host.surfaceState.geometry.displayScale, viewportRects: rects,
+            configuration: configuration, presentationViewportIndex: selection,
+            presentationCopies: source == nil ? 0 : GamePresentationSource.texturePoolCapacity)
+        guard plan.isValid else {
+            source?.suspend(owner: host.presentationOwner)
+            return
+        }
+        if metalView.drawableSize != plan.drawableSize { metalView.drawableSize = plan.drawableSize }
+        guard let drawable = metalView.currentDrawable,
+              let commandBuffer = frames.commandQueue.makeCommandBuffer() else { return }
+        let revision = host.renderingRevision
+        let activity = activityGeneration
         do {
-            try frames.encodeFrame(atTime: CACurrentMediaTime(), logicalSize: container.bounds.size,
-                                   into: drawable.texture, commandBuffer: commandBuffer)
-        } catch { preconditionFailure("Could not render viewports: \(error)") }
+            try frames.encodeFrame(atTime: CACurrentMediaTime(), logicalSize: logicalSize,
+                into: drawable.texture, commandBuffer: commandBuffer, plan: plan, updatesScene: false,
+                presentation: source, presentationOwner: host.presentationOwner)
+        } catch {
+            // A failed target allocation must not retry the simulation or crash
+            // the game. Retire pending exports and leave a cleared primary frame.
+            source?.suspend(owner: host.presentationOwner)
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = drawable.texture
+            pass.colorAttachments[0].loadAction = .clear
+            pass.colorAttachments[0].storeAction = .store
+            commandBuffer.makeRenderCommandEncoder(descriptor: pass)?.endEncoding()
+            commandBuffer.present(drawable)
+            commandBuffer.commit()
+            return
+        }
+        let frameNumber = frames.frameNumber
+        let drops = frames.droppedPresentationFrames
+        let paneCount = plan.panePixelRects.filter { !$0.isEmpty }.count
+        if let monitor = host.renderMonitor, monitor.isEnabled {
+            commandBuffer.addCompletedHandler { [weak self, weak monitor, weak source] completed in
+                guard completed.status == .completed else { return }
+                Task { @MainActor [weak self, weak monitor, weak source] in
+                    guard let self, self.isRunning, let host = self.host,
+                          self.activityGeneration == activity,
+                          (self.container as? GameSKView)?.isNativeSurfaceVisible == true,
+                          host.renderingRevision == revision, host.renderMonitor === monitor,
+                          let monitor else { return }
+                    monitor.record(GameRenderStatistics(logicalSize: logicalSize, drawableSize: plan.drawableSize,
+                        renderedViewportCount: paneCount, renderPixels: plan.totalRenderPixels,
+                        effectiveResolutionScale: plan.effectiveResolutionScale,
+                        preferredFramesPerSecond: configuration.preferredFramesPerSecond,
+                        frameNumber: frameNumber, presentationFrameCount: source?.publishedFrameCount ?? 0,
+                        droppedPresentationFrames: drops))
+                }
+            }
+        }
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+
+    private var resolvedConfiguration: GameRenderConfiguration {
+        (host?.renderConfiguration ?? .init()).resolved(in: .current)
     }
 }
 

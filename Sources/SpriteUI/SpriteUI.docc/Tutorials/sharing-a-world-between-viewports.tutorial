@@ -11,7 +11,7 @@
 
             Create both camera entities before computing the ``GameViewport`` array. Its string IDs describe stable presentation regions; `camera` holds the corresponding `Entity.ID`. A ``ViewportRect`` uses normalized coordinates with a top-left origin: the first camera occupies the left half and the second the right half. Both players and both cameras enter one `GameView` setup closure and one world.
 
-            Supplying a nonnil `viewports` argument selects the native Metal viewport host. The host advances one world and one SpriteKit simulation, then renders that same scene through each camera. Creating one `GameView` per pane would create separate hosts and worlds. The legacy initializer without `viewports` continues using its existing SKView path.
+            Supplying a nonnil `viewports` argument selects the native Metal viewport host. The host advances one world and one SpriteKit simulation, then renders that same scene through each camera. Creating one `GameView` per pane would create separate hosts and worlds. A plain GameView without viewports, rendering configuration, render monitor, or presentation source continues using its existing SKView path. Rendering opt-ins retain Metal for the host lifetime; see <doc:bounded-rendering-and-read-only-presentation>.
         }
 
         @Steps {

@@ -80,6 +80,9 @@ public struct GameViewContent {
 /// input; arbitrary ancestor gestures follow normal SwiftUI gesture arbitration.
 /// Pass `viewports` to draw one shared scene through multiple cameras. All views
 /// share one simulation clock; omitting it retains the original single-view host.
+/// Supplying `rendering`, `renderMonitor`, or `presentation` retains a Metal
+/// presentation driver for this host's lifetime. Read-only presentation views
+/// consume completed frames without owning another world or input session.
 ///
 /// ```swift
 /// GameView { content in
@@ -97,6 +100,9 @@ public struct GameView: View {
     private let update: Update?
     private let showsStatistics: Bool
     private let viewports: [GameViewport]?
+    private let rendering: GameRenderConfiguration?
+    private let renderMonitor: GameRenderMonitor?
+    private let presentationSource: GamePresentationSource?
     private let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
     private let debug: SceneDebugController?
     private let makeAttachments: @MainActor () -> [GameAttachment]
@@ -106,6 +112,9 @@ public struct GameView: View {
 
     public init(
         viewports: [GameViewport]? = nil,
+        rendering: GameRenderConfiguration? = nil,
+        renderMonitor: GameRenderMonitor? = nil,
+        presentation: GamePresentationSource? = nil,
         surfaceRegions: [GameSurfaceGeometry.ReservedRegion]? = nil,
         debug: SceneDebugController? = nil,
         showsStatistics: Bool = false,
@@ -116,6 +125,7 @@ public struct GameView: View {
         self.update = update
         self.showsStatistics = showsStatistics
         self.viewports = viewports
+        self.rendering = rendering; self.renderMonitor = renderMonitor; self.presentationSource = presentation
         self.surfaceRegions = surfaceRegions
         self.debug = debug
         self.makeAttachments = { [] }
@@ -135,10 +145,13 @@ public struct GameView: View {
     ///     GameAttachment(id: "name") { Text("Player") }
     /// }
     /// ```
-    public init(viewports: [GameViewport]? = nil, surfaceRegions: [GameSurfaceGeometry.ReservedRegion]? = nil, debug: SceneDebugController? = nil, showsStatistics: Bool = false, make: @escaping Make, update: Update? = nil,
+    public init(viewports: [GameViewport]? = nil, rendering: GameRenderConfiguration? = nil,
+                renderMonitor: GameRenderMonitor? = nil, presentation: GamePresentationSource? = nil,
+                surfaceRegions: [GameSurfaceGeometry.ReservedRegion]? = nil, debug: SceneDebugController? = nil, showsStatistics: Bool = false, make: @escaping Make, update: Update? = nil,
                 @GameAttachmentBuilder attachments: @escaping @MainActor () -> [GameAttachment]) {
         self.make = make; self.update = update; self.showsStatistics = showsStatistics
         self.viewports = viewports
+        self.rendering = rendering; self.renderMonitor = renderMonitor; self.presentationSource = presentation
         self.surfaceRegions = surfaceRegions
         self.debug = debug
         makeAttachments = attachments
@@ -147,7 +160,9 @@ public struct GameView: View {
     public var body: some View {
         let definitions = makeAttachments()
         let ids = definitions.map(\.id)
-        return SKViewHost(host: host, update: update, showsStatistics: showsStatistics, debug: debug, viewports: viewports, surfaceRegions: surfaceRegions)
+        return SKViewHost(host: host, update: update, showsStatistics: showsStatistics, debug: debug,
+                          viewports: viewports, surfaceRegions: surfaceRegions, rendering: rendering,
+                          renderMonitor: renderMonitor, presentationSource: presentationSource)
             .overlay {
                 if let debug { SceneDebugOverlay(controller: debug, host: host) }
             }
@@ -214,6 +229,16 @@ final class GameHost {
     private var presentationVisible = true
     private var presentationAppActive = true
     var isPresentationActive: Bool { presentationVisible && presentationAppActive }
+    var renderConfiguration: GameRenderConfiguration?
+    var renderMonitor: GameRenderMonitor?
+    var requestedPresentationSource: GamePresentationSource?
+    var activePresentationSource: GamePresentationSource?
+    let presentationOwner = UUID()
+    var renderingRevision: UInt64 = 0
+    var hasAdvancedRendering = false
+    var requiresViewportRendering: Bool { configuredViewports != nil || hasAdvancedRendering }
+
+    isolated deinit { activePresentationSource?.detach(owner: presentationOwner) }
 
     func configureViewports(_ viewports: [GameViewport]?) {
         guard configuredViewports != viewports else { return }
@@ -228,11 +253,13 @@ final class GameHost {
 
     func startPresentation() {
         presentationVisible = true
+        activatePresentationSource()
         nativeView?.updateViewportActivity()
     }
 
     func setPresentationAppActive(_ active: Bool) {
         presentationAppActive = active
+        if !active { suspendPresentationSource() }
         nativeView?.updateViewportActivity()
     }
 
@@ -273,6 +300,7 @@ final class GameHost {
     /// Shared by SwiftUI disappearance and native-view dismantling.
     func stopPresentation() {
         presentationVisible = false
+        suspendPresentationSource()
         levels.cancel()
         // Cancellation after commit may finish its visuals asynchronously, but
         // an offscreen view must release its input lease immediately.
@@ -322,7 +350,7 @@ final class GameHost {
 /// An `SKView` that notes which entity a touch starts on, before SwiftUI's gestures see it.
 final class GameSKView: SKView, @preconcurrency SKViewDelegate {
     weak var host: GameHost?
-    private var viewportRendering: ViewportRendering?
+    private(set) var viewportRendering: ViewportRendering?
     private var hasLegacyFrame = false
     private var legacyFramePending = false
 
@@ -339,6 +367,10 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
     var isLevelPresentationAvailable: Bool {
         guard let host, host.isPresentationActive, !host.renderer.isUpdatingPresentation, window != nil,
               bounds.width > 0, bounds.height > 0 else { return false }
+        return isNativeSurfaceVisible
+    }
+
+    var isNativeSurfaceVisible: Bool {
 #if os(macOS)
         guard !isHiddenOrHasHiddenAncestor else { return false }
         var ancestor: NSView? = self
@@ -376,7 +408,7 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
 
     func configurePresentation() {
         guard let host else { return }
-        if host.configuredViewports != nil {
+        if host.requiresViewportRendering {
             if scene != nil { presentScene(nil) }
             delegate = nil
             hasLegacyFrame = false; legacyFramePending = false
@@ -395,8 +427,12 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
 
     func updateViewportActivity() {
         updateHingeObservationActivity()
+        if host?.isPresentationActive != true || window == nil { host?.suspendPresentationSource() }
         viewportRendering?.setActive(host?.isPresentationActive == true && window != nil)
+        viewportRendering?.synchronizeVisibility()
     }
+
+    func synchronizeRendering() { viewportRendering?.synchronizeGeometry() }
 
     func configureStatistics(_ enabled: Bool) { viewportRendering?.setShowsStatistics(enabled) }
 
@@ -404,6 +440,7 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
         stopHingeObservation()
         host?.manipulationInput?.detach()
         host?.stopPresentation()
+        host?.releasePresentationSource()
         viewportRendering?.stop()
         viewportRendering = nil
         if host?.nativeView === self { host?.nativeView = nil }
@@ -418,8 +455,11 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
     }
 
 #if os(macOS)
+    override var isHidden: Bool { didSet { updateViewportActivity() } }
+    override var alphaValue: CGFloat { didSet { updateViewportActivity() } }
     override func layout() {
         super.layout()
+        updateViewportActivity()
         synchronizeSurfaceGeometry()
         viewportRendering?.synchronizeGeometry()
     }
@@ -461,8 +501,11 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
         super.safeAreaInsetsDidChange()
         synchronizeSurfaceGeometry()
     }
+    override var isHidden: Bool { didSet { updateViewportActivity() } }
+    override var alpha: CGFloat { didSet { updateViewportActivity() } }
     override func layoutSubviews() {
         super.layoutSubviews()
+        updateViewportActivity()
         synchronizeSurfaceGeometry()
         viewportRendering?.synchronizeGeometry()
     }
@@ -496,14 +539,21 @@ private struct SKViewHost: UIViewRepresentable {
     let debug: SceneDebugController?
     let viewports: [GameViewport]?
     let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
+    let rendering: GameRenderConfiguration?
+    let renderMonitor: GameRenderMonitor?
+    let presentationSource: GamePresentationSource?
 
     func makeUIView(context: Context) -> SKView {
+        // Establish the retained driver before removing any previous pane list.
+        host.configureRendering(rendering, monitor: renderMonitor, presentation: presentationSource)
         host.configureViewports(viewports)
         host.surfaceRegions = surfaceRegions
         return makeView(host: host, debug: debug)
     }
 
     func updateUIView(_ view: SKView, context: Context) {
+        // Establish the retained driver before removing any previous pane list.
+        host.configureRendering(rendering, monitor: renderMonitor, presentation: presentationSource)
         host.configureViewports(viewports)
         host.surfaceRegions = surfaceRegions
         (view as? GameSKView)?.synchronizeSurfaceGeometry()
@@ -521,14 +571,21 @@ private struct SKViewHost: NSViewRepresentable {
     let debug: SceneDebugController?
     let viewports: [GameViewport]?
     let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
+    let rendering: GameRenderConfiguration?
+    let renderMonitor: GameRenderMonitor?
+    let presentationSource: GamePresentationSource?
 
     func makeNSView(context: Context) -> SKView {
+        // Establish the retained driver before removing any previous pane list.
+        host.configureRendering(rendering, monitor: renderMonitor, presentation: presentationSource)
         host.configureViewports(viewports)
         host.surfaceRegions = surfaceRegions
         return makeView(host: host, debug: debug)
     }
 
     func updateNSView(_ view: SKView, context: Context) {
+        // Establish the retained driver before removing any previous pane list.
+        host.configureRendering(rendering, monitor: renderMonitor, presentation: presentationSource)
         host.configureViewports(viewports)
         host.surfaceRegions = surfaceRegions
         (view as? GameSKView)?.synchronizeSurfaceGeometry()

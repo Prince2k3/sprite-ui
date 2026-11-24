@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="660" viewBox="0 0 800 660" role="img" aria-labelledby="title desc">
+<title id="title">One world, bounded render targets, passive mirrors</title><desc id="desc">One primary host publishes completed pixels through three private GPU buffers to passive consumers.</desc>
+<rect width="800" height="660" rx="24" fill="#101b2b"/>
+<g font-family="system-ui,sans-serif" fill="#edf5ff">
+<text x="28" y="42" font-size="24">One world, bounded render targets, passive mirrors</text>
+<text x="28" y="78" font-size="18" fill="#a4bad0">Scale 0.1…1 · preferred FPS 15…240 · one retained Metal host</text>
+<rect x="28" y="104" width="744" height="230" rx="8" fill="#142438" stroke="#617f97" stroke-width="2"/>
+<path d="M110 106v226m90-226v226m90-226v226m90-226v226m90-226v226m90-226v226m90-226v226M30 160h740M30 220h740M30 280h740" stroke="#294056"/>
+<rect x="210" y="198" width="40" height="40" fill="#49d8ee"/>
+<rect x="355" y="270" width="14" height="14" fill="#ffb25e"/>
+<text x="135" y="180" font-size="17">Native SwiftUI label</text>
+<text x="42" y="130" font-size="16" fill="#49d8ee">Primary game surface · interactive</text>
+<text x="28" y="366" font-size="18">World updates / elapsed time / contacts · actual event counters</text>
+<text x="28" y="396" font-size="18" fill="#a4bad0">Planned pixels × 4 = target reservation estimate; excludes other GPU memory</text><path d="M400 414v24m-6-8 6 8 6-8" fill="none" stroke="#7ce3ab" stroke-width="3"/>
+<rect x="28" y="450" width="354" height="110" rx="6" fill="#0b1722" stroke="#7ce3ab"/>
+<rect x="418" y="450" width="354" height="110" rx="6" fill="#0b1722" stroke="#7ce3ab"/>
+<rect x="170" y="495" width="20" height="20" fill="#49d8ee"/><rect x="560" y="495" width="20" height="20" fill="#49d8ee"/>
+<text x="42" y="475" font-size="15">Passive mirror A</text><text x="432" y="475" font-size="15">Passive mirror B</text><path d="M205 480v66m390-66v66" stroke="#617f97"/><rect x="255" y="495" width="20" height="20" fill="#49d8ee"/><rect x="645" y="495" width="20" height="20" fill="#49d8ee"/><text x="28" y="592" font-size="17" fill="#7ce3ab">Three reserved GPU buffers · completed frames · safe drops under pressure</text><text x="28" y="632" font-size="16" fill="#a4bad0">Schematic expected result · no hardware verification claimed</text></g></svg>

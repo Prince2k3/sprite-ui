@@ -6,9 +6,9 @@ Present one simulated world through independent cameras, with viewport-aware inp
 
 Pass a nonnil `[GameViewport]` to one ``SpriteUI/GameView``. The viewport host retains one ``SpriteUI/World``, one ``SpriteUI/SpriteRenderer``, and one native SpriteKit simulation driven by Metal. Each display tick updates the scene once, including physics, actions, camera following, and audio, then draws it through the resolved camera regions. Additional camera passes do not create additional worlds or simulation updates.
 
-Each additional viewport adds an offscreen draw and a reusable texture. Camera draws finish sequentially to isolate SpriteKit's shared rendering state before composition. Keep the number of views small when budgeting rendering work; simulation still advances once.
+Each additional viewport adds an offscreen draw and a reusable texture. An optional rendering configuration bounds the canvas, all pane targets, and three source buffers as one plan; passive mirror consumers reuse completed pixels. Camera draws finish sequentially to isolate SpriteKit's shared rendering state before composition. Keep the number of views small when budgeting rendering work; simulation still advances once.
 
-The `viewports` parameter precedes `debug` in both `GameView` initializers, including the attachment-builder initializer. Omitting it, or passing nil, preserves the legacy SKView host. Passing an empty array selects the Metal host with one full-size automatic-camera viewport. Changing arrays on a stable `GameView` updates presentation without recreating entities. Changing host mode cancels captured input.
+The `viewports` parameter precedes `rendering`, `renderMonitor`, and `presentation` in both `GameView` initializers, including the attachment-builder initializer. With all four nil, the plain host preserves the legacy SKView path. Passing an empty viewport array selects Metal with one full-size automatic-camera viewport. A rendering configuration, monitor, or presentation source also opts into Metal, retained for the host lifetime so quality toggles never switch clock drivers. Changing arrays on a stable `GameView` updates presentation without recreating entities. See <doc:bounded-rendering-and-read-only-presentation> for aggregate target budgets and passive mirrors.
 
 Follow <doc:sharing-a-world-between-viewports> for three complete app stages. <doc:player-input-sessions-and-feedback> explains device ownership; viewports do not automatically assign players or devices.
 
@@ -140,6 +140,7 @@ Use <doc:render-layers-and-camera-visibility> to choose world sprites or map ico
 
 ## See also
 
+- <doc:bounded-rendering-and-read-only-presentation>
 - <doc:parallax-and-repeating-backgrounds>
 - <doc:sharing-a-world-between-viewports>
 - <doc:sharing-devices-between-players>

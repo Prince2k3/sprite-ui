@@ -15,6 +15,7 @@
 		167D98017BA26BCE3F34AEA7 /* Masking.sks in Resources */ = {isa = PBXBuildFile; fileRef = 96DB786457C0B4185B6BB04C /* Masking.sks */; };
 		1E154204E7097B2E5160696F /* LevelTransitionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3033A0EF69832A230C07EB /* LevelTransitionDemoView.swift */; };
 		2AFFBC6379EAFC4924948360 /* Scanlines.fsh in Resources */ = {isa = PBXBuildFile; fileRef = 4D552B0900BBD668FE6A20F9 /* Scanlines.fsh */; };
+		30DBDF2FA936A07445B67C72 /* PresentationDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762B334CCA2BBBB48820D0FB /* PresentationDemoView.swift */; };
 		34BC0125BB63B500F46459E3 /* PrefabDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A07FC6D53E7ACB7F7547F5 /* PrefabDemoView.swift */; };
 		399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */; };
 		3F4792AE09AFD6FC9F1AAC69 /* PlayerInputDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8E4C60DDB3E121D89253AB /* PlayerInputDemoView.swift */; };
@@ -85,6 +86,7 @@
 		65A099A0EA0488624FAB7A5D /* ViewportDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewportDemoView.swift; sourceTree = "<group>"; };
 		67F776F36226B4DF4AC99FA4 /* Pendulum.prefab */ = {isa = PBXFileReference; path = Pendulum.prefab; sourceTree = "<group>"; };
 		6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpriteUIDemoApp.swift; sourceTree = "<group>"; };
+		762B334CCA2BBBB48820D0FB /* PresentationDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentationDemoView.swift; sourceTree = "<group>"; };
 		7C7C5C72AA8588939C5ECD6F /* StrategistDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrategistDemoView.swift; sourceTree = "<group>"; };
 		7C990CEAD9255BAA7FB81E0E /* MaskDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaskDemoView.swift; sourceTree = "<group>"; };
 		7F132032237EA3F1BA27CA86 /* ManipulationDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManipulationDemoView.swift; sourceTree = "<group>"; };
@@ -182,6 +184,7 @@
 				FC8E4C60DDB3E121D89253AB /* PlayerInputDemoView.swift */,
 				D30D56C2F72A47BC882F8D3E /* PoolingDemoView.swift */,
 				64A07FC6D53E7ACB7F7547F5 /* PrefabDemoView.swift */,
+				762B334CCA2BBBB48820D0FB /* PresentationDemoView.swift */,
 				5ED9D9F2D6CDBDD08F87274A /* RandomDemoView.swift */,
 				2E17EFBCE495B5D694E70CC3 /* RenderGroupDemoView.swift */,
 				A4B66B4DE6A41451B5690655 /* RenderLayersDemoView.swift */,
@@ -306,6 +309,7 @@
 				3F4792AE09AFD6FC9F1AAC69 /* PlayerInputDemoView.swift in Sources */,
 				834AC392652D26FA615C2843 /* PoolingDemoView.swift in Sources */,
 				34BC0125BB63B500F46459E3 /* PrefabDemoView.swift in Sources */,
+				30DBDF2FA936A07445B67C72 /* PresentationDemoView.swift in Sources */,
 				5E004D84C0F6DE0B60C177E2 /* RandomDemoView.swift in Sources */,
 				1036CD493C1BE32CE8E09882 /* RenderGroupDemoView.swift in Sources */,
 				6C925E766CE96E568297250C /* RenderLayersDemoView.swift in Sources */,

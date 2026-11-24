@@ -215,6 +215,10 @@ public final class SpriteRenderer: SKScene {
         lastDeltaTime = 0
     }
 
+    /// Seeds a replacement presentation driver from the scene's existing clock.
+    /// Reading this does not advance simulation, actions, or physics.
+    @_spi(Backend) public var presentationClockTime: TimeInterval? { lastUpdateTime }
+
     /// SpriteKit may step physics even when its timestamp is unchanged. A
     /// resumed viewport still delivers its zero-delta ECS/presentation frame,
     /// but keeps native bodies frozen until the next advancing clock tick.

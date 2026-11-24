@@ -2,6 +2,8 @@
 
 Load shared assets before use, compose visual hierarchies, and give playback and reusable instances clear owners.
 
+Use <doc:bounded-rendering-and-read-only-presentation> to bound canvas and pane targets, adapt quality to native system pressure, inspect optional render statistics, and share completed frames through passive mirrors or an available iOS 27 external accessory. The pixel and byte figures describe target-plan reservations rather than total GPU allocation.
+
 ## Keep the entity model authoritative
 
 ``SpriteUI/SpriteRenderer`` mirrors entities onto backend nodes and batches component changes until a flush. In a ``SpriteUI/GameView``, the host owns that renderer and drives its frame loop. Normal game code changes components rather than maintaining a second node hierarchy. `GameViewContent.renderer` remains available for backend-specific integration.

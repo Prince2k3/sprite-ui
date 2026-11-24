@@ -1,0 +1,65 @@
+@Tutorial(time: 25) {
+    @Intro(title: "Bounding rendering and sharing presentation") {
+        Limit render-target work, inspect completed-frame statistics, and share existing game pixels through passive local mirrors and an optional OS external accessory.
+
+        @Image(source: "spriteui-rendering.svg", alt: "One primary world feeds a bounded canvas, a three-buffer source, and two passive mirror displays.")
+    }
+
+    @Section(title: "Bound quality while preserving point geometry") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Each stage is a complete replacement for `ContentView.swift`; keep the existing `ContentView()` app entry point and use only one stage at a time. No assets, camera permission, external display, or Duo hardware are required. The SVG previews are schematic expected results, not device captures.
+
+            Retain a ``GameRenderMonitor`` and change ``GameRenderConfiguration`` through the same `GameView` identity. A nonnil configuration, monitor, or presentation source opts into Metal and retains that host mode for its lifetime. A plain GameView with none of those options and no viewports still uses the legacy host. The scale slider changes requested render resolution; the four-million-pixel budget and dimension cap may reduce effective scale further. The native SwiftUI label, scene coordinates, and input targets retain their point geometry.
+
+            The moving cyan sprite is updated from actual `WorldEvents.Update` deltas, and the orange physics probe bounces inside an invisible chamber. Retained subscriptions count updates, elapsed scene time, maximum observed delta, and real contacts. The render monitor separately shows planned pixels and bytes, cadence, primary frame number, published-frame count, and dropped mirror frames. The byte figure is a bounded target-plan reservation, not a measurement of total GPU allocation; SDK caches and in-flight resources can add memory.
+        }
+
+        @Steps {
+            @Step {
+                Install stage one. Tap the moving cyan sprite, lower scale, and switch between 60 and 30 preferred FPS. Check that the logical point size stays fixed while drawable pixels and the target estimate change. The attachment stays sharp at native resolution. Native pressure adaptation is enabled; consult <doc:bounded-rendering-and-read-only-presentation> for deterministic environment fixtures and the 15...240 FPS clamp. Actual cadence and counters depend on the device and elapsed time.
+
+                @Code(name: "ContentView.swift", file: "spriteui-rendering-01.swift") {
+                    @Image(source: "spriteui-rendering-01-preview.svg", alt: "A cyan moving sprite, native SwiftUI label, quality controls, and point-versus-pixel statistics in one primary game view.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Mirror a completed existing pane") {
+        @ContentAndMedia {
+            Stage two installs stable left and right cameras in the same world. `GamePresentationSource(viewportID: "left")` selects the existing left pane. Its choice is immutable; it does not make another camera. Two ``GamePresentationView`` consumers share the one source and aspect-fit its completed GPU pixels. SwiftUI attachments are not included in the mirrors.
+
+            The source has one publisher-ownership lease and a bounded pool of three private GPU buffers. The render plan reserves the entire pool. Consumers retain read leases until their GPU work completes, and a writing or reading buffer is never reused unsafely. Backpressure drops a mirror publication rather than ticking the world again. Adding mirrors does not add a GameHost, SKScene, world, physics simulation, or input route. Do not attach two GameViews to the same World; the backend has one main-world observer.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage two. Confirm that both mirrors show the left pane and omit its SwiftUI label. Tap the cyan sprite in the primary; the tap count changes. Tapping a mirror cannot target that sprite. Toggle both mirrors off and on while leaving the primary cadence unchanged. Compare actual elapsed scene time and update progression: two mirrors must not multiply the simulation clock. Planned pixels now include the three presentation-buffer reservations, so effective scale may be lower than stage one under the same budget.
+
+                @Code(name: "ContentView.swift", file: "spriteui-rendering-02.swift", previousFile: "spriteui-rendering-01.swift") {
+                    @Image(source: "spriteui-rendering-02-preview.svg", alt: "Two primary camera panes feed two aspect-fit mirrors of only the left pane, with one world clock.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Publish the canvas and request an optional OS role") {
+        @ContentAndMedia {
+            Stage three creates `GamePresentationSource()` to choose the full composed canvas. The two local consumers now show both existing panes. This is a new standalone stage, not a mutable source selection. Local read-only presentation works on iOS 18 and macOS 15; macOS gets no automatic secondary window.
+
+            The iOS-only branch uses `if #available(iOS 27.0, *)` before `.gameExternalDisplay(source, isEnabled:onAvailabilityChange:)`. The helper wraps `SwiftUI.ExternalNonInteractiveAccessory(isEnabled: .constant(isEnabled))`. Its callback reports actual OS accessory availability, separately from the source's completed-frame `isAvailable`. Both the article example and this complete file gate iOS code out of macOS 15 compilation and Mac Catalyst.
+
+            A general external accessory is separate from Duo's outer camera-display role. `CameraCaptureAccessory` requires the full inner display and an active camera and is intended only for camera apps. A game presentation does not manufacture camera capability, request camera permission, or promise an outer display. Native pressure, surface regions, and hinge availability are queried independently, without hardcoded Duo dimensions or posture assumptions.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage three. Verify that the local mirrors show the full split canvas, with aspect fit. On iOS 27, try the accessory request toggle and inspect the OS-role message independently from the source readout. If the OS reports no role, record external-display presentation as unverified; a local mirror does not verify it. Background and resume the app: source availability must clear while suspended, elapsed scene time must exclude the inactive interval, and physics must resume without a background-time catch-up jump. Use the article's native checklist for Duo Book/Tabletop, outer transitions, rotation, quality changes while touching, and external disconnect/reconnect checks.
+
+                @Code(name: "ContentView.swift", file: "spriteui-rendering-03.swift", previousFile: "spriteui-rendering-02.swift") {
+                    @Image(source: "spriteui-rendering-03-preview.svg", alt: "Full-canvas local mirrors and an optional OS external role have separate availability, while the primary remains the only simulation host.")
+                }
+            }
+        }
+    }
+}

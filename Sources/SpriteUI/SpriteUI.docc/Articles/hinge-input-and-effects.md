@@ -32,7 +32,7 @@ struct HingeReadout: View {
 }
 ```
 
-Raw angle and openness are suitable for visual or audio effects. Keep cameras, HUD placement, and occlusion decisions driven by <doc:adaptive-game-surfaces>. A hinge angle does not identify usable display rectangles, and a reserved division does not prove that a hinge sensor exists. Accessory-display hosting remains unsupported.
+Raw angle and openness are suitable for visual or audio effects. Keep cameras, HUD placement, and occlusion decisions driven by <doc:adaptive-game-surfaces>. A hinge angle does not identify usable display rectangles, and a reserved division does not prove that a hinge sensor exists. Read-only local mirrors and the optional iOS 27 general external accessory are documented in <doc:bounded-rendering-and-read-only-presentation>. They do not grant Duo's outer camera-display role; that camera-only role requires the full inner display and an active camera, independently of hinge input.
 
 ## Availability and lifecycle
 

@@ -19,6 +19,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Render one world through player cameras and a minimap | <doc:viewports-and-split-screen> |
+| Bound render-target work and share completed game frames | <doc:bounded-rendering-and-read-only-presentation> |
 | Fit cameras and controls around safe areas and reserved regions | <doc:adaptive-game-surfaces> |
 | Observe a live hinge or bind it to an explicitly assigned player action | <doc:hinge-input-and-effects> |
 | Give cameras different art while hidden objects keep simulating | <doc:render-layers-and-camera-visibility> |
@@ -53,6 +54,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:input-actions-and-controllers>
 - <doc:player-input-sessions-and-feedback>
 - <doc:viewports-and-split-screen>
+- <doc:bounded-rendering-and-read-only-presentation>
 - <doc:adaptive-game-surfaces>
 - <doc:hinge-input-and-effects>
 - <doc:render-layers-and-camera-visibility>
@@ -155,6 +157,15 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/GameAttachment``
 - ``SpriteUI/AttachmentComponent``
 - ``SpriteUI/AttachmentContext``
+
+### Rendering quality and read-only presentation
+
+- ``SpriteUI/GameRenderConfiguration``
+- ``SpriteUI/GameRenderEnvironment``
+- ``SpriteUI/GameRenderMonitor``
+- ``SpriteUI/GameRenderStatistics``
+- ``SpriteUI/GamePresentationSource``
+- ``SpriteUI/GamePresentationView``
 
 ### Adaptive game surfaces
 
