@@ -58,7 +58,7 @@ Live listener ownership is exclusive within SpriteUI. `stopListening()` unregist
 
 ## Stage the latest round result
 
-Load definitions explicitly before starting a new activity. `start(definitionID:partyCode:properties:)` merges supplied properties with definition defaults. Party codes must be valid for GameKit; previews use equal-length numeric parts such as `1234-5678`. Metadata exposes the party code and URL for an application-owned sharing flow. This milestone does not connect an activity party code to real-time `connect(in:schema:request:)` matchmaking.
+Load definitions explicitly before starting a new activity. `start(definitionID:partyCode:properties:)` merges supplied properties with definition defaults. Party codes must be valid for GameKit; previews use equal-length numeric parts such as `1234-5678`. Metadata exposes the party code and URL for an application-owned sharing flow. For activity-specific real-time matching, use `services.party.findMatch()` and the prepared-world flow in <doc:activity-party-matchmaking-and-handoff>. Generic `connect(in:schema:request:)` remains a separate matchmaking path.
 
 The following complete helper starts one round, stages a replacement score even though it is lower, and finishes once. The returned receipt contains 40 points, not the previous 100. Use configured identifiers with live services.
 

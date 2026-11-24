@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0159C1F58948E3DFCC472AB6 /* PartyMatchmakingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD89F2FE18747E43977D7D8B /* PartyMatchmakingDemoView.swift */; };
 		064FAB24A3DB829FFF89471A /* GameServicesDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F552C23458297356E2A23DF8 /* GameServicesDemoView.swift */; };
 		08ECB36CACBA538E0BF98695 /* TextShapeDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BD89A9366587B00C8A21DB /* TextShapeDemoView.swift */; };
 		096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */; };
@@ -114,6 +115,7 @@
 		D30D56C2F72A47BC882F8D3E /* PoolingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolingDemoView.swift; sourceTree = "<group>"; };
 		D53B0DBFB69AA77F456FF461 /* NetworkDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDemoView.swift; sourceTree = "<group>"; };
 		D7386C3C0BCBEF0A3A80FFAA /* thud.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = thud.wav; sourceTree = "<group>"; };
+		DD89F2FE18747E43977D7D8B /* PartyMatchmakingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartyMatchmakingDemoView.swift; sourceTree = "<group>"; };
 		E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileMapDemoView.swift; sourceTree = "<group>"; };
 		E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateMachineDemoView.swift; sourceTree = "<group>"; };
 		E29CACFB77DBDBD3AD7A8026 /* TimelineDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineDemoView.swift; sourceTree = "<group>"; };
@@ -196,6 +198,7 @@
 				93920852539B40941CCCD9D6 /* NoiseDemoView.swift */,
 				ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */,
 				316FDBDE2503F4214B702DD9 /* ParallaxDemoView.swift */,
+				DD89F2FE18747E43977D7D8B /* PartyMatchmakingDemoView.swift */,
 				53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */,
 				67F776F36226B4DF4AC99FA4 /* Pendulum.prefab */,
 				12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */,
@@ -330,6 +333,7 @@
 				AFE3EB6EC6605EBA36A44F3B /* NoiseDemoView.swift in Sources */,
 				543B4CE6BF2485071CC94735 /* ObstacleDemoView.swift in Sources */,
 				648C8DB7BEBDF9B0CCE61F02 /* ParallaxDemoView.swift in Sources */,
+				0159C1F58948E3DFCC472AB6 /* PartyMatchmakingDemoView.swift in Sources */,
 				CA2E123843221506FF47258F /* PathfindingDemoView.swift in Sources */,
 				65A996A6A3B7D80DFB800D59 /* PhysicsDemoView.swift in Sources */,
 				3F4792AE09AFD6FC9F1AAC69 /* PlayerInputDemoView.swift in Sources */,

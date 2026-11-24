@@ -22,6 +22,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Start with local achievements, scores, and typed saved turns, then opt into native screens | <doc:game-center-services> |
+| Match an activity party and hand off prepared worlds | <doc:activity-party-matchmaking-and-handoff> |
 | Route activity invitations and report each native challenge attempt | <doc:game-center-activities-and-challenges> |
 | Define quests, claim reward receipts, and run seasonal leagues | <doc:quests-and-leagues> |
 | Persist profiles and rewards, then opt into cloud saves | <doc:player-profiles-and-cloud-saves> |
@@ -69,6 +70,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:player-input-sessions-and-feedback>
 - <doc:game-center-services>
 - <doc:game-center-activities-and-challenges>
+- <doc:activity-party-matchmaking-and-handoff>
 - <doc:quests-and-leagues>
 - <doc:player-profiles-and-cloud-saves>
 - <doc:game-center-sessions-and-replication>
@@ -194,6 +196,14 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/GameCenterTurnBasedOutcome``
 - ``SpriteUI/InMemoryTurnBasedStore``
 - ``SpriteUI/GameCenterTurnBasedMatchmakingView``
+
+### Activity parties
+
+- ``SpriteUI/GameCenterParty``
+- ``SpriteUI/GameCenterPartyState``
+- ``SpriteUI/GameCenterPartyMember``
+- ``SpriteUI/GameCenterPartyPreview``
+- ``SpriteUI/GameCenterPartyView``
 
 ### Activities and challenges
 

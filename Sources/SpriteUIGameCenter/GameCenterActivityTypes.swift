@@ -1,3 +1,4 @@
+import ECSCore
 import Foundation
 
 /// Configured activity metadata, copied without exposing GameKit objects.
@@ -97,6 +98,11 @@ func validateActivityDefinition(_ value: GameCenterActivityDefinition) throws {
     func setProgress(_ progress: Double, for identifier: String)
     func clearResults()
     func end()
+    func findPartyMatch(using multiplayer: GameCenterMultiplayer) async throws -> any NetworkTransport
+}
+
+extension GameCenterActivityHandle {
+    func findPartyMatch(using multiplayer: GameCenterMultiplayer) async throws -> any NetworkTransport { throw GameCenterServiceError.unavailable }
 }
 
 @MainActor struct GameCenterActivitiesDriver {

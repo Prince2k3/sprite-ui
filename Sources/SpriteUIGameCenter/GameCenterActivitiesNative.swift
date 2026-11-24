@@ -1,3 +1,4 @@
+import ECSCore
 import Foundation
 @preconcurrency import GameKit
 
@@ -95,6 +96,11 @@ extension GameCenterActivitiesDriver {
     func end() {
         guard GKLocalPlayer.local.isAuthenticated, GKLocalPlayer.local.gamePlayerID == playerID else { clearResults(); return }
         native.end(); retired = true
+    }
+    func findPartyMatch(using multiplayer: GameCenterMultiplayer) async throws -> any NetworkTransport {
+        try checkPlayer()
+        guard native.partyCode != nil, let request = native.makeMatchRequest() else { throw GameCenterServiceError.invalidValue }
+        return try await multiplayer.findActivityMatch(request: request) { [native] completion in native.findMatch(completionHandler: completion) }
     }
     private func checkPlayer() throws {
         guard !retired else { throw GameCenterServiceError.cancelled }

@@ -1,0 +1,39 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Joining an activity party") {
+        Match a known party, prepare two independent worlds, and keep an existing campaign intact until a host-committed handoff.
+        @Image(source: "spriteui-party.svg", alt: "An original campaign remains separate from a ready party and two prepared worlds.")
+    }
+    @Section(title: "Prepare each player's arena") {
+        @ContentAndMedia {
+            Select the full SpriteUI product in an iOS 18 or macOS 15 SwiftUI app whose entry point presents `ContentView()`. Replace that file with this complete stage. No assets, entitlements, accounts, or other source files are required.
+
+            Two preview facades use one retained GameCenterPartyPreview. Each starts the same configured fixture activity and party code from a button press. A cancellable view task advances only the local fixture and headless worlds; it never contacts Apple. The app retains both prepared worlds while the party holds them weakly.
+        }
+        @Steps {
+            @Step {
+                Collect a campaign coin, then create the preview party. Both players reach lobby with no attached session. The original campaign coin count stays unchanged. Prepare Alice's arena and Bob's arena; preparation alone leaves them unready.
+                @Code(name: "ContentView.swift", file: "spriteui-party-01.swift") {
+                    @Image(source: "spriteui-party.svg", alt: "Expected schematic: a retained campaign, two matching ready players, and a host-approved transition into replication.")
+                }
+            }
+            @Step {
+                Mark both players ready. Only Alice, the elected host, can start the prepared game. Start, then wait for both players to read playing: clients attach and acknowledge before the host commits play. Move the host actor; the client replica follows. The campaign counter stays available and its value is preserved.
+            }
+            @Step {
+                Leave both parties. Create another party, select a different level version for Bob, and prepare and ready both players. Start stays disabled. Clear the mismatch, prepare Bob again, and ready him again. Now the host can start. Fold and reopen a supported simulator during the lobby to check that resizing does not recreate services or lose readiness.
+            }
+        }
+    }
+    @Section(title: "Connect the native party") {
+        @ContentAndMedia {
+            Native activity-specific matching requires OS 26+, authentication, and configured activity resources. Validate incoming definition and routing properties, accept explicitly, then call party.findMatch on each participant. A new party can instead start the configured activity with a valid shared code. Preparation, readiness, and presentation remain application-owned.
+
+            Use a stable compatibility ID for the game's content and wire schema. Keep the service host stable across lobby and gameplay. Wait for playing before running authoritative rules or switching presentation. Leaving stops replication and retains staged activity results; finish or discard them separately according to game policy. A required departure ends this fixed party, without automatic host migration.
+        }
+        @Steps {
+            @Step {
+                Continue with <doc:activity-party-matchmaking-and-handoff> for lifecycle, packet bounds, weak-world ownership, failure cleanup, and live setup. Verify cold/warm invites, shared codes, cancellation, and cross-device replication with signed accounts separately. The local fixture does not prove native Game Center behavior.
+            }
+        }
+    }
+}

@@ -37,7 +37,11 @@ public final class GameCenterServices {
     public private(set) var destination: GameCenterDestination? {
         didSet { if oldValue != destination { presentationRevision &+= 1 } }
     }
-    public private(set) var networkSession: NetworkSession?
+    /// Activity-based party matchmaking and explicit prepared-world handoff.
+    public let party: GameCenterParty
+    /// The active ordinary or activity-party replication session.
+    public var networkSession: NetworkSession? { party.networkSession ?? attachedSession }
+    private var attachedSession: NetworkSession?
     public private(set) var lastError: GameCenterServiceError?
     public private(set) var matchRequest = GameCenterMatchRequest()
     public var isPreview: Bool { context.isPreview }
@@ -67,6 +71,13 @@ public final class GameCenterServices {
         progression = GameCenterProgression(context: context, achievements: achievements, leaderboards: leaderboards)
         activities = GameCenterActivities(context: context)
         challenges = GameCenterChallenges(context: context, leaderboards: leaderboards)
+        party = GameCenterParty(context: context, activities: activities, multiplayer: multiplayer)
+        party.canBegin = { [weak self] in
+            guard let self else { return false }
+            guard self.pendingSchema == nil, self.attachedSession == nil, self.multiplayer.transport == nil,
+                  self.destination != .matchmaking else { return false }
+            switch self.multiplayer.matchmakingState { case .idle, .failed: return true; default: return false }
+        }
     }
 
     isolated deinit { shutdown() }
@@ -81,6 +92,7 @@ public final class GameCenterServices {
     /// presents sign-in, then continues to the originally requested destination.
     public func present(_ destination: GameCenterDestination) {
         lastError = nil
+        if destination == .matchmaking, party.isActive { lastError = .operationInProgress; return }
         switch destination {
         case .activities, .activityDefinition, .challenges, .challengeOverview, .challengeDefinition:
             guard isPreview || GameCenterActivities.isSupported else { lastError = .unavailable; return }
@@ -104,7 +116,7 @@ public final class GameCenterServices {
     /// Configures a real-time match request before presenting its built-in UI.
     public func presentMatchmaking(_ request: GameCenterMatchRequest = .init()) throws {
         try request.validate()
-        guard networkSession == nil, multiplayer.transport == nil else { throw GameCenterServiceError.operationInProgress }
+        guard !party.isActive, networkSession == nil, multiplayer.transport == nil else { throw GameCenterServiceError.operationInProgress }
         matchRequest = request
         present(.matchmaking)
     }
@@ -116,7 +128,7 @@ public final class GameCenterServices {
                         request: GameCenterMatchRequest = .init(),
                         configuration: NetworkSessionConfiguration = .init()) throws {
         guard !isPreview else { throw GameCenterServiceError.unavailable }
-        guard pendingSchema == nil, networkSession == nil, multiplayer.transport == nil else {
+        guard !party.isActive, pendingSchema == nil, networkSession == nil, multiplayer.transport == nil else {
             throw GameCenterServiceError.operationInProgress
         }
         try request.validate()
@@ -139,10 +151,10 @@ public final class GameCenterServices {
     func attachSession(in world: World, transport: any NetworkTransport, host: NetworkPeerID,
                        schema: NetworkReplicationSchema = .init(),
                        configuration: NetworkSessionConfiguration = .init()) throws -> NetworkSession {
-        guard networkSession == nil else { throw GameCenterServiceError.operationInProgress }
+        guard !party.isActive, networkSession == nil else { throw GameCenterServiceError.operationInProgress }
         let role: NetworkSession.Role = transport.localPeer.id == host ? .host : .client(host: host)
         let session = NetworkSession(world: world, transport: transport, role: role, schema: schema, configuration: configuration)
-        try session.start(); networkSession = session
+        try session.start(); attachedSession = session
         return session
     }
 
@@ -159,8 +171,9 @@ public final class GameCenterServices {
     /// Stops replication before releasing the native match. Local host entities
     /// remain, following NetworkSession's normal teardown contract.
     public func disconnect() {
+        party.leave()
         if destination == .matchmaking || pendingDestination == .matchmaking { dismiss() }
-        networkSession?.stop(); networkSession = nil
+        attachedSession?.stop(); attachedSession = nil
         pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil
         multiplayer.disconnect()
     }
@@ -212,7 +225,7 @@ public final class GameCenterServices {
             pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil
             if destination == .matchmaking { destination = nil }
         case .idle, .failed:
-            if multiplayer.transport == nil { networkSession?.stop(); networkSession = nil }
+            if multiplayer.transport == nil { attachedSession?.stop(); attachedSession = nil }
         case .matchmaking, .waitingForPlayers: break
         }
     }

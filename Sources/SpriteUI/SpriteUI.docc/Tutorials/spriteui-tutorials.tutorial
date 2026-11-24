@@ -143,5 +143,10 @@
             @Image(source: "spriteui-social.svg", alt: "Explicit incoming activity acceptance, staged completion, and per-attempt challenge reporting.")
             @TutorialReference(tutorial: "doc:routing-game-center-activities")
         }
+        @Chapter(name: "Join an activity party") {
+            Prepare separate worlds, ready matching level versions, and wait for a host-committed replication handoff while retaining the current campaign.
+            @Image(source: "spriteui-party.svg", alt: "Two prepared worlds acknowledge a host-committed party handoff while the campaign remains separate.")
+            @TutorialReference(tutorial: "doc:joining-an-activity-party")
+        }
     }
 }

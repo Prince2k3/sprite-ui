@@ -36,6 +36,7 @@ public final class GameCenterActivities {
     private var requests: [GameCenterActivityRequest] = []
     private var completions: [GameCenterActivityCompletion] = []
     private var active: UUID?
+    @ObservationIgnored private var partyLease: UUID?
     private static weak var listenerOwner: GameCenterActivities?
 
     /// Creates a stopped service without authenticating or registering a listener.
@@ -116,7 +117,7 @@ public final class GameCenterActivities {
     /// Creates an activity from a loaded definition. A current active/paused attempt must be finished or discarded first.
     @discardableResult public func start(definitionID: String, partyCode: String? = nil,
                                         properties: [String: String] = [:]) async throws -> GameCenterActivity {
-        _ = try begin(); try requireNoRunningActivity(); try validateActivityProperties(properties)
+        _ = try begin(); try requireNoParty(); try requireNoRunningActivity(); try validateActivityProperties(properties)
         guard let definition = catalog.first(where: { $0.id == definitionID }) else { throw GameCenterServiceError.notFound }
         let code = partyCode?.uppercased()
         if let code {
@@ -135,7 +136,7 @@ public final class GameCenterActivities {
 
     /// Accepts a queued intent when the game is ready. No world, level, or profile is loaded automatically.
     @discardableResult public func accept(request id: UUID) throws -> GameCenterActivity {
-        _ = try begin(); try requireIdle(); try requireNoRunningActivity()
+        _ = try begin(); try requireIdle(); try requireNoParty(); try requireNoRunningActivity()
         guard let handle = handles[id] else { throw GameCenterServiceError.notFound }
         guard handle.snapshot.state != .ended else { throw GameCenterServiceError.activityEnded }
         handles[id] = nil
@@ -174,7 +175,7 @@ public final class GameCenterActivities {
 
     /// Ends once and hands all staged results to GameKit. This is not remote delivery confirmation.
     @discardableResult public func finish() throws -> GameCenterActivityCompletion {
-        try requireIdle(); let handle = try runningHandle()
+        try requireIdle(); try requireNoParty(); let handle = try runningHandle()
         handle.end(); let value = GameCenterActivityCompletion(activity: handle.snapshot)
         current = value.activity; currentHandle = nil
         completions.append(value); if completions.count > 64 { completions.removeFirst() }
@@ -183,7 +184,7 @@ public final class GameCenterActivities {
     /// Clears staged results before ending. It does not promise to restore challenge attempt quotas.
     /// For a challenge exit, submit the appropriate final attempt instead when required by your game's policy.
     public func discard() throws {
-        try requireIdle(); let handle = try runningHandle(); handle.clearResults(); handle.end()
+        try requireIdle(); try requireNoParty(); let handle = try runningHandle(); handle.clearResults(); handle.end()
         current = handle.snapshot; currentHandle = nil
     }
 
@@ -202,10 +203,20 @@ public final class GameCenterActivities {
     }
 
     func reset() {
+        partyLease = nil
         active = nil; cancellation?(); cancellation = nil
         stopListening(); currentHandle?.clearResults(); currentHandle = nil
         current = nil; catalog = []; completions = []; handled = [:]; owner = nil
     }
+    func reserveParty(_ token: UUID) throws -> any GameCenterActivityHandle {
+        try requireIdle(); try requireNoParty()
+        let handle = try runningHandle()
+        guard handle.snapshot.partyCode != nil else { throw GameCenterServiceError.invalidValue }
+        partyLease = token; return handle
+    }
+    func releaseParty(_ token: UUID) { if partyLease == token { partyLease = nil } }
+    private func requireNoParty() throws { guard partyLease == nil else { throw GameCenterServiceError.operationInProgress } }
+
     private func begin() throws -> GameCenterServiceContext.Operation {
         synchronizeIdentity()
         guard usesPreview || driver.isSupported else { throw GameCenterServiceError.unavailable }

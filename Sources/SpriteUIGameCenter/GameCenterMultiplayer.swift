@@ -135,6 +135,7 @@ public final class GameCenterMultiplayer {
     @ObservationIgnored private var pendingMatch: GKMatch?
     @ObservationIgnored private var pendingMatchDelegate: GameCenterMatchDelegate?
     @ObservationIgnored private var pendingMatchRouter: GameCenterMatchSignalRouter?
+    @ObservationIgnored private var activityMatchCompletion: ((Result<GameCenterTransport, any Error>) -> Void)?
     @ObservationIgnored private var requestedRange: ClosedRange<Int> = 2...2
     @ObservationIgnored private let authenticationDriver: GameCenterAuthenticationDriver
     @ObservationIgnored private let permitsAuthentication: Bool
@@ -220,6 +221,7 @@ public final class GameCenterMultiplayer {
         guard matchmakingAttempt.isActive else { return }
         retireMatchmaking(disconnectPending: true)
         matchmakingState = .idle
+        completeActivityMatch(.failure(CancellationError()))
     }
 
     /// Ends the current match gracefully. There is no automatic host migration,
@@ -250,6 +252,42 @@ public final class GameCenterMultiplayer {
             Self.owner = nil
             Self.ownerLease = nil
         }
+    }
+
+    // Uses the same ownership, partial-roster delegate, and retirement path as the native UI matchmaker.
+    func findActivityMatch(request: GKMatchRequest,
+        start: @MainActor (@escaping @Sendable (GKMatch?, (any Error)?) -> Void) -> Void) async throws -> GameCenterTransport {
+        try Task.checkCancellation(); try checkCanMatch()
+        try GameCenterMatchRequest(minPlayers: request.minPlayers, maxPlayers: request.maxPlayers).validate()
+        let token = matchmakingAttempt.begin()
+        requestedRange = request.minPlayers...request.maxPlayers
+        matchmakingState = .matchmaking
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                activityMatchCompletion = { continuation.resume(with: $0) }
+                start { [weak self] match, error in
+                    let retained = match.map(GameCenterCallback.init), message = error?.localizedDescription
+                    DispatchQueue.main.async {
+                        guard let self, self.matchmakingAttempt.accepts(token) else {
+                            if let match = retained?.value, self?.transport?.owns(match) != true { match.disconnect() }
+                            return
+                        }
+                        if let message { retained?.value.disconnect(); self.failMatchmaking(message) }
+                        else if let match = retained?.value { self.foundMatch(match, token: token) }
+                        else { self.failMatchmaking(GameCenterError.unavailable.localizedDescription) }
+                    }
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard let self, self.matchmakingAttempt.accepts(token) else { return }
+                self.cancelMatchmaking()
+            }
+        }
+    }
+    private func completeActivityMatch(_ result: Result<GameCenterTransport, any Error>) {
+        let callback = activityMatchCompletion; activityMatchCompletion = nil; callback?(result)
     }
 
     private func checkCanMatch() throws {
@@ -390,12 +428,14 @@ public final class GameCenterMultiplayer {
                 self.matchmakingState = reason.map(GameCenterMatchmakingState.failed) ?? .idle
             }
             matchmakingState = .ready
+            completeActivityMatch(.success(transport))
         } catch { failMatchmaking(error.localizedDescription) }
     }
 
     private func failMatchmaking(_ message: String) {
         retireMatchmaking(disconnectPending: true)
         matchmakingState = .failed(message)
+        completeActivityMatch(.failure(GameCenterServiceError.gameCenter(message)))
     }
 
     private func retireMatchmaking(disconnectPending: Bool) {

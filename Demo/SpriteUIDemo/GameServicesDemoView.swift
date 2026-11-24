@@ -32,6 +32,12 @@ struct GameServicesDemoView: View {
                         Label("Activities & challenges lab", systemImage: "person.2.wave.2")
                     }
                     .buttonStyle(.bordered).tint(.orange)
+                    NavigationLink {
+                        PartyMatchmakingDemoView()
+                    } label: {
+                        Label("Party matchmaking lab", systemImage: "person.2.fill")
+                    }
+                    .buttonStyle(.bordered).tint(.cyan)
                     previewIdentity
                     turnBasedCard
                     achievementCard
