@@ -148,4 +148,4 @@ The checker reads local bundle metadata and entitlements extracted from the buil
 
 Signed two-account/two-device native verification remains **pending**. On configured builds, check explicit sign-in/cancellation and account changes; report/reload configured achievements and scores; find, save, pass, reload on the other account, finish, and revisit a turn-based match; then connect a real-time world and disconnect. Confirm persisted turn state after relaunch. Local previews and compilation do not establish these native results.
 
-Follow <doc:starting-with-game-center-services> for three complete, asset-free stages. This milestone covers basic services; quests, leagues, and challenges are outside its scope.
+Follow <doc:starting-with-game-center-services> for three complete, asset-free stages. Build custom progression on top with <doc:quests-and-leagues>. Native social challenges are separate from these local quest and league rules.

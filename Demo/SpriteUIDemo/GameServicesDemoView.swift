@@ -14,6 +14,12 @@ struct GameServicesDemoView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     introduction
+                    NavigationLink {
+                        ProgressionDemoView()
+                    } label: {
+                        Label("Quests & leagues lab", systemImage: "flag.checkered")
+                    }
+                    .buttonStyle(.borderedProminent).tint(.mint)
                     previewIdentity
                     turnBasedCard
                     achievementCard

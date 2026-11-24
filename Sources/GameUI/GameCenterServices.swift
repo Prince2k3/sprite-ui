@@ -27,6 +27,8 @@ public final class GameCenterServices {
     public let achievements: GameCenterAchievements
     public let leaderboards: GameCenterLeaderboards
     public let turnBased: GameCenterTurnBasedMatches
+    /// Explicit reporting of player-owned quests and local league scores.
+    public let progression: GameCenterProgression
     public private(set) var destination: GameCenterDestination? {
         didSet { if oldValue != destination { presentationRevision &+= 1 } }
     }
@@ -57,6 +59,7 @@ public final class GameCenterServices {
         achievements = GameCenterAchievements(context: context)
         leaderboards = GameCenterLeaderboards(context: context)
         turnBased = GameCenterTurnBasedMatches(context: context)
+        progression = GameCenterProgression(context: context, achievements: achievements, leaderboards: leaderboards)
     }
 
     isolated deinit { shutdown() }

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="520" viewBox="0 0 1000 520">
+<rect width="1000" height="520" rx="30" fill="#102128"/>
+<g font-family="system-ui,sans-serif" fill="#eefcf6">
+<text x="55" y="76" font-size="34" font-weight="700">Quests and leagues</text>
+<text x="55" y="112" font-size="19" fill="#b5ccc5">Schematic: local rules and persistence, explicit remote reports</text>
+<g fill="#1d3f46" stroke="#70dec1" stroke-width="2"><rect x="55" y="160" width="260" height="220" rx="20"/><rect x="370" y="160" width="260" height="220" rx="20"/><rect x="685" y="160" width="260" height="220" rx="20"/></g>
+<text x="80" y="205" font-size="24" font-weight="700">Quest journal</text><text x="80" y="249" font-size="20">3 / 3 coins</text><text x="80" y="289" font-size="20">1 claim receipt</text><text x="80" y="329" font-size="18">Stable event IDs</text>
+<text x="395" y="205" font-size="24" font-weight="700">Season</text><text x="395" y="249" font-size="20">Alice: 10 · Bob: 0</text><text x="395" y="289" font-size="20">Bronze → Silver</text><text x="395" y="329" font-size="18">Whole-group ties</text>
+<text x="710" y="205" font-size="24" font-weight="700">Game Center</text><text x="710" y="249" font-size="20">Achievement: 100%</text><text x="710" y="289" font-size="20">Own score only</text><text x="710" y="329" font-size="18">Opt-in reporting</text>
+<text x="55" y="450" font-size="21" fill="#b5ccc5">Save counts, receipts, result IDs, and finalized placements together.</text></g></svg>

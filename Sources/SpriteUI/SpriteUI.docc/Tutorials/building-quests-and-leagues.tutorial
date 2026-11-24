@@ -1,0 +1,39 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Building quests and leagues") {
+        Complete a local quest, claim a reward receipt, finalize a practice league, and explicitly report an achievement to an account-free preview.
+
+        @Image(source: "spriteui-progression.svg", alt: "Schematic of a completed coin quest, a league placement, and optional Game Center reporting.")
+    }
+    @Section(title: "Keep rules in saved values") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Keep the app entry point presenting `ContentView()`, and replace that file with the complete stage below. No assets, accounts, entitlements, server, or native service configuration are needed.
+
+            The model owns a ``QuestJournal`` and ``LeagueSeason``. Its explicit practice clock starts at a fixed instant. Collecting coins emits fresh occurrence IDs. Claim creates one receipt; it does not modify a wallet. Alice's score results use separate IDs. End practice season advances the clock to the window's end and computes placements. With Alice ahead of Bob, Alice moves from Bronze to Silver. An all-zero tie crossing the single promotion position stays in Bronze.
+
+            Save in memory encodes the journal, season, and clock into one `Data` value. Restore in memory replays validated ledgers and receipts. This stage's save disappears when the model is discarded; the showcase progression lab demonstrates an atomic local file write. Production games should include their wallet in the same persistence transaction and use a server for shared competitive authority.
+        }
+        @Steps {
+            @Step {
+                Collect three coins. The quest completes and Claim reward enables. Claim once: the receipt count becomes one and the button disables. Submit Alice +10 points, then Save in memory. Submit another result to reach twenty and restore: Alice returns to ten, while the receipt remains one. End practice season: Alice's placement becomes Silver. Report preview achievement: the message reads 100% with nothing sent to Apple.
+
+                @Code(name: "ContentView.swift", file: "spriteui-progression-01.swift") {
+                    @Image(source: "spriteui-progression.svg", alt: "Expected schematic after collecting three coins and scoring ten points: one reward receipt, Alice promoted to Silver, preview achievement at 100 percent.")
+                }
+            }
+        }
+    }
+    @Section(title: "Connect real gameplay and optional remote services") {
+        @ContentAndMedia {
+            Attach ``QuestJournalComponent`` to a player and call `recordQuestEvent(_:)` from actual pickup or victory handlers. Retain ``QuestEvents/Recorded`` and ``QuestEvents/RewardClaimed`` subscriptions when needed. Register the component before saving a world snapshot.
+
+            ``GameCenterServices/progression`` validates the journal's player ID against the current preview or live identity. It reports only through explicit method calls. The tutorial achievement identifier is a local label; live reporting requires a configured achievement. For league scores, configure a leaderboard, align its schedule with your season, and submit the current player's cumulative points before closing. Remote score metadata does not select an old recurring occurrence. A leaderboard page does not define your custom membership, tie policy, or promotion authority.
+
+            Continue with <doc:quests-and-leagues> for prerequisites, repeated occurrences, expiry, bounded ledgers, ties, save validation, and reporting failures. Use <doc:game-center-services> for signed setup. Native multi-account verification is separate from this local exercise.
+        }
+        @Steps {
+            @Step {
+                Before connecting a live account, use the showcase lab's Replay event control and confirm the counts do not change. Save, reset, and load to confirm claim receipts and finalized placements return. Keep these checks in place when replacing practice buttons with actual gameplay events.
+            }
+        }
+    }
+}

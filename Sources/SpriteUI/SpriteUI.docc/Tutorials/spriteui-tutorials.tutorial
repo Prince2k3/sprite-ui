@@ -127,5 +127,11 @@
             @Image(source: "spriteui-game-center-services.svg", alt: "Local achievement progress and scores lead to typed shared-memory turns and optional explicit native service screens.")
             @TutorialReference(tutorial: "doc:starting-with-game-center-services")
         }
+        @Chapter(name: "Build quests and seasonal leagues") {
+            Record objective events, claim a durable reward receipt, save local progress, finalize tie-preserving placements, and explicitly report preview achievements.
+
+            @Image(source: "spriteui-progression.svg", alt: "Quest objectives, league standings, and optional explicit Game Center reports.")
+            @TutorialReference(tutorial: "doc:building-quests-and-leagues")
+        }
     }
 }

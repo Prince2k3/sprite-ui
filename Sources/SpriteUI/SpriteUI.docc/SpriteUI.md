@@ -21,6 +21,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Start with local achievements, scores, and typed saved turns, then opt into native screens | <doc:game-center-services> |
+| Define quests, claim reward receipts, and run seasonal leagues | <doc:quests-and-leagues> |
 | Synchronize a small host-authoritative match offline or through Game Center | <doc:game-center-sessions-and-replication> |
 | Render one world through player cameras and a minimap | <doc:viewports-and-split-screen> |
 | Bound render-target work and share completed game frames | <doc:bounded-rendering-and-read-only-presentation> |
@@ -60,6 +61,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:input-actions-and-controllers>
 - <doc:player-input-sessions-and-feedback>
 - <doc:game-center-services>
+- <doc:quests-and-leagues>
 - <doc:game-center-sessions-and-replication>
 - <doc:viewports-and-split-screen>
 - <doc:bounded-rendering-and-read-only-presentation>
@@ -183,6 +185,31 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/GameCenterTurnBasedOutcome``
 - ``SpriteUI/InMemoryTurnBasedStore``
 - ``SpriteUI/GameCenterTurnBasedMatchmakingView``
+
+### Quests and leagues
+
+- ``SpriteUI/QuestDefinition``
+- ``SpriteUI/QuestObjective``
+- ``SpriteUI/QuestEvent``
+- ``SpriteUI/QuestJournal``
+- ``SpriteUI/QuestStatus``
+- ``SpriteUI/QuestProgress``
+- ``SpriteUI/QuestReward``
+- ``SpriteUI/QuestRewardClaim``
+- ``SpriteUI/QuestJournalComponent``
+- ``SpriteUI/QuestEvents``
+- ``SpriteUI/ProgressionWindow``
+- ``SpriteUI/ProgressionError``
+- ``SpriteUI/LeagueTier``
+- ``SpriteUI/LeagueParticipant``
+- ``SpriteUI/LeagueRules``
+- ``SpriteUI/LeagueResult``
+- ``SpriteUI/LeagueSeason``
+- ``SpriteUI/LeagueStanding``
+- ``SpriteUI/LeaguePlacement``
+- ``SpriteUI/GameCenterProgression``
+- ``SpriteUI/GameCenterQuestMapping``
+- ``SpriteUI/GameCenterLeagueMapping``
 
 ### Network sessions and Game Center
 

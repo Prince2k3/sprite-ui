@@ -26,7 +26,7 @@ let package = Package(
         .target(name: "SpriteBackend", dependencies: ["ECSCore", "Gameplay"]),
 
         // SwiftUI host (RealityView-style GameView).
-        .target(name: "GameUI", dependencies: ["ECSCore", "SpriteBackend"]),
+        .target(name: "GameUI", dependencies: ["ECSCore", "SpriteBackend", "Gameplay"]),
 
         // Umbrella that re-exports the public modules.
         .target(name: "SpriteUI", dependencies: ["ECSCore", "SpriteBackend", "GameUI", "Gameplay", "GameplayECS"]),
