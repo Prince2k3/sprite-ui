@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="480" viewBox="0 0 1040 480" role="img" aria-labelledby="title desc">
+<title id="title">Basic Game Center services</title>
+<desc id="desc">Start locally, save typed turns, then opt into native screens</desc>
+<rect width="1040" height="480" rx="24" fill="#101b2c"/>
+<text x="44" y="64" fill="#f3f7ff" font-family="system-ui,sans-serif" font-size="28" font-weight="700">Basic Game Center services</text>
+<text x="44" y="101" fill="#b8cadf" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Start locally, save typed turns, then opt into native screens</text>
+<rect x="44" y="145" width="440" height="220" rx="18" fill="#192b42" stroke="#63d7f5" stroke-width="2"/>
+<text x="68" y="188" fill="#63d7f5" font-family="system-ui,sans-serif" font-size="23" font-weight="600">1 · Local progress</text>
+<text x="68" y="230" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Achievement percentages</text>
+<text x="68" y="264" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Highest local score at rank 1</text>
+<text x="68" y="298" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">No Apple account or assets</text>
+<rect x="556" y="145" width="440" height="220" rx="18" fill="#192b42" stroke="#ffb663" stroke-width="2"/>
+<text x="580" y="188" fill="#ffb663" font-family="system-ui,sans-serif" font-size="23" font-weight="600">2 · Saved turns → 3 · Native menu</text>
+<text x="580" y="230" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Two identities, one memory store</text>
+<text x="580" y="264" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Typed version 1 application state</text>
+<text x="580" y="298" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Explicit sign-in and service buttons</text>
+<text x="44" y="420" fill="#b8cadf" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Expected behavior diagrams · Signed two-account native verification remains pending</text>
+</svg>

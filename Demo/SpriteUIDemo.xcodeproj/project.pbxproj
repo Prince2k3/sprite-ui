@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		064FAB24A3DB829FFF89471A /* GameServicesDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F552C23458297356E2A23DF8 /* GameServicesDemoView.swift */; };
 		08ECB36CACBA538E0BF98695 /* TextShapeDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BD89A9366587B00C8A21DB /* TextShapeDemoView.swift */; };
 		096C497FB01FF6AB4F077C70 /* SpriteUIDemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */; };
 		1036CD493C1BE32CE8E09882 /* RenderGroupDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E17EFBCE495B5D694E70CC3 /* RenderGroupDemoView.swift */; };
@@ -115,6 +116,7 @@
 		E98A54802ED807F4B7CCE12F /* LightingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightingDemoView.swift; sourceTree = "<group>"; };
 		EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Dungeon.sks; sourceTree = "<group>"; };
 		ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObstacleDemoView.swift; sourceTree = "<group>"; };
+		F552C23458297356E2A23DF8 /* GameServicesDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameServicesDemoView.swift; sourceTree = "<group>"; };
 		FC7AFE09A2843F05C7FD51C2 /* Drawing.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Drawing.sks; sourceTree = "<group>"; };
 		FC8E4C60DDB3E121D89253AB /* PlayerInputDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerInputDemoView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -172,6 +174,7 @@
 				FC7AFE09A2843F05C7FD51C2 /* Drawing.sks */,
 				EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */,
 				48D59140F86FFD9C2335ED7B /* FixedStepDemoView.swift */,
+				F552C23458297356E2A23DF8 /* GameServicesDemoView.swift */,
 				52B9F0361E950C696BAE6FFB /* HingeInputDemoView.swift */,
 				A3B94BE5F6590030481D42A6 /* InputReplayDemoView.swift */,
 				60458B4819985FB661F0F10A /* JointDemoView.swift */,
@@ -304,6 +307,7 @@
 				D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */,
 				5426761EF954EE8084C185FA /* DemoView.swift in Sources */,
 				4480B98749CACB532C5EDFAB /* FixedStepDemoView.swift in Sources */,
+				064FAB24A3DB829FFF89471A /* GameServicesDemoView.swift in Sources */,
 				D656A83FAF6BD0798CB1C62D /* HingeInputDemoView.swift in Sources */,
 				B36BFE534B5A8722BFFBBC3E /* InputReplayDemoView.swift in Sources */,
 				676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */,

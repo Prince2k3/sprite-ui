@@ -20,6 +20,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Drag, rotate, and scale entities with automatic gestures or buttons | <doc:manipulating-entities> |
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
+| Start with local achievements, scores, and typed saved turns, then opt into native screens | <doc:game-center-services> |
 | Synchronize a small host-authoritative match offline or through Game Center | <doc:game-center-sessions-and-replication> |
 | Render one world through player cameras and a minimap | <doc:viewports-and-split-screen> |
 | Bound render-target work and share completed game frames | <doc:bounded-rendering-and-read-only-presentation> |
@@ -58,6 +59,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:input-recording-and-replay>
 - <doc:input-actions-and-controllers>
 - <doc:player-input-sessions-and-feedback>
+- <doc:game-center-services>
 - <doc:game-center-sessions-and-replication>
 - <doc:viewports-and-split-screen>
 - <doc:bounded-rendering-and-read-only-presentation>
@@ -160,6 +162,27 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/ControllerFeedback``
 - ``SpriteUI/InputFeedbackResult``
 - ``SpriteUI/InputFeedbackProvider``
+
+### Basic Game Center services
+
+- ``SpriteUI/GameCenterServices``
+- ``SpriteUI/GameCenterServicesMode``
+- ``SpriteUI/GameCenterDestination``
+- ``SpriteUI/GameCenterServiceError``
+- ``SpriteUI/GameCenterServicesView``
+- ``SpriteUI/GameCenterAchievements``
+- ``SpriteUI/GameCenterAchievement``
+- ``SpriteUI/GameCenterLeaderboards``
+- ``SpriteUI/GameCenterLeaderboardEntry``
+- ``SpriteUI/GameCenterLeaderboardResults``
+- ``SpriteUI/GameCenterTurnBasedMatches``
+- ``SpriteUI/GameCenterTurnBasedMatch``
+- ``SpriteUI/GameCenterTurnBasedParticipant``
+- ``SpriteUI/GameCenterTurnBasedStatus``
+- ``SpriteUI/GameCenterTurnBasedParticipantStatus``
+- ``SpriteUI/GameCenterTurnBasedOutcome``
+- ``SpriteUI/InMemoryTurnBasedStore``
+- ``SpriteUI/GameCenterTurnBasedMatchmakingView``
 
 ### Network sessions and Game Center
 

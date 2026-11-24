@@ -8,3 +8,4 @@ Package.resolved
 /Demo/build
 /Examples/DemoBots/build
 /Examples/DemoBots/build-mac
+__pycache__/

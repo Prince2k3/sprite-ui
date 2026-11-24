@@ -1,0 +1,64 @@
+@Tutorial(time: 25) {
+    @Intro(title: "Starting with Game Center services") {
+        Record local achievement progress and scores, save and pass typed turns between two preview identities, and add optional native service buttons.
+
+        @Image(source: "spriteui-game-center-services.svg", alt: "Local achievements and scores lead to shared in-memory saved turns, then optional explicitly requested native Game Center screens.")
+    }
+
+    @Section(title: "Start with local achievement progress and scores") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to the SpriteUI product. Keep the app's existing entry point presenting `ContentView()`. Each of the three Swift resources completely replaces `ContentView.swift`; use one at a time. No image assets, extra source files, Apple accounts, or entitlements are required for the local path, including stage three.
+
+            Retain ``GameCenterServices`` using `.preview()`. The progress panel calls `.achievements.load()`, `report(progress:for:)`, `.leaderboards.submit(score:to:)`, and `entries(for:range:)` from explicit buttons. It serializes work and displays errors. No task runs on appearance. Preview data lives only in this instance's memory; identifiers are tutorial labels rather than configured native resources.
+
+            ``GameCenterAchievements`` keeps known progress monotonic. ``GameCenterLeaderboards`` keeps only this local identity's highest submitted score at rank 1. Submission invalidates the loaded result, so the panel loads again. This rank does not model a league or a multi-player ranking.
+        }
+        @Steps {
+            @Step {
+                Replace `ContentView.swift` with stage one. Select Progress +25% twice: the achievement reads 50%. Select Submit 120, then Submit 80: the highest score stays 120 at rank 1. Continue progress to 100%; another press leaves it at 100%. Relaunching with a fresh model starts empty. Nothing is reported to Apple.
+
+                @Code(name: "ContentView.swift", file: "spriteui-game-center-services-01.swift") {
+                    @Image(source: "spriteui-game-center-services-01-preview.svg", alt: "Schematic expected result: achievement progress is 50 percent and highest local score is 120 at rank 1 after submitting 120 then 80.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Save, pass, and finish typed turns") {
+        @ContentAndMedia {
+            Stage two preserves the progress panel and adds a cooperative counter game. Two ``GameCenterTurnBasedMatches`` objects use different `.preview(player:)` identities and the same explicit ``InMemoryTurnBasedStore``. `createMatch(participants:)` seeds both known players. A preview `findMatch` would create pending opponent slots instead; it cannot invent a remote account.
+
+            The first save initializes a `PracticeTurnState` with version 1. `state(of:as:version:)` decodes the application's value, not an ECS world snapshot. Save +1 keeps the current turn, Pass turn uses the other participant's slot, and Finish tied supplies an outcome for both slots. Reload refreshes the selected identity's snapshot; the local store does not push changes automatically. Live Game Center uses asynchronous saved application state, not lockstep simulation.
+
+            Actions reload first and use `localCanAct` to gate controls. Production apps must validate their own decoded values, handle incompatible versions and size limits, and surface stale-match or not-your-turn failures. An Apple server write can commit before a cancellation or later error reaches the caller. Reported failures are not automatically queued for retry; reload before deciding to repeat a write. See <doc:game-center-services> for service lifetime and failure semantics.
+        }
+        @Steps {
+            @Step {
+                Replace the file with stage two. Select New local match, then Save +1 (keep turn) twice: the total is 2 and Player A still owns the turn. Select Pass turn: A's write buttons disable. Select View Player B: the explicit reload shows total 2 and B's write buttons enable. Save +1, then Pass turn. Select View Player A: total is 3. Select Finish tied: the match reads Ended and both outcomes are tied. Switching to B reloads the same ended match with no enabled write buttons. Create a new local match to repeat. The two identities share only process memory.
+
+                @Code(name: "ContentView.swift", file: "spriteui-game-center-services-02.swift", previousFile: "spriteui-game-center-services-01.swift") {
+                    @Image(source: "spriteui-game-center-services-02-preview.svg", alt: "Schematic expected result: Player B reloads total 2 after Player A saves twice and passes; both preview identities share one in-memory store.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Offer native services as an explicit option") {
+        @ContentAndMedia {
+            Stage three retains the complete local lab and adds a collapsed optional native panel. Its separate `GameCenterServices(mode: .live)` is retained in state. Install `.gameCenter(native)` once on the stable scroll view; descendants read `EnvironmentValues.gameCenterServices`. ``GameCenterServicesView`` supplies explicit Sign in, Real-time match, Turn-based games, Achievements, Leaderboards, and Setup help buttons. Opening the panel does not authenticate or find a match. The modifier owns the sheet host, account/match state handling, and shutdown when the parent disappears.
+
+            A live account-dependent destination first offers sign-in, then continues to that screen. The turn-based screen has explicit refresh, saved-game selection, matchfinding, and Done controls. This sample presents service screens; it does not attach an ECS world to the Real-time match button. For automatic retained replication, call `connect(in:schema:request:)` from an explicit button with a retained world and a validated schema. `startSession(in:schema:configuration:)` is only for an already-ready match. <doc:game-center-sessions-and-replication> covers real-time authority and transport limits.
+
+            For native work, enable the Game Center capability and signed entitlement, match the bundle ID and app configuration in App Store Connect, configure achievement/leaderboard identifiers, and review multiplayer compatibility. Sandboxed Mac apps need incoming and outgoing network permissions. The setup checker reads the built app's local metadata and signed entitlement data; it cannot verify remote portal setup or signature authenticity. Xcode's local GameKit configuration is another testing path, distinct from this tutorial's in-memory preview. Follow <doc:game-center-services> for templates, the checker command, Apple setup sources, and native verification steps.
+        }
+        @Steps {
+            @Step {
+                Replace the file with stage three. Leave Optional native Game Center collapsed and repeat the achievement, score, and turn sequence without any account. Expand the panel: no authentication starts. Select Setup help to inspect the instructions, then Done. Only in a configured signed app, optionally select Sign in and a service destination. The turn inbox requires Refresh saved games or another explicit action before work begins. Cancel sign-in or matchfinding and retry deliberately. Signed two-account/two-device verification remains pending; the illustrations show expected local behavior and an optional menu, not verified native persistence.
+
+                @Code(name: "ContentView.swift", file: "spriteui-game-center-services-03.swift", previousFile: "spriteui-game-center-services-02.swift") {
+                    @Image(source: "spriteui-game-center-services-03-preview.svg", alt: "Schematic expected result: local progress and turns remain usable while optional native services start collapsed; explicit buttons and setup help are available after expansion.")
+                }
+            }
+        }
+    }
+}

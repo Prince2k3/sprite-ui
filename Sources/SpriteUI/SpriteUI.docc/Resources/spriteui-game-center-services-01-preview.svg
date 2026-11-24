@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="480" viewBox="0 0 1040 480" role="img" aria-labelledby="title desc">
+<title id="title">Stage 1 · local achievements and scores</title>
+<desc id="desc">Schematic result after two progress presses, Submit 120, then Submit 80</desc>
+<rect width="1040" height="480" rx="24" fill="#101b2c"/>
+<text x="44" y="64" fill="#f3f7ff" font-family="system-ui,sans-serif" font-size="28" font-weight="700">Stage 1 · local achievements and scores</text>
+<text x="44" y="101" fill="#b8cadf" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Schematic result after two progress presses, Submit 120, then Submit 80</text>
+<rect x="44" y="145" width="440" height="220" rx="18" fill="#192b42" stroke="#63d7f5" stroke-width="2"/>
+<text x="68" y="188" fill="#63d7f5" font-family="system-ui,sans-serif" font-size="23" font-weight="600">Achievement · 50%</text>
+<text x="68" y="230" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Progress +25% pressed twice</text>
+<text x="68" y="264" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Known progress never decreases</text>
+<text x="68" y="298" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Complete at 100%</text>
+<rect x="556" y="145" width="440" height="220" rx="18" fill="#192b42" stroke="#ffb663" stroke-width="2"/>
+<text x="580" y="188" fill="#ffb663" font-family="system-ui,sans-serif" font-size="23" font-weight="600">Highest local score · 120</text>
+<text x="580" y="230" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Submit 80 leaves 120 unchanged</text>
+<text x="580" y="264" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Local preview rank is always 1</text>
+<text x="580" y="298" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Load results after submission</text>
+<text x="44" y="420" fill="#b8cadf" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Instance memory only · A fresh model starts empty · Nothing is reported to Apple</text>
+</svg>

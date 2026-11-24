@@ -47,6 +47,7 @@ struct SpriteUIDemoApp: App {
                     Tab("Collision", systemImage: "scope") { CollisionDemoView() }
                     Group {
                         Tab("Resources", systemImage: "play.square.stack") { ResourcesDemoView() }
+                        Tab("Game Services", systemImage: "gamecontroller") { GameServicesDemoView() }
                         Tab("API", systemImage: "square.stack.3d.down.right") { APIConsolidationDemoView() }
                         Tab("Tiles", systemImage: "square.grid.3x3") { TileMapDemoView() }
                         Tab("Constraints", systemImage: "scope") { ConstraintDemoView() }

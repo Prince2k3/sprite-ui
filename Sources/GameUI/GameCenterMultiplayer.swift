@@ -137,17 +137,23 @@ public final class GameCenterMultiplayer {
     @ObservationIgnored private var pendingMatchRouter: GameCenterMatchSignalRouter?
     @ObservationIgnored private var requestedRange: ClosedRange<Int> = 2...2
     @ObservationIgnored private let authenticationDriver: GameCenterAuthenticationDriver
+    @ObservationIgnored private let permitsAuthentication: Bool
 
-    public init() { authenticationDriver = .live }
+    public init() { authenticationDriver = .live; permitsAuthentication = true }
 
-    init(authenticationDriver: GameCenterAuthenticationDriver) {
+    init(authenticationDriver: GameCenterAuthenticationDriver, permitsAuthentication: Bool = true) {
         self.authenticationDriver = authenticationDriver
+        self.permitsAuthentication = permitsAuthentication
     }
 
     isolated deinit { shutdown() }
 
     /// Explicit user action only. Repeated taps while signing in are ignored.
     public func authenticate() {
+        guard permitsAuthentication else {
+            authenticationState = .failed("Game Center sign-in is unavailable in local preview mode.")
+            return
+        }
         guard authenticationState != .authenticating, authenticationState != .authenticated else { return }
         guard Self.owner == nil || Self.owner === self else {
             authenticationState = .failed(GameCenterError.operationInProgress.localizedDescription)
