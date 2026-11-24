@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="460" viewBox="0 0 960 460" role="img" aria-labelledby="title desc">
+<title id="title">Restore and replay selected state</title><desc id="desc">Schematic expected result for tutorial stage 2. Frozen actor + random stream → archived commands → checksum. This is not a device capture.</desc>
+<rect width="960" height="460" rx="24" fill="#111c30"/>
+<g font-family="system-ui,sans-serif" font-size="18" fill="#e0ebf4">
+<text x="44" y="48" font-size="25">Restore and replay selected state</text><text x="740" y="48" fill="#7ce3ab">PLAYING</text>
+<rect x="44" y="76" width="872" height="190" rx="12" fill="#182b43" stroke="#45607a"/>
+<path d="M80 180H880" stroke="#45607a" stroke-width="3"/><rect x="460" y="145" width="36" height="36" rx="4" fill="#48d9ec"/>
+<text x="80" y="235" fill="#93adc5">Pure kinematic actor · Codable application state · No assets</text>
+<text x="44" y="306">Hold left    Hold right    Tap burst between ticks</text>
+<text x="44" y="350">Record    Stop / save    Replay from start</text><text x="44" y="390">Relative archive ticks 1, 2, 3 … · Lifetime ticks keep increasing</text><text x="44" y="433" font-size="16" fill="#93adc5">Frozen actor + random stream → archived commands → checksum</text></g></svg>

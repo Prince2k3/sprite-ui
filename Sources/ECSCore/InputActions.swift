@@ -134,10 +134,20 @@ public struct InputActionState: Hashable, Sendable {
 }
 
 /// A value transition delivered synchronously on the main actor.
-public struct InputActionEvent: Sendable {
+public struct InputActionEvent: Hashable, Codable, Sendable {
+    /// The game-defined action that changed.
     public let action: InputAction
+    /// The action's resolved value at this transition.
     public let value: InputValue
+    /// The original transition phase, including cancellation.
     public let phase: InputActionPhase
+
+    /// Creates a transition without changing its phase or resolved value.
+    public init(action: InputAction, value: InputValue, phase: InputActionPhase) {
+        self.action = action
+        self.value = value
+        self.phase = phase
+    }
 }
 
 /// Retain this token to receive action changes; cancellation or deallocation ends delivery.

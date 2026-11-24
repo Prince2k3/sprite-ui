@@ -18,6 +18,7 @@ struct SpriteUIDemoApp: App {
                     Tab("Presentation", systemImage: "rectangle.on.rectangle") { PresentationDemoView() }
                 }
                 Group {
+                    Tab("Replay", systemImage: "arrow.counterclockwise.circle") { InputReplayDemoView() }
                     Tab("Fixed Step", systemImage: "metronome") { FixedStepDemoView() }
                     Tab("Random", systemImage: "dice") { RandomDemoView() }
                     Tab("States", systemImage: "arrow.triangle.branch") { StateMachineDemoView() }
@@ -27,7 +28,6 @@ struct SpriteUIDemoApp: App {
                     Tab("Noise", systemImage: "cloud") { NoiseDemoView() }
                     Tab("Decisions", systemImage: "questionmark.diamond") { DecisionDemoView() }
                     Tab("Strategists", systemImage: "circle.grid.3x3.fill") { StrategistDemoView() }
-                    Tab("Obstacles", systemImage: "square.on.square.dashed") { ObstacleDemoView() }
                 }
                 Tab("Physics", systemImage: "circle.bottomhalf.filled") { PhysicsDemoView() }
                 Tab("Scenes", systemImage: "square.stack.3d.up") { SceneDemoView() }
@@ -50,6 +50,7 @@ struct SpriteUIDemoApp: App {
                         Tab("Tiles", systemImage: "square.grid.3x3") { TileMapDemoView() }
                         Tab("Constraints", systemImage: "scope") { ConstraintDemoView() }
                         Tab("Manipulation", systemImage: "hand.draw") { ManipulationDemoView() }
+                        Tab("Obstacles", systemImage: "square.on.square.dashed") { ObstacleDemoView() }
                     }
                 }
             }

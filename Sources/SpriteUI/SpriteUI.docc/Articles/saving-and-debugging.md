@@ -149,6 +149,7 @@ When something fails to appear or move, first check that the entity belongs to t
 
 ## See also
 
+- <doc:input-recording-and-replay>
 - <doc:entity-and-scene-lifecycle>
 - <doc:systems-and-input>
 - <doc:rendering-and-resources>

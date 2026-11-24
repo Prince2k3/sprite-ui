@@ -62,6 +62,11 @@ public enum ComponentRegistry {
         entry(for: type) != nil
     }
 
+    /// Whether a stable component name can be decoded, for validation before restoring a snapshot.
+    public static func isRegistered(named name: String) -> Bool {
+        entry(named: name) != nil
+    }
+
     /// The name a registered type is saved under.
     public static func name(of type: any Component.Type) -> String? {
         entry(for: type)?.name

@@ -48,6 +48,10 @@ public final class World {
     private var installedSystems: [SystemEntry] = []
     var scheduledSystems: [SystemEntry] = []
     var isRunningSystems = false
+    var isFixedSingleStepping = false
+    weak var activeFrameCompletion: FrameCompletion?
+    var fixedTickCompletions: [@MainActor (Bool) -> Void] = []
+    weak var inputReplayOwner: InputReplayController?
 
     /// Fixed simulation is opt-in; variable systems retain their display-frame cadence.
     public var fixedStep: FixedStepConfiguration? {
@@ -92,7 +96,7 @@ public final class World {
         set {
             guard newValue.isFinite, newValue >= 0, newValue != storedTimeScale else { return }
             // Debug frames already reset the clock and advance at 1×.
-            if !isDebugStepping { resetFixedStepClock() }
+            if !isDebugStepping && !isFixedSingleStepping { resetFixedStepClock() }
             storedTimeScale = newValue
             simulationDidChange()
         }

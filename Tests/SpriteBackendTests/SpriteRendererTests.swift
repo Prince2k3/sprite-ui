@@ -1,4 +1,4 @@
-import ECSCore
+@_spi(Backend) import ECSCore
 import SpriteBackend
 import SpriteKit
 import Testing
@@ -79,6 +79,25 @@ import Testing
         world.removeEntity(entity)
         #expect(node.parent == nil)
         #expect(renderer.node(for: entity) == nil)
+    }
+
+    @Test func abandonedRendererFrameIsRetiredBeforeOpeningAnotherFixedFrame() {
+        let world = World()
+        world.fixedStep = .init(stepsPerSecond: 20)
+        let renderer = SpriteRenderer(world: world)
+        var fixedEvents = 0
+        let token = world.subscribe(to: WorldEvents.FixedUpdate.self) { _ in fixedEvents += 1 }
+        defer { token.cancel() }
+
+        renderer.update(0)
+        renderer.update(0.05) // The first frame deliberately has no finish callback.
+        #expect(world.fixedStepState.tick == 1 && fixedEvents == 1)
+        world.isPaused = true
+        #expect(!world.stepFixedSimulation()) // The replacement frame is still owned.
+        renderer.didFinishUpdate()
+        #expect(world.stepFixedSimulation())
+        #expect(world.fixedStepState.tick == 2 && fixedEvents == 2)
+        #expect(!world.isDebugStepping)
     }
 
     @Test func updateRunsSystemsThenFlushes() {

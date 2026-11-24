@@ -247,6 +247,18 @@ public final class SpriteRenderer: SKScene {
     }
 
     public override func update(_ currentTime: TimeInterval) {
+        // A native driver may abandon a frame before didFinishUpdate (and
+        // headless callers may supply only update). Explicitly retire our own
+        // frame before opening another; never overwrite the world's ownership
+        // marker while an unrelated backend frame is still unfinished.
+        if let currentFrame {
+            world.cancelFrame(currentFrame)
+            self.currentFrame = nil
+            if steppingThisFrame {
+                steppingThisFrame = false
+                worldSimulationDidChange(world)
+            }
+        }
         restoreFixedTransformPresentation()
         isUpdatingPresentation = true
         restoreRenderVisibility()

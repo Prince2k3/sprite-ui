@@ -18,6 +18,7 @@ public struct WorldFrame {
     public let deltaTime: TimeInterval
     public let unscaledDeltaTime: TimeInterval
     public let isDebugStep: Bool
+    fileprivate let isFixedOnlyStep: Bool
     fileprivate let fixedConfiguration: FixedStepConfiguration?
     fileprivate let fixedEpoch: UInt64
     fileprivate let frameEpoch: UInt64
@@ -34,6 +35,42 @@ final class FrameCompletion {
 }
 
 extension World {
+    /// Advances exactly one custom fixed simulation tick at 1× while paused.
+    /// Includes `FixedUpdate`, but no variable update, presentation, backend
+    /// physics, or actions. Lifetime ticks are never rewound. Returns false when
+    /// the root is inactive, the clock is unconfigured, or a frame is running.
+    @discardableResult
+    public func stepFixedSimulation() -> Bool {
+        guard isPaused, root.isActive, let configuration = fixedStep,
+              !isRunningSystems, !isDebugStepping, !isFixedUpdating,
+              activeFrameCompletion?.finished != false,
+              fixedStepState.tick < UInt64.max else { return false }
+        resetFixedStepClock()
+        fixedFrameEpoch &+= 1
+        let frame = WorldFrame(world: self, entries: scheduledSystems,
+                               deltaTime: configuration.stepDuration,
+                               unscaledDeltaTime: configuration.stepDuration,
+                               isDebugStep: false, isFixedOnlyStep: true,
+                               fixedConfiguration: configuration, fixedEpoch: fixedStepEpoch,
+                               frameEpoch: fixedFrameEpoch, frameTimeScale: 1,
+                               isProfilingEnabled: isProfilingEnabled, profilingRevision: profilingRevision,
+                               completion: FrameCompletion())
+        let previousTick = fixedStepState.tick
+        lastSystemTimings = []
+        isRunningSystems = true
+        isFixedSingleStepping = true
+        defer {
+            isRunningSystems = false
+            isFixedSingleStepping = false
+            fixedAccumulator = 0
+            fixedStepState.interpolationAlpha = 0
+            fixedTransformHistory.removeAll(keepingCapacity: true)
+            fixedTickStart.removeAll(keepingCapacity: true)
+        }
+        runFixedSteps(frame, wallDelta: configuration.stepDuration)
+        return fixedStepState.tick == previousTick + 1
+    }
+
     /// Starts simulation for a backend frame. Ordinary frames honor pause and time
     /// scale. A debug step requires a paused, enabled root and a positive finite
     /// delta, and advances at 1× without changing `isPaused`. Invalid times and
@@ -41,7 +78,8 @@ extension World {
     @_spi(Backend)
     public func beginFrame(deltaTime: TimeInterval, debugStep: Bool = false,
                            fixedDeltaTime: TimeInterval? = nil) -> WorldFrame? {
-        guard deltaTime.isFinite, deltaTime >= 0, !isRunningSystems, !isDebugStepping else { return nil }
+        guard deltaTime.isFinite, deltaTime >= 0, !isRunningSystems, !isDebugStepping,
+              activeFrameCompletion?.finished != false else { return nil }
         if debugStep {
             guard isPaused, deltaTime > 0, root.isEnabledInHierarchy else { return nil }
         } else {
@@ -57,12 +95,13 @@ extension World {
         fixedStepState.ticksThisFrame = 0
         fixedStepState.droppedTime = 0
         let frame = WorldFrame(world: self, entries: scheduledSystems, deltaTime: scaled,
-                               unscaledDeltaTime: deltaTime, isDebugStep: debugStep,
+                               unscaledDeltaTime: deltaTime, isDebugStep: debugStep, isFixedOnlyStep: false,
                                fixedConfiguration: fixedStep, fixedEpoch: fixedStepEpoch,
                                frameEpoch: fixedFrameEpoch, frameTimeScale: debugStep ? 1 : timeScale,
                                isProfilingEnabled: isProfilingEnabled, profilingRevision: profilingRevision,
                                completion: FrameCompletion())
         lastSystemTimings = []
+        activeFrameCompletion = frame.completion
         isDebugStepping = debugStep
         isRunningSystems = true
         defer { isRunningSystems = false }
@@ -132,7 +171,7 @@ extension World {
         let step = configuration.stepDuration
         let tolerance = step * 1e-9
         let count: Int
-        if frame.isDebugStep {
+        if frame.isDebugStep || frame.isFixedOnlyStep {
             count = 1
             fixedAccumulator = 0
             fixedStepState.interpolationAlpha = 1
@@ -172,6 +211,12 @@ extension World {
             }
             if canRunFixed(frame) { captureFixedTickEnd() }
             isFixedUpdating = false
+            // Replay commits only after every fixed system and transform capture.
+            // Take the queue first so callbacks cannot join this completed tick.
+            let completed = canRunFixed(frame)
+            let completions = fixedTickCompletions
+            fixedTickCompletions.removeAll(keepingCapacity: true)
+            for completion in completions { completion(completed) }
             // Callbacks may have reset the clock. Never publish an old tick's
             // transform pair or accumulator over that newer reset.
             guard canRunFixed(frame) else { break }
@@ -183,6 +228,7 @@ extension World {
     }
 
     private func canRun(_ frame: WorldFrame) -> Bool {
-        frame.isDebugStep ? root.isEnabledInHierarchy : (!isPaused && timeScale > 0)
+        if frame.isFixedOnlyStep { return isPaused && root.isActive }
+        return frame.isDebugStep ? root.isEnabledInHierarchy : (!isPaused && timeScale > 0)
     }
 }

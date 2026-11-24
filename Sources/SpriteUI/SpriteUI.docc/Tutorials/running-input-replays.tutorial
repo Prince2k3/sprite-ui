@@ -1,0 +1,73 @@
+@Tutorial(time: 30) {
+    @Intro(title: "Running input replays") {
+        Record fixed-tick input, restore a kinematic actor and random stream, and inspect playback with selected-state checksums and explicit transport controls.
+
+        @Image(source: "spriteui-input-replay.svg", alt: "A frozen initial state and ordered input frames feed fixed rules, followed by tick completion and diagnostic checksum comparison.")
+    }
+
+    @Section(title: "Record one sample for all fixed rules") {
+        @ContentAndMedia {
+            Read <doc:fixed-step-simulation-and-interpolation> and complete <doc:running-fixed-step-simulation> first. Start with an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Each stage completely replaces `ContentView.swift`; keep the app entry point's `ContentView()` and install only one stage at a time. No image assets, files, or physical controls are required. SVG previews are schematic expected results, not device captures.
+
+            Stage one registers the Codable `ReplayActor` component under a stable name. Its position and press/release counters live on the entity. `ReplayRuntime` holds the scene service on the root and returns nil from `cloned()`. Runtime references and installed system state do not enter the archive. The scene retains the controller and keeps its world reference weak.
+
+            `InputReplayController(world:input:maximumFrames:checksum:)` uses SpriteUI's default provider: registered entity snapshots, root transform, and the complete current `world.random` state. It does not save root resources. Use the designated custom capture/restore initializer from <doc:input-recording-and-replay> if authoritative root resources affect your rules. The tutorial needs no custom provider because all game state is on the saved actor and in the captured random generator.
+
+            One `.fixedSimulation` system calls `sample(for:)` before every owned rule, shares it for movement and ordered burst events, and calls `finishTick` afterward. That call marks readiness. Checksum, append, comparison, and EOF pause occur at core fixed-tick completion after all fixed systems and transform capture. Interrupted ticks fail closed without committing a partial frame. Do not add a second buffer or poll current hardware state from replay rules.
+        }
+
+        @Steps {
+            @Step {
+                Install stage one and select Record. Hold a direction and send a short Burst tap. The tap submits press and release synchronously, so both may arrive entirely between ticks. Stop / save freezes the completed archive. At 30 Hz the 900-frame recording limit represents 30 simulation seconds. Reaching the limit reports an error instead of discarding old frames; overflowed transition history is also rejected.
+
+                @Code(name: "ContentView.swift", file: "spriteui-input-replay-01.swift") {
+                    @Image(source: "spriteui-input-replay-01-preview.svg", alt: "A cyan actor moves with virtual left and right controls while Record and Stop save consecutive relative input frames.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Restore and compare selected state") {
+        @ContentAndMedia {
+            Stage two supplies a checksum closure capturing the world weakly. It finds the restored actor by its component each time, then encodes `ReplayActor` and the full `SeededGenerator` using sorted JSON keys. Burst motion consumes `world.random.nextUnit()` in a stable order. Checksums exclude IDs, lifetime clock counters, UI state, and pixels. For multiple actors, sort a selected-state array by stable application keys before encoding it.
+
+            Record a short run, stop, and choose Replay from start. The sample performs an in-memory JSON round trip with `InputRecording(data:)` before `startPlayback`, exercising file-version and frame validation without a filesystem dependency. For files, use `recording.write(to:)` and `InputRecording(contentsOf:)` at an application-owned URL. Required registered component types are checked before default restore removes any entities; the default provider also rejects malformed root poses and duplicate IDs or component types. Keep registration names stable between compatible app builds.
+
+            Playback restores the initial entity tree, root pose, and current random-stream state, applies the recorded fixed configuration, and suppresses live input without changing the caller's `input.isEnabled` preference. The owner re-queries restored entities each tick. An archive begins at relative tick one even when the world has already executed many lifetime ticks. Stop restores earlier clock preferences and releases input suppression through neutral gates; it leaves the current replay world in place.
+
+            Matching FNV-1a checksums diagnose the selected application values. They do not guarantee deterministic native physics, actions, rendering, or whole-world behavior. This actor is purely kinematic and uses no SpriteKit types, bodies, controllers, or native actions. End-of-file pauses at the completed final tick and holds live input suppressed until Stop.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage two. Record movement and several bursts, then stop and replay. The restored run follows the same input and random draws. The lifetime tick display keeps increasing while archive ticks always begin at one. Wait for Finished, then select Stop before using virtual input again. Recording state and errors are read from the observable controller after completion, rather than assuming `finishTick` committed synchronously.
+
+                @Code(name: "ContentView.swift", file: "spriteui-input-replay-02.swift", previousFile: "spriteui-input-replay-01.swift") {
+                    @Image(source: "spriteui-input-replay-02-preview.svg", alt: "Replay restores the starting actor and random stream, disables live controls, and checks selected state after each completed tick.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Pause, step, diagnose, and clean up") {
+        @ContentAndMedia {
+            Stage three adds Load paused, Play, Pause, Step, and finite speed choices between 0.5× and 4×. Playback speed is valid in `0.1...4` and changes `world.timeScale` during playback without changing fixed deltas. Loading starts playback from the recording's initial state; Play resumes the current paused playback.
+
+            Step uses `world.stepFixedSimulation()` through the controller. It requires a paused, active fixed world with no unfinished backend frame or reentrant system execution. Exactly one fixed tick runs at 1×, including `WorldEvents.FixedUpdate`. No `WorldEvents.Update`, variable systems, presentation systems, native physics, actions, or backend debug physics frame run. Remainder and interpolation history clear, while the lifetime clock stays monotonic. Keep all replay rules in the fixed owner; do not depend on a presentation system to commit or check a stepped tick.
+
+            Load paused and select Alter state, then Step while frames remain. This deliberately changes the checksum's selected actor state. At completed-tick comparison the controller exposes divergence with the archive-relative tick and expected/actual checksums, pauses the world, and retains live-input suppression. Replay from start restores the original initial state. Failed or interrupted ticks discard pending frame work; already-applied application mutations are not automatically rolled back.
+
+            Focus loss cancels buffered live input and does not change committed archive frames. On app inactivity, the example disables input, cancels held sources, and sends app-owned virtual controls to neutral. Recording is finalized; playing playback becomes paused and keeps its suppression lease. Returning requires Resume scene and an explicit Play for retained playback. Disappearance calls Stop to release the lease and restore clock preferences. World pause by itself is not input cleanup. These controls run from SwiftUI outside system updates; lifecycle mutators reject system-time reentry.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage three. Record, stop, load paused, and step several frames. Try 0.5× and 2× playback, pause midway, then deliberately alter state and step to expose divergence. Load again to recover. Finally leave and return to the app while holding a direction: controls cancel to neutral, the archive stays unchanged, and playback resumes only through explicit transport controls.
+
+                @Code(name: "ContentView.swift", file: "spriteui-input-replay-03.swift", previousFile: "spriteui-input-replay-02.swift") {
+                    @Image(source: "spriteui-input-replay-03-preview.svg", alt: "Paused replay offers Play, Pause, Step, speed choices, and selected-state divergence diagnostics with explicit lifecycle cleanup.")
+                }
+            }
+        }
+    }
+}

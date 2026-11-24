@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="3340" height="400" viewBox="0 0 3340 400" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="3580" height="400" viewBox="0 0 3580 400" role="img" aria-labelledby="title desc">
   <title id="title">Build an interactive SpriteUI scene</title>
-  <desc id="desc">Fourteen connected panels progress from a cyan sprite, through targeted motion and a route around a wall, to a directional pad feeding shared input actions, then direct manipulation on a tilted grid and two independent players with owned devices, shared-world viewports, world/map render layers, a repeating parallax landscape, level transitions with persistent players, adaptive game surfaces, optional hinge actions with virtual controls, bounded rendering with passive mirrors, and fixed simulation with interpolated kinematic artwork and buffered input.</desc>
-  <rect width="3340" height="400" rx="28" fill="#111c30"/>
+  <desc id="desc">Fifteen connected panels progress from a cyan sprite, through targeted motion and a route around a wall, to a directional pad feeding shared input actions, then direct manipulation on a tilted grid and two independent players with owned devices, shared-world viewports, world/map render layers, a repeating parallax landscape, level transitions with persistent players, adaptive game surfaces, optional hinge actions with virtual controls, bounded rendering with passive mirrors, fixed simulation with interpolated kinematic artwork and buffered input, and fixed-input recording with replay diagnostics.</desc>
+  <rect width="3580" height="400" rx="28" fill="#111c30"/>
   <g fill="#182b43" stroke="#45607a" stroke-width="2">
     <rect x="24" y="44" width="210" height="302" rx="18"/>
     <rect x="258" y="44" width="210" height="302" rx="18"/>
@@ -106,5 +106,15 @@
 <rect x="85" y="165" width="30" height="30" rx="4" fill="#48d9ec"/>
 <text x="105" y="230" font-family="system-ui,sans-serif" font-size="16" text-anchor="middle" fill="#93adc5">Buffered input + alpha</text>
 <text x="105" y="265" font-family="system-ui,sans-serif" font-size="16" text-anchor="middle" fill="#e0ebf4">14. Tick and interpolate</text>
+</g>
+<path d="M3305 195h14m-6-5 6 5-6 5" fill="none" stroke="#93adc5" stroke-width="3"/>
+<g transform="translate(3330 44)">
+<rect width="210" height="302" rx="18" fill="#182b43" stroke="#45607a" stroke-width="2"/>
+<rect x="28" y="66" width="154" height="64" rx="8" fill="#111c30" stroke="#48d9ec"/>
+<g fill="#48d9ec"><rect x="45" y="87" width="20" height="20"/><rect x="78" y="87" width="20" height="20"/><rect x="111" y="87" width="20" height="20"/></g>
+<path d="M105 140v28m-5-6 5 6 5-6" fill="none" stroke="#7ce3ab" stroke-width="3"/>
+<path d="M87 184l30 17-30 17z" fill="#7ce3ab"/>
+<text x="105" y="238" font-family="system-ui,sans-serif" font-size="15" text-anchor="middle" fill="#93adc5">Record · step · compare</text>
+<text x="105" y="265" font-family="system-ui,sans-serif" font-size="16" text-anchor="middle" fill="#e0ebf4">15. Replay input</text>
 </g>
 </svg>

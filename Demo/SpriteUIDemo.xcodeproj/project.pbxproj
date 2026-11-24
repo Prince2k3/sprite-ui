@@ -45,6 +45,7 @@
 		9724ED58A1891C9FFE8B84F5 /* playback-demo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 336679CC6AC0F80F32FB81A4 /* playback-demo.wav */; };
 		ACFD314C738A69C31108374A /* Drawing.sks in Resources */ = {isa = PBXBuildFile; fileRef = FC7AFE09A2843F05C7FD51C2 /* Drawing.sks */; };
 		AFE3EB6EC6605EBA36A44F3B /* NoiseDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93920852539B40941CCCD9D6 /* NoiseDemoView.swift */; };
+		B36BFE534B5A8722BFFBBC3E /* InputReplayDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B94BE5F6590030481D42A6 /* InputReplayDemoView.swift */; };
 		CA2E123843221506FF47258F /* PathfindingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */; };
 		CBB78677B4DAD6DADA4850F2 /* TileMapDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */; };
 		D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */; };
@@ -97,6 +98,7 @@
 		93920852539B40941CCCD9D6 /* NoiseDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoiseDemoView.swift; sourceTree = "<group>"; };
 		95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConsolidationDemoView.swift; sourceTree = "<group>"; };
 		96DB786457C0B4185B6BB04C /* Masking.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Masking.sks; sourceTree = "<group>"; };
+		A3B94BE5F6590030481D42A6 /* InputReplayDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputReplayDemoView.swift; sourceTree = "<group>"; };
 		A4B66B4DE6A41451B5690655 /* RenderLayersDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderLayersDemoView.swift; sourceTree = "<group>"; };
 		AD4B56781DDCE0AD924A5FAD /* coin.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = coin.wav; sourceTree = "<group>"; };
 		B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialDemoView.swift; sourceTree = "<group>"; };
@@ -169,6 +171,7 @@
 				EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */,
 				48D59140F86FFD9C2335ED7B /* FixedStepDemoView.swift */,
 				52B9F0361E950C696BAE6FFB /* HingeInputDemoView.swift */,
+				A3B94BE5F6590030481D42A6 /* InputReplayDemoView.swift */,
 				60458B4819985FB661F0F10A /* JointDemoView.swift */,
 				02AEA6150EF96D3BD54FB217 /* Level.sks */,
 				8F3033A0EF69832A230C07EB /* LevelTransitionDemoView.swift */,
@@ -299,6 +302,7 @@
 				5426761EF954EE8084C185FA /* DemoView.swift in Sources */,
 				4480B98749CACB532C5EDFAB /* FixedStepDemoView.swift in Sources */,
 				D656A83FAF6BD0798CB1C62D /* HingeInputDemoView.swift in Sources */,
+				B36BFE534B5A8722BFFBBC3E /* InputReplayDemoView.swift in Sources */,
 				676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */,
 				1E154204E7097B2E5160696F /* LevelTransitionDemoView.swift in Sources */,
 				F4ADA338FC9E58E31452A0A0 /* LightingDemoView.swift in Sources */,

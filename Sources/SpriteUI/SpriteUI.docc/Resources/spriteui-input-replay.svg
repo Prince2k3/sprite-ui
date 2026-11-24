@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="400" viewBox="0 0 960 400" role="img" aria-labelledby="title desc">
+<title id="title">Fixed input recording and replay</title><desc id="desc">Frozen entity state, root pose, and a complete random stream accompany relative input frames. One owner samples before rules and marks ready afterward. Tick completion commits and compares after all fixed systems and transform capture.</desc>
+<rect width="960" height="400" rx="24" fill="#111c30"/>
+<g font-family="system-ui,sans-serif" text-anchor="middle" fill="#e0ebf4" font-size="18">
+<text x="480" y="42" font-size="25">Freeze state · Record commands · Compare completed ticks</text>
+<g fill="#182b43" stroke="#45607a" stroke-width="2"><rect x="30" y="82" width="260" height="125" rx="12"/><rect x="350" y="82" width="260" height="125" rx="12"/><rect x="670" y="82" width="260" height="125" rx="12"/></g>
+<text x="160" y="118">Initial state</text><text x="160" y="154" fill="#48d9ec">Entities + root pose</text><text x="160" y="184" fill="#7ce3ab">Full random stream</text>
+<text x="480" y="118">Relative input frames</text><text x="480" y="154" fill="#48d9ec">1 → 2 → 3 → …</text><text x="480" y="184">Held values + ordered events</text>
+<text x="800" y="118">Fixed tick completion</text><text x="800" y="154" fill="#7ce3ab">Selected-state checksum</text><text x="800" y="184">Match / divergence / EOF</text>
+<path d="M300 144h38m-8-8 8 8-8 8M620 144h38m-8-8 8 8-8 8" fill="none" stroke="#48d9ec" stroke-width="3"/>
+<text x="480" y="265">sample → ALL owned rules → finishTick marks ready</text><text x="480" y="300" fill="#7ce3ab">Commit after ALL fixed systems + transform capture</text>
+<text x="480" y="355" fill="#93adc5" font-size="16">Custom fixed rules · No native physics or whole-world determinism guarantee</text></g></svg>

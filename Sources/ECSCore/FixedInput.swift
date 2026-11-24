@@ -1,14 +1,78 @@
+import Foundation
+
 /// An immutable snapshot for one caller-driven simulation step. Transitions are
 /// delivered once; held values remain available in subsequent samples.
-public struct FixedInputSample: Sendable {
+public struct FixedInputSample: Codable, Equatable, Sendable {
+    /// Ordered transitions, including cancellations and repeated actions.
     public let events: [InputActionEvent]
+    /// Whether the source buffer dropped any transitions before this sample.
     public let didOverflow: Bool
-    private let values: [InputAction: InputValue]
+    /// Resolved held values, copied independently of subsequent input changes.
+    public let values: [InputAction: InputValue]
 
-    fileprivate init(events: [InputActionEvent], didOverflow: Bool, values: [InputAction: InputValue]) {
+    /// Creates a sample without normalization. Decoding and recording validate
+    /// action kinds and finite normalized values; recording also rejects overflow.
+    public init(values: [InputAction: InputValue] = [:], events: [InputActionEvent] = [], didOverflow: Bool = false) {
         self.events = events
         self.didOverflow = didOverflow
         self.values = values
+    }
+
+    private enum CodingKeys: String, CodingKey { case values, events, didOverflow }
+    private struct Entry: Codable {
+        let action: InputAction
+        let value: InputValue
+    }
+
+    /// Decodes unique action entries and validates held and transition values.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let entries = try container.decode([Entry].self, forKey: .values)
+        var values: [InputAction: InputValue] = [:]
+        for entry in entries {
+            guard values.updateValue(entry.value, forKey: entry.action) == nil else {
+                throw InputRecordingError.invalidFrame
+            }
+        }
+        self.init(values: values,
+                  events: try container.decode([InputActionEvent].self, forKey: .events),
+                  didOverflow: try container.decode(Bool.self, forKey: .didOverflow))
+        try validate()
+    }
+
+    /// Encodes held values as a sorted array, preserving transition order.
+    public func encode(to encoder: any Encoder) throws {
+        try validate()
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        let entries = values.map { Entry(action: $0.key, value: $0.value) }.sorted {
+            if $0.action.name != $1.action.name { return $0.action.name < $1.action.name }
+            if $0.action.kind != $1.action.kind { return $0.action.kind.rawValue < $1.action.kind.rawValue }
+            return $0.action.pressThreshold < $1.action.pressThreshold
+        }
+        try container.encode(entries, forKey: .values)
+        try container.encode(events, forKey: .events)
+        try container.encode(didOverflow, forKey: .didOverflow)
+    }
+
+    func validate() throws {
+        for (action, value) in values { try Self.validate(value, for: action) }
+        for event in events { try Self.validate(event.value, for: event.action) }
+    }
+
+    private static func validate(_ value: InputValue, for action: InputAction) throws {
+        let valid: Bool
+        switch (action.kind, value) {
+        case (.button, .button): valid = true
+        case (.axis, .axis(let scalar)):
+            valid = scalar.isFinite && (-1...1).contains(scalar)
+        case (.axis2D, .axis2D(let vector)):
+            // Normalizing a Float vector can round its squared length just above one.
+            valid = vector.x.isFinite && vector.y.isFinite
+                && (-1...1).contains(vector.x) && (-1...1).contains(vector.y)
+                && vector.x * vector.x + vector.y * vector.y <= 1 + 4 * Float.ulpOfOne
+        default: valid = false
+        }
+        guard valid else { throw InputRecordingError.invalidFrame }
     }
 
     /// The controller's resolved value when consumed, or a kind-appropriate zero
@@ -65,7 +129,7 @@ public final class FixedInputBuffer {
         discardCancelledEvents()
         let actions = Set(input.contexts.flatMap { $0.bindings.map(\.action) })
         let values = Dictionary(uniqueKeysWithValues: actions.map { ($0, input.value(for: $0)) })
-        let sample = FixedInputSample(events: events, didOverflow: didOverflow, values: values)
+        let sample = FixedInputSample(values: values, events: events, didOverflow: didOverflow)
         reset()
         return sample
     }

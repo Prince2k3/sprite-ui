@@ -180,6 +180,8 @@ Use `GameRenderConfiguration(preferredFramesPerSecond:)` on `GameView(rendering:
 
 ## See also
 
+- <doc:input-recording-and-replay>
+- <doc:running-input-replays>
 - <doc:running-fixed-step-simulation>
 - <doc:systems-and-input>
 - <doc:input-actions-and-controllers>
