@@ -168,7 +168,7 @@ public enum PlayerInputError: Error, Equatable {
 
     private static func matches(_ control: InputControl, device: InputDeviceInfo) -> Bool {
         switch (control, device.id) {
-        case (.key, .keyboard), (.pointerButton, .pointer): true
+        case (.key, .keyboard), (.pointerButton, .pointer), (.hinge, .hinge): true
         case (.gamepadButton, .controller), (.gamepadAxis, .controller), (.virtual, .virtual):
             device.presentations.isEmpty || device.presentations[control] != nil
         default: false
@@ -183,6 +183,7 @@ public enum PlayerInputError: Error, Equatable {
         case .gamepadButton(let button): return .init(label: button.rawValue)
         case .gamepadAxis(let axis): return .init(label: axis.rawValue)
         case .virtual(let name): return .init(label: name)
+        case .hinge: return .init(label: "Fold", symbolName: "rectangle.split.2x1")
         }
     }
 }
@@ -207,6 +208,8 @@ public enum PlayerInputError: Error, Equatable {
     @ObservationIgnored private var usage: [InputDevice: UInt64] = [:]
     @ObservationIgnored private var clock: UInt64 = 0
     @ObservationIgnored fileprivate var cancelling = false
+    @ObservationIgnored private var preservesHingeDuringCancellation = false
+    @ObservationIgnored private var pendingFullCancellation = false
     @ObservationIgnored private var backendOwner: UUID?
     @ObservationIgnored private var suppressionOwners: Set<UUID> = []
     @ObservationIgnored fileprivate var feedbackProvider: (any InputFeedbackProvider)?
@@ -262,7 +265,7 @@ public enum PlayerInputError: Error, Equatable {
     public func connect(_ info: InputDeviceInfo) {
         guard infos[info.id] != info else { return }
         let existed = infos.updateValue(info, forKey: info.id) != nil
-        if !existed, case .controller = info.id { needsBaseline.insert(info.id) }
+        if !existed, Self.requiresBaseline(info.id) { needsBaseline.insert(info.id) }
         emit(existed ? .updated(info) : .connected(info)) { self.infos[info.id] == info }
     }
     public func disconnect(_ device: InputDevice) {
@@ -290,7 +293,8 @@ public enum PlayerInputError: Error, Equatable {
         if needsBaseline.remove(device) != nil {
             captureGates(device, using: player?.input)
         }
-        guard !cancelling, acceptsInput, let player, player.input.acceptsInput else {
+        guard !cancelling || (preservesHingeDuringCancellation && device == .hinge),
+              acceptsInput, let player, player.input.acceptsInput else {
             captureGates(device, using: player?.input)
             return
         }
@@ -319,11 +323,19 @@ public enum PlayerInputError: Error, Equatable {
     /// Suspends held actions and feedback while preserving assignments. Held
     /// controls must return to neutral before the next meaningful input.
     public func cancelAll() {
-        guard !cancelling else { return }
+        guard !cancelling else {
+            if preservesHingeDuringCancellation {
+                // A focus or scope loss supersedes coordinate preservation.
+                // Finish the current atomic pass, then cancel the hinge as well.
+                pendingFullCancellation = true
+                preservesHingeDuringCancellation = false
+            }
+            return
+        }
         cancelling = true
         defer { cancelling = false }
         for device in infos.keys {
-            if case .controller = device { needsBaseline.insert(device) }
+            if Self.requiresBaseline(device) { needsBaseline.insert(device) }
         }
         for device in raw.keys {
             revisions[device, default: 0] &+= 1
@@ -331,6 +343,36 @@ public enum PlayerInputError: Error, Equatable {
         }
         for player in players { player.stopFeedback(); player.input.cancelAll() }
     }
+
+    /// Cancels coordinate-dependent input and feedback while retaining hinge
+    /// samples, neutral gates, and ownership across surface or viewport changes.
+    @_spi(Backend) public func cancelForCoordinateSpaceChange() {
+        guard !cancelling else { return }
+        cancelling = true
+        preservesHingeDuringCancellation = true
+        defer {
+            preservesHingeDuringCancellation = false
+            cancelling = false
+            if pendingFullCancellation {
+                pendingFullCancellation = false
+                cancelAll()
+            }
+        }
+        for device in infos.keys where device != .hinge {
+            if Self.requiresBaseline(device) { needsBaseline.insert(device) }
+        }
+        for device in raw.keys where device != .hinge {
+            revisions[device, default: 0] &+= 1
+            captureGates(device, using: owner(of: device)?.input)
+        }
+        for player in players where player.hub === self {
+            for device in player.devices where device.id != .hinge {
+                feedbackProvider?.stop(for: device.id)
+            }
+            player.input.cancelForCoordinateSpaceChange()
+        }
+    }
+
     public func observe(_ handler: @escaping @MainActor (InputDeviceEvent) -> Void) -> InputDeviceSubscription {
         let token = InputDeviceSubscription(); handlers.append(.init(token: token, call: handler)); return token
     }
@@ -391,7 +433,7 @@ public enum PlayerInputError: Error, Equatable {
     fileprivate func cancelled(device: InputDevice, for player: PlayerInputSession) {
         revisions[device, default: 0] &+= 1
         captureGates(device, using: player.input)
-        if case .controller = device { needsBaseline.insert(device) }
+        if Self.requiresBaseline(device) { needsBaseline.insert(device) }
     }
     private func selectFallback(for player: PlayerInputSession) {
         let device = devices.filter { owners[$0.id] == player.id && usage[$0.id] != nil }
@@ -408,6 +450,12 @@ public enum PlayerInputError: Error, Equatable {
         for handler in handlers where handler.token?.isCancelled == false {
             guard valid() else { break }
             handler.call(event)
+        }
+    }
+    private static func requiresBaseline(_ device: InputDevice) -> Bool {
+        switch device {
+        case .controller, .hinge: true
+        default: false
         }
     }
     private static func sanitized(_ value: InputValue) -> InputValue {

@@ -131,7 +131,7 @@ extension GameHost {
         contact.endedAt = ProcessInfo.processInfo.systemUptime
         contact.cancelled = contact.cancelled || cancelled
     }
-    func cancelInputs() {
+    func cancelInputs(preservingHinge: Bool = false) {
         guard !isCancellingInputs else { return }
         isCancellingInputs = true
         defer { isCancellingInputs = false }
@@ -139,7 +139,8 @@ extension GameHost {
         inputContacts.removeAll()
         manipulationInput?.cancel()
         renderer.cancelManipulations()
-        if let nativeInputSession { nativeInputSession.cancelFromHost() }
+        if let nativeInputSession { nativeInputSession.cancelFromHost(preservingHinge: preservingHinge) }
+        else if preservingHinge { actionInput?.cancelForCoordinateSpaceChange() }
         else { actionInput?.cancelAll() }
     }
     func contact(startingAt start: CGPoint?, after completedID: UInt64 = 0) -> InputContact? {

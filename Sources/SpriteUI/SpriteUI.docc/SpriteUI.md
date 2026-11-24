@@ -20,6 +20,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Render one world through player cameras and a minimap | <doc:viewports-and-split-screen> |
 | Fit cameras and controls around safe areas and reserved regions | <doc:adaptive-game-surfaces> |
+| Observe a live hinge or bind it to an explicitly assigned player action | <doc:hinge-input-and-effects> |
 | Give cameras different art while hidden objects keep simulating | <doc:render-layers-and-camera-visibility> |
 | Scroll and repeat decorative backgrounds independently per camera | <doc:parallax-and-repeating-backgrounds> |
 | Replace levels while preserving players and cameras | <doc:scene-transitions-and-level-management> |
@@ -53,6 +54,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:player-input-sessions-and-feedback>
 - <doc:viewports-and-split-screen>
 - <doc:adaptive-game-surfaces>
+- <doc:hinge-input-and-effects>
 - <doc:render-layers-and-camera-visibility>
 - <doc:parallax-and-repeating-backgrounds>
 - <doc:scene-transitions-and-level-management>
@@ -159,6 +161,12 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/GameSurfaceGeometry``
 - ``SpriteUI/GameSurfaceRegion``
 - ``SpriteUI/GameSurfaceEvents``
+
+### Hinge input and effects
+
+- ``SpriteUI/GameHingeState``
+- ``SpriteUI/GameHingeEvents``
+- ``SpriteUI/HingeInputConfiguration``
 
 ### Drawing and resource reuse
 

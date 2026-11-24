@@ -367,6 +367,7 @@ import Testing
         case .pointerButton: .pointer
         case .gamepadButton, .gamepadAxis: .controller(UUID())
         case .virtual: .virtual("overlay")
+        case .hinge: .hinge
         }
     }
 }

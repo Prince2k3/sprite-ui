@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+<title id="title">Stage 1 · Observe optional data</title><desc id="desc">Fallback platforms keep live sensor data unavailable. Schematic illustration, not a runtime capture.</desc>
+<rect width="800" height="600" rx="24" fill="#0c1425"/>
+<g font-family="system-ui, sans-serif"><text x="28" y="48" font-size="28" fill="#edf5ff">Stage 1 · Observe optional data</text>
+<text x="28" y="82" font-size="17" fill="#a4bad0">Fallback platforms keep live sensor data unavailable.</text>
+<rect x="36" y="120" width="728" height="280" rx="8" fill="#111c30" stroke="#66819a"/>
+<g transform="translate(400 256) rotate(0)"><rect x="-44" y="-22" width="88" height="44" rx="4" fill="#49d8ee"/></g>
+<text x="60" y="160" fill="#6ee7b7" font-size="18">No live hinge</text>
+<text x="60" y="365" fill="#a4bad0" font-size="18">Live hinge unavailable</text>
+<text x="60" y="455" font-size="18" fill="#a4bad0">Angle: unavailable · no synthetic reading</text>
+<text x="28" y="520" font-size="19" fill="#a4bad0">Raw effects only · surface regions drive layout</text>
+<text x="28" y="570" font-size="16" fill="#a4bad0">Schematic preview · no simulated sensor readings</text></g></svg>

@@ -91,7 +91,17 @@ def prepare_symbol_graphs():
 
 def check_swift_examples():
     print("Type-checking tutorial stages and guide examples…", flush=True)
-    binary = Path(run(["swift", "build", "--show-bin-path"]).strip())
+    output = run(["swift", "build", "--show-bin-path"])
+    # SwiftPM can prefix its path with a lock notice without a trailing newline.
+    # Keep progress text out of the compiler's module and framework search paths.
+    output = re.sub(r"^Another instance of SwiftPM .*?finished execution\.\.\.", "", output,
+                    flags=re.MULTILINE)
+    lines = output.strip().splitlines()
+    if not lines:
+        raise RuntimeError("SwiftPM did not report its binary directory.")
+    binary = Path(lines[-1].strip())
+    if not binary.is_absolute() or not binary.is_dir():
+        raise RuntimeError(f"SwiftPM reported an unusable binary directory: {binary}")
     sdk = run(["xcrun", "--sdk", "macosx", "--show-sdk-path"]).strip()
     arch = "arm64" if platform.machine() == "arm64" else "x86_64"
     compiler = ["xcrun", "swiftc", "-swift-version", "6", "-parse-as-library", "-typecheck",

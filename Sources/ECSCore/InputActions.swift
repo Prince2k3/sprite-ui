@@ -68,6 +68,8 @@ public enum InputControl: Hashable, Codable, Sendable {
     case gamepadButton(GamepadButton)
     case gamepadAxis(GamepadAxis)
     case virtual(String)
+    /// The device hinge's normalized scalar input.
+    case hinge
 
     var canonical: Self {
         guard case .key(let key) = self else { return self }
@@ -78,6 +80,8 @@ public enum InputControl: Hashable, Codable, Sendable {
 /// An independent input producer. Give each on-screen control its own virtual device.
 public enum InputDevice: Hashable, Codable, Sendable {
     case keyboard, pointer, controller(UUID), virtual(String)
+    /// The device's physical hinge, when supplied by a host.
+    case hinge
 
     var sortKey: String {
         switch self {
@@ -85,6 +89,7 @@ public enum InputDevice: Hashable, Codable, Sendable {
         case .pointer: "1"
         case .controller(let id): "2" + id.uuidString
         case .virtual(let name): "3" + name
+        case .hinge: "4"
         }
     }
 }

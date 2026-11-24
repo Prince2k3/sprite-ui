@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+<title id="title">Stage 3 · Assign to a player</title><desc id="desc">Two retained sessions each own their virtual slider. Schematic illustration, not a runtime capture.</desc>
+<rect width="800" height="600" rx="24" fill="#0c1425"/>
+<g font-family="system-ui, sans-serif"><text x="28" y="48" font-size="28" fill="#edf5ff">Stage 3 · Assign to a player</text>
+<text x="28" y="82" font-size="17" fill="#a4bad0">Two retained sessions each own their virtual slider.</text>
+<rect x="36" y="120" width="728" height="280" rx="8" fill="#111c30" stroke="#66819a"/>
+<g transform="translate(240 256) rotate(27)"><rect x="-44" y="-22" width="88" height="44" rx="4" fill="#49d8ee"/></g>
+<rect x="498" y="234" width="88" height="44" rx="4" fill="#ffb25e"/>
+<text x="60" y="160" fill="#6ee7b7" font-size="18">P1: +0.60</text>
+<text x="60" y="365" fill="#a4bad0" font-size="18">P2: 0.00</text>
+<text x="60" y="420" font-size="17" fill="#49d8ee">P1 virtual bend</text><path d="M80 440H360" stroke="#66819a" stroke-width="6"/><circle cx="304" cy="440" r="10" fill="#49d8ee"/>
+<text x="420" y="420" font-size="17" fill="#ffb25e">P2 virtual bend</text><path d="M440 440H720" stroke="#66819a" stroke-width="6"/><circle cx="580" cy="440" r="10" fill="#ffb25e"/>
+<text x="28" y="520" font-size="19" fill="#a4bad0">Native transfer appears only with an available sensor</text>
+<text x="28" y="570" font-size="16" fill="#a4bad0">Schematic preview · no simulated sensor readings</text></g></svg>

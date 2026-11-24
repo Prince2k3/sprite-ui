@@ -47,6 +47,7 @@
 		CBB78677B4DAD6DADA4850F2 /* TileMapDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */; };
 		D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */; };
 		D512D46F4777AEE3716EDFFB /* AttachmentDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E09D3133B059B22C7430498 /* AttachmentDemoView.swift */; };
+		D656A83FAF6BD0798CB1C62D /* HingeInputDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B9F0361E950C696BAE6FFB /* HingeInputDemoView.swift */; };
 		D66FE5ADEC10D34800C90908 /* Pendulum.prefab in Resources */ = {isa = PBXBuildFile; fileRef = 67F776F36226B4DF4AC99FA4 /* Pendulum.prefab */; };
 		DD3287454DA5B45AE92B6504 /* Dungeon.sks in Resources */ = {isa = PBXBuildFile; fileRef = EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */; };
 		DE2C19546DECB3C0712FACFF /* Runner.atlas in Resources */ = {isa = PBXBuildFile; fileRef = 4E6B60BFB5AC5EA7E1A86B4C /* Runner.atlas */; };
@@ -74,6 +75,7 @@
 		4D6F537FD724A2F0E44CE0F5 /* ResourcesDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourcesDemoView.swift; sourceTree = "<group>"; };
 		4E09D3133B059B22C7430498 /* AttachmentDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentDemoView.swift; sourceTree = "<group>"; };
 		4E6B60BFB5AC5EA7E1A86B4C /* Runner.atlas */ = {isa = PBXFileReference; lastKnownFileType = folder.skatlas; path = Runner.atlas; sourceTree = "<group>"; };
+		52B9F0361E950C696BAE6FFB /* HingeInputDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HingeInputDemoView.swift; sourceTree = "<group>"; };
 		53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathfindingDemoView.swift; sourceTree = "<group>"; };
 		5460ADE1BA5199CE0654EFAF /* SpriteUIDemo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SpriteUIDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoView.swift; sourceTree = "<group>"; };
@@ -161,6 +163,7 @@
 				5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */,
 				FC7AFE09A2843F05C7FD51C2 /* Drawing.sks */,
 				EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */,
+				52B9F0361E950C696BAE6FFB /* HingeInputDemoView.swift */,
 				60458B4819985FB661F0F10A /* JointDemoView.swift */,
 				02AEA6150EF96D3BD54FB217 /* Level.sks */,
 				8F3033A0EF69832A230C07EB /* LevelTransitionDemoView.swift */,
@@ -288,6 +291,7 @@
 				F5AF3D9FCF521AFE474F32DF /* DebugDemoView.swift in Sources */,
 				D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */,
 				5426761EF954EE8084C185FA /* DemoView.swift in Sources */,
+				D656A83FAF6BD0798CB1C62D /* HingeInputDemoView.swift in Sources */,
 				676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */,
 				1E154204E7097B2E5160696F /* LevelTransitionDemoView.swift in Sources */,
 				F4ADA338FC9E58E31452A0A0 /* LightingDemoView.swift in Sources */,

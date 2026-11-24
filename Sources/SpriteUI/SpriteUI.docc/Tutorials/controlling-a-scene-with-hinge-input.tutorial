@@ -1,0 +1,67 @@
+@Tutorial(time: 25) {
+    @Intro(title: "Controlling a scene with hinge input") {
+        Observe optional live hinge data, opt into a calibrated action, and explicitly assign that action's native device to a player while retaining virtual controls on every platform.
+
+        @Image(source: "spriteui-hinge.svg", alt: "A live hinge or a virtual slider feeds a shared Bend action; two players have exclusive device ownership.")
+    }
+
+    @Section(title: "Inspect the live sensor without simulating it") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Every stage completely replaces `ContentView.swift`; keep the app's `ContentView()` entry point and use only one stage at a time. No assets or special hardware are required. The SVG previews are schematic expected results, not runtime captures.
+
+            ``GameHingeState`` carries a `Double` angle in radians, normalized `openness`, and an OS-provided status. A status of `.unknown` is a valid status, not nil. Older iOS, macOS, and nonhinged hardware show an unavailable reading. The native bridge requires iOS 27.1 or later and available `UIHingeInteraction` sensor data; hidden or inactive hosts pause that interaction while retaining last known telemetry. `content.hingeState` and the attachment environment expose the last observed raw state, not action-sample currency.
+
+            The external readout uses `.onGameHingeChange`. The attached label reads `@Environment(\.gameHingeState)` only because it is an attachment descendant. `content.hingeState` in `update:` changes the existing sprite's horizontal scale as a visual effect; it does not drive camera or control layout. Keep layout based on <doc:adaptive-game-surfaces>; pure angle changes never choose surface regions. Coordinate-space-only changes preserve native hinge input even when pointer, touch, and manipulation captures must cancel. A retained ``GameHingeEvents`` subscription counts `DidChange` deliveries, including availability transitions after setup. The count depends on sensor and lifecycle activity. A fresh OS sample with unchanged values can restore action currency without a telemetry change event; neither the readout nor the counter proves action readiness.
+        }
+
+        @Steps {
+            @Step {
+                Run stage one on macOS, an older iOS simulator, or a nonhinged device. The readout says Live hinge unavailable, the attachment says No live hinge, and the sprite stays at its base scale. No invented flat or closed reading appears. On supported hardware, inspect the last observed angle, openness, and OS status as you move the hinge. Hide or deactivate the host to pause observation: retained telemetry is not a current gameplay sample. Do not expect an angle threshold to change the status: the OS owns it. This stage observes data without installing a gameplay binding.
+
+                @Code(name: "ContentView.swift", file: "spriteui-hinge-01.swift") {
+                    @Image(source: "spriteui-hinge-01-preview.svg", alt: "Stage one schematic: a cyan sprite with a No live hinge attachment and an unavailable sensor readout on fallback platforms.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Share one axis between hinge and virtual input") {
+        @ContentAndMedia {
+            Stage two binds `.hinge`, a virtual slider, and optional A/D keys to the same signed Bend action. `.gameInput(model.input, isActive: enabled, hinge: configuration)` explicitly enables the native adapter. The default `hinge: nil` does not supply native hinge input. The slider submits `.axis` values on its own virtual device and never changes the raw sensor readout.
+
+            ``HingeInputConfiguration`` uses radians: neutral is `.pi`, activation is `.pi / 2`, dead zone is `0.05`, and smoothing is `0.08` seconds. `value(for:)` is the pure signed, clamped, dead-zone conversion, with nil mapping to zero. The native adapter adds frame-rate-independent smoothing with monotonic real time. The Disable native smoothing toggle switches its duration to zero and exercises configuration-change cancellation. The sprite's rotation is polled from the resolved action in a system.
+
+            Initial connection, reconnect, resume after focus or scope loss, input-blocking transitions, manual cancellation, configuration changes, and ownership handoff require a raw calibrated zero before the native adapter arms. A nonneutral first reading cannot fire. Focus, input-scope, or app disable invalidates action-sample currency separately from retained telemetry. On resume the bridge requests a current OS sample by re-enabling `UIHingeInteraction`, even if the angle has not changed; cached neutral cannot arm input. Return the sensor to the neutral dead zone, then bend again; a smoothing tail reaching zero cannot rearm it. A raw `.unknown` sample remains observable but suspends native actions without disconnecting the device and cannot arm native input. Nil means genuine unavailability and disconnects the native hinge device. The default neutral is at the upper end of the sensor range, so closing produces positive values; choose an interior neutral to receive both native signs. The virtual slider is independently usable throughout. The example resets that app-owned control on appearance, inactivity, disappearance, disabling its controls, or an effective layout change. Its surface callback compares `size`, `safeBounds`, and active `usableRegions()` and submits zero only on its virtual pad. It never calls `input.cancelAll()` for geometry, so the hinge remains armed. It does not wait for `.cancelled`: a held hinge can keep the shared action active with phase `.changed`.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage two. Drag the virtual slider left and right: the sprite rotates in either direction while Live hinge unavailable remains visible on fallback platforms. Center the slider, then optionally focus the game and press A or D. On supported hardware, start away from neutral: no native action occurs until you return to neutral and bend again. Disable and enable native input while bent, then repeat with the smoothing toggle; each reset requires physical neutral again. A retained neutral readout alone cannot arm resumed input; the OS must supply a fresh neutral sample, which may have the same angle. Center all other controls before inspecting one input source so the action resolver does not choose a stronger competing sample.
+
+                @Code(name: "ContentView.swift", file: "spriteui-hinge-02.swift", previousFile: "spriteui-hinge-01.swift") {
+                    @Image(source: "spriteui-hinge-02-preview.svg", alt: "Stage two schematic: the virtual slider rotates a cyan sprite and drives Bend while the separate live sensor remains unavailable.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Choose a player when the native hinge connects") {
+        @ContentAndMedia {
+            Stage three keeps one hub, two player sessions, two sprites, and independently assigned virtual sliders. One `.gameInput(model.hub, isActive: enabled, hinge: HingeInputConfiguration())` attaches to the host. A retained device observation token is installed before the adapter starts. The backend announces `.hinge` only when the native sensor is available and configured; the app's `.connected` handler explicitly assigns it to P1. The backend does not choose a player.
+
+            Transfer hinge to other player uses `hub.assign` for exclusive ownership. The old held action cancels, and a nonneutral held reading cannot trigger the new player. Return to calibrated neutral before bending again. Physical loss disconnects the native device; a later connection invokes this example's P1 assignment policy again. Hiding, inactivity, and input cancellation retain the player sessions. Each virtual slider is always a virtual device, not a fake hinge, so both players work on fallback platforms. Hinge haptics are unsupported.
+
+            A host resize or surface-layout change alone preserves the native hinge action and its armed state. The coordinate-space cancellation path excludes `.hinge` while cancelling affected pointer/touch input, manipulation, and other native-routed actions. The example explicitly centers its app-owned virtual sliders on appearance, inactivity, disappearance, disabling its controls, and effective layout changes. Its surface callback compares `size`, `safeBounds`, and active `usableRegions()` and submits zero only on those virtual pads. It preserves the hinge contribution even if the shared action changes rather than cancels; <doc:adapting-to-game-surfaces> explains the comparison. Raw sensor effects and input ownership remain separate from region-based camera layout.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage three. Move P1's slider while P2 stays centered, then swap roles. Without a native sensor the device list never gains a hinge and there is no transfer button. On supported hardware, the connection handler selects P1 explicitly. Center both sliders, return the sensor to neutral, and bend to rotate P1. Transfer while bent: P1 releases and P2 stays still until you return to neutral and bend again. Disable and resume input to exercise the neutral requirement without replacing either player session. Separately, hold a virtual slider away from zero while the hinge is armed and bent, then resize the host without changing focus or scope: both virtual sliders center while hinge input continues without another neutral reading. The shared action can remain active, so a `.cancelled` event is not required for this release.
+
+                @Code(name: "ContentView.swift", file: "spriteui-hinge-03.swift", previousFile: "spriteui-hinge-02.swift") {
+                    @Image(source: "spriteui-hinge-03-preview.svg", alt: "Stage three schematic: cyan P1 and orange P2 each have a virtual slider; native hinge transfer is available only on supported hardware.")
+                }
+            }
+        }
+    }
+}

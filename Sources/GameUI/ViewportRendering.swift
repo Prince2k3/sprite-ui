@@ -291,7 +291,7 @@ final class ViewportRendering: NSObject {
         let size = container.bounds.size
         guard size != lastBoundsSize else { return }
         lastBoundsSize = size
-        host?.cancelInputs()
+        host?.cancelInputs(preservingHinge: true)
         frames.scene.size = size
     }
 

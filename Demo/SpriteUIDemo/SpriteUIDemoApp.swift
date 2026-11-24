@@ -11,6 +11,7 @@ struct SpriteUIDemoApp: App {
                     Tab("Players", systemImage: "person.2") { PlayerInputDemoView() }
                     Tab("Viewports", systemImage: "rectangle.split.2x1") { ViewportDemoView() }
                     Tab("Surfaces", systemImage: "rectangle.split.2x1.fill") { AdaptiveSurfaceDemoView() }
+                    Tab("Hinge", systemImage: "shield.lefthalf.filled") { HingeInputDemoView() }
                     Tab("Layers", systemImage: "square.3.layers.3d") { RenderLayersDemoView() }
                     Tab("Parallax", systemImage: "mountain.2") { ParallaxDemoView() }
                     Tab("Levels", systemImage: "square.stack.3d.up.fill") { LevelTransitionDemoView() }

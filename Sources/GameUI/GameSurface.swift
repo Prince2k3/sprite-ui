@@ -54,7 +54,7 @@ extension GameHost {
             let candidate = surfaceState.geometry
             let layoutChanged = previous.size != candidate.size || previous.safeBounds != candidate.safeBounds
                 || previous.usableRegions() != candidate.usableRegions()
-            if layoutChanged { cancelInputs() }
+            if layoutChanged { cancelInputs(preservingHinge: true) }
             // A cancellation callback may supersede either layout or metadata.
             // Keep the old delivered geometry until the newest candidate settles.
             guard candidate == surfaceState.geometry else { continue }

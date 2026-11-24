@@ -15,16 +15,22 @@ public struct GameViewContent {
     public let levels: LevelCoordinator
     private let presentation: GameLevelPresentation
     private let surfaceState: GameSurfaceState
+    private let hingeStore: GameHingeStore
 
     /// Live geometry of this GameView in local top-left points. Reading this in
     /// `update:` observes resizing, safe-area changes, and reserved regions.
     public var surfaceGeometry: GameSurfaceGeometry { surfaceState.geometry }
+    /// The last native hinge sample, or nil for an unsupported/detached hierarchy.
+    /// Sampling pauses with presentation; angle is measured in radians.
+    public var hingeState: GameHingeState? { hingeStore.state }
 
     init(world: World, renderer: SpriteRenderer, levels: LevelCoordinator,
-         attachments: GameViewAttachments, presentation: GameLevelPresentation, surfaceState: GameSurfaceState) {
+         attachments: GameViewAttachments, presentation: GameLevelPresentation, surfaceState: GameSurfaceState,
+         hingeStore: GameHingeStore) {
         self.world = world; self.renderer = renderer; self.levels = levels
         self.attachments = attachments; self.presentation = presentation
         self.surfaceState = surfaceState
+        self.hingeStore = hingeStore
     }
 
     /// Captures the last game surface, excluding SwiftUI attachments.
@@ -148,7 +154,9 @@ public struct GameView: View {
             .overlay { AttachmentOverlay(store: host.attachmentStore, definitions: definitions) }
             .overlay { LevelPresentationOverlay(levels: host.levels) }
             .environment(\.gameSurfaceGeometry, host.surfaceState.geometry)
+            .environment(\.gameHingeState, host.hingeStore.state)
             .preference(key: GameSurfacePreferenceKey.self, value: host.surfaceState.geometry)
+            .preference(key: GameHingePreferenceKey.self, value: host.hingeStore.state)
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { host.viewFrame = $0 }
             .preference(key: GameHostPreferenceKey.self, value: [GameHostReference(id: host.inputHostID, host: host)])
             .onAppear {
@@ -180,6 +188,9 @@ public struct GameView: View {
 final class GameHost {
     let world = World()
     let surfaceState = GameSurfaceState()
+    let hingeStore = GameHingeStore()
+    var publishedHingeState: GameHingeState?
+    var isUpdatingHinge = false
     var surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
     var isUpdatingSurface = false
     var publishedSurfaceGeometry = GameSurfaceGeometry(size: .zero)
@@ -192,7 +203,7 @@ final class GameHost {
         return coordinator
     }()
     var levelInputBlocked: Bool { levelPresentation.blocksInput }
-    var content: GameViewContent { GameViewContent(world: world, renderer: renderer, levels: levels, attachments: GameViewAttachments(store: attachmentStore), presentation: levelPresentation, surfaceState: surfaceState) }
+    var content: GameViewContent { GameViewContent(world: world, renderer: renderer, levels: levels, attachments: GameViewAttachments(store: attachmentStore), presentation: levelPresentation, surfaceState: surfaceState, hingeStore: hingeStore) }
     var isReady = false
     let debugInput = SceneDebugInputState()
     private var requestedDebugController: SceneDebugController?
@@ -210,7 +221,7 @@ final class GameHost {
         let revision = viewportConfigurationRevision
         configuredViewports = viewports
         renderer.viewports = viewports ?? []
-        cancelInputs()
+        cancelInputs(preservingHinge: true)
         guard revision == viewportConfigurationRevision else { return }
         nativeView?.configurePresentation()
     }
@@ -383,12 +394,14 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
     }
 
     func updateViewportActivity() {
+        updateHingeObservationActivity()
         viewportRendering?.setActive(host?.isPresentationActive == true && window != nil)
     }
 
     func configureStatistics(_ enabled: Bool) { viewportRendering?.setShowsStatistics(enabled) }
 
     func stopTrackingInput() {
+        stopHingeObservation()
         host?.manipulationInput?.detach()
         host?.stopPresentation()
         viewportRendering?.stop()
@@ -441,6 +454,8 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
         }
     }
 #elseif os(iOS) || os(tvOS) || os(visionOS)
+    var hingeObservation: (any UIInteraction)?
+    var hingeObservationRevision: UInt64 = 0
     var nativeRegionIDs: [AnyHashable: String] = [:]
     override func safeAreaInsetsDidChange() {
         super.safeAreaInsetsDidChange()
@@ -530,6 +545,7 @@ private func makeView(host: GameHost, debug: SceneDebugController?) -> SKView {
     let view = GameSKView()
     view.host = host
     host.nativeView = view
+    view.startHingeObservation()
     view.ignoresSiblingOrder = true
     view.configurePresentation()
     host.manipulationInput?.detach()

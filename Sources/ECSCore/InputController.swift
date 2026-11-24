@@ -19,6 +19,7 @@ public final class InputController {
     @ObservationIgnored private var revisions: [InputAction: UInt64] = [:]
     @ObservationIgnored private var suppressionOwners: Set<UUID> = []
     @ObservationIgnored private var isDelivering = false
+    @ObservationIgnored private var isCancellingCoordinateSpace = false
     @ObservationIgnored var onCancellation: (@MainActor () -> Void)?
     @ObservationIgnored var onDeviceCancellation: (@MainActor (InputDevice) -> Void)?
 
@@ -121,6 +122,26 @@ public final class InputController {
     /// Cancels every active action. Held controls stay blocked until neutral.
     public func cancelAll() { deliver(cancelState()) }
 
+    /// Cancels coordinate-dependent producers together while preserving hinge
+    /// samples and their neutral gates. Other held controls must return to neutral.
+    @_spi(Backend) public func cancelForCoordinateSpaceChange() {
+        guard !isCancellingCoordinateSpace else { return }
+        isCancellingCoordinateSpace = true
+        // Callbacks can supply new samples. Gate all affected producers before
+        // resolving once, so shared actions retain their hinge contribution.
+        var notified: Set<InputDevice> = []
+        while true {
+            for source in samples.keys where source.device != .hinge { block(source) }
+            let devices = Set(samples.keys.map(\.device)).union(blocked.keys.map(\.device))
+                .subtracting(notified).filter { $0 != .hinge }
+            guard let device = devices.sorted(by: { $0.sortKey < $1.sortKey }).first else { break }
+            notified.insert(device)
+            onDeviceCancellation?(device)
+        }
+        isCancellingCoordinateSpace = false
+        resolve(cancelling: true)
+    }
+
     /// Cancels one producer, preserving other devices' contributions. A disconnected
     /// controller must send neutral before reusing its identity.
     public func cancel(device: InputDevice) {
@@ -150,6 +171,7 @@ public final class InputController {
     }
 
     private func resolve(cancelling: Bool = false) {
+        guard !isCancellingCoordinateSpace else { return }
         var values: [InputAction: InputValue] = [:]
         if acceptsInput {
             let available = effectiveBindings()

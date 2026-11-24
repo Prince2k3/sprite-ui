@@ -7,14 +7,18 @@ public extension View {
     /// controller. Use one controller per host and `isActive` for menu scopes.
     /// Pointer buttons are observed without consuming gestures or button clicks.
     /// Gamepads are sampled at 60 Hz; controls held on activation must go neutral.
-    func gameInput(_ input: InputController, isActive: Bool = true) -> some View {
-        modifier(GameInputModifier(input: input, hub: nil, isActive: isActive))
+    /// Pass `hinge` to opt in to calibrated `.hinge` samples. Raw hinge telemetry
+    /// remains available through GameViewContent even without action routing.
+    func gameInput(_ input: InputController, isActive: Bool = true, hinge: HingeInputConfiguration? = nil) -> some View {
+        modifier(GameInputModifier(input: input, hub: nil, isActive: isActive, hinge: hinge))
     }
 
     /// Routes native input to explicitly assigned player sessions. A hub can be
     /// attached to one host at a time; player assignment remains game policy.
-    func gameInput(_ hub: PlayerInputHub, isActive: Bool = true) -> some View {
-        modifier(GameInputModifier(input: nil, hub: hub, isActive: isActive))
+    /// An opted-in hinge is discovered as `.hinge` and stays unassigned until the
+    /// game assigns it. Reconnection and cancellation require physical neutral.
+    func gameInput(_ hub: PlayerInputHub, isActive: Bool = true, hinge: HingeInputConfiguration? = nil) -> some View {
+        modifier(GameInputModifier(input: nil, hub: hub, isActive: isActive, hinge: hinge))
     }
 }
 
@@ -83,6 +87,12 @@ final class GameInputRouter {
         if let hub {
             if hasBackendLease { hub.cancelAll() }
         } else { input?.cancelAll() }
+    }
+
+    func cancelForCoordinateSpaceChange() {
+        if let hub {
+            if hasBackendLease { hub.cancelForCoordinateSpaceChange() }
+        } else { input?.cancelForCoordinateSpaceChange() }
     }
 
     func handles(_ control: InputControl, device: InputDevice) -> Bool {
@@ -209,18 +219,25 @@ final class GameInputRouter {
 @MainActor
 final class GameInputSession {
     let router = GameInputRouter()
+    lazy var hinge = GameHingeInput(router: router)
     private let feedback: NativeControllerFeedback
     lazy var controllers = GameControllerInput(router: router, feedback: feedback)
     var availability = GameInputAvailability()
     weak var host: GameHost?
     var requestFocus: (() -> Void)?
     private var lifecycleRevision: UInt64 = 0
+    private var hingeRoutingActive = false
 
     init(feedback: NativeControllerFeedback = NativeControllerFeedback()) { self.feedback = feedback }
 
     func bind(_ references: [GameHostReference]) {
         let next = references.count == 1 ? references.first?.host : nil
         if host !== next {
+            lifecycleRevision &+= 1
+            let revision = lifecycleRevision
+            hinge.stop()
+            guard lifecycleRevision == revision else { return }
+            hingeRoutingActive = false
             if host?.actionInput === router.input { host?.actionInput = nil }
             if host?.nativeInputSession === self { host?.nativeInputSession = nil }
         }
@@ -239,16 +256,28 @@ final class GameInputSession {
         if !acceptsInput { controllers.suspend() }
         router.setActive(acceptsInput)
         if !router.isActive { controllers.suspend() }
+        if hingeRoutingActive != router.isActive {
+            hingeRoutingActive = router.isActive
+            host?.invalidateHingeSample()
+            if hingeRoutingActive { host?.nativeView?.refreshHingeObservation() }
+        }
+        if let host, host.hingeStore.hasCurrentSample {
+            hinge.poll(host.hingeStore.state, at: ProcessInfo.processInfo.systemUptime)
+        } else { hinge.suspend() }
     }
-    func cancelFromHost() {
+    func cancelFromHost(preservingHinge: Bool = false) {
+        if !preservingHinge { hinge.suspend() }
         controllers.suspend()
-        router.cancelAll()
+        if preservingHinge { router.cancelForCoordinateSpaceChange() }
+        else { router.cancelAll() }
     }
 
     func configure(_ input: InputController?, hub: PlayerInputHub?) {
         lifecycleRevision &+= 1
         let revision = lifecycleRevision
         controllers.stop()
+        guard lifecycleRevision == revision else { return }
+        hinge.stop()
         guard lifecycleRevision == revision else { return }
         if let hub { router.configure(hub, feedback: controllers.feedback) }
         else if let input { router.configure(input) }
@@ -268,6 +297,8 @@ final class GameInputSession {
         router.cancelAll()
         guard lifecycleRevision == revision else { return }
         controllers.stop()
+        guard lifecycleRevision == revision else { return }
+        hinge.stop()
         guard lifecycleRevision == revision else { return }
         router.detachBackend()
         guard lifecycleRevision == revision else { return }
@@ -292,6 +323,7 @@ private struct GameInputModifier: ViewModifier {
     let input: InputController?
     let hub: PlayerInputHub?
     let isActive: Bool
+    let hinge: HingeInputConfiguration?
     @Environment(\.scenePhase) private var scenePhase
     @FocusState private var focused: Bool
     @State private var session = GameInputSession()
@@ -312,6 +344,7 @@ private struct GameInputModifier: ViewModifier {
             }
             .onAppear {
                 session.configure(input, hub: hub)
+                session.hinge.configure(hinge)
                 session.availability.visible = true
                 session.availability.scopeActive = isActive
                 session.availability.sceneActive = scenePhase == .active
@@ -325,6 +358,7 @@ private struct GameInputModifier: ViewModifier {
                 guard session.availability.visible else { return }
                 if session.host?.actionInput === session.router.input { session.host?.actionInput = nil }
                 session.configure(input, hub: hub)
+                session.hinge.configure(hinge)
                 session.start()
                 session.bind(session.host.map { [GameHostReference(id: $0.inputHostID, host: $0)] } ?? [])
             }
@@ -336,6 +370,10 @@ private struct GameInputModifier: ViewModifier {
                 session.refresh()
             }
             .onChange(of: hub?.isEnabled ?? input?.isEnabled ?? false) { _, _ in session.refresh() }
+            .onChange(of: hinge) { _, configuration in
+                session.hinge.configure(configuration)
+                session.refresh()
+            }
     }
 }
 
