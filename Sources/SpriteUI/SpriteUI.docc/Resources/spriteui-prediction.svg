@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+  <title id="title">Predict, acknowledge, reconcile</title>
+  <desc id="desc">Client input immediately moves a local visual. The host simulates ordered input on its fixed clock. Complete host results acknowledge simulated input. The client discards acknowledged input and replays the pending remainder, smoothing only the visual correction.</desc>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10" fill="none" stroke="#9aaabc" stroke-width="2"/></marker></defs>
+  <rect width="1200" height="600" rx="28" fill="#0b1421"/>
+  <g font-family="system-ui, sans-serif">
+    <text x="60" y="70" fill="#f5f8ff" font-size="34" font-weight="700">Move now. Agree with the host.</text>
+    <text x="60" y="108" fill="#a9bbce" font-size="20">One fixed rule • bounded history • host authority</text>
+    <rect x="60" y="165" width="440" height="170" rx="22" fill="#103442" stroke="#53d8f4" stroke-width="2"/>
+    <text x="90" y="205" fill="#53d8f4" font-size="24" font-weight="700">CLIENT PREDICTION</text>
+    <text x="90" y="246" fill="#eaf4fa" font-size="20">Sequence input → move local visual</text>
+    <text x="90" y="286" fill="#a9bbce" font-size="19">Canonical replica stays untouched</text>
+    <rect x="700" y="165" width="440" height="170" rx="22" fill="#3a2b1d" stroke="#ffb65d" stroke-width="2"/>
+    <text x="730" y="205" fill="#ffb65d" font-size="24" font-weight="700">HOST AUTHORITY</text>
+    <text x="730" y="246" fill="#eaf4fa" font-size="20">Validate owner → queue input</text>
+    <text x="730" y="286" fill="#a9bbce" font-size="19">Consume at most one per fixed tick</text>
+    <path d="M510 232 H680" fill="none" stroke="#9aaabc" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="530" y="212" fill="#a9bbce" font-size="17">reliable intent</text>
+    <rect x="60" y="415" width="1080" height="130" rx="22" fill="#192739"/>
+    <text x="90" y="455" fill="#f5f8ff" font-size="24" font-weight="700">RECONCILE COMPLETE HOST STATE</text>
+    <text x="90" y="494" fill="#a9bbce" font-size="20">Discard acknowledged input → replay pending input → smooth only visual error</text>
+    <path d="M920 345 V390 H300 V405" fill="none" stroke="#9aaabc" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="430" y="376" fill="#a9bbce" font-size="17">revision + simulated-input acknowledgment + state</text>
+  </g>
+</svg>

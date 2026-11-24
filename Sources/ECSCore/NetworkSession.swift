@@ -18,7 +18,7 @@ struct ReplicatedEntity: Codable, Equatable, Sendable {
 }
 
 struct ReplicationPacket: Codable {
-    enum Kind: String, Codable { case hello, state, command, end }
+    enum Kind: String, Codable { case hello, state, command, response, end }
     var version = 1
     let kind: Kind
     let session: UUID
@@ -69,6 +69,7 @@ public final class NetworkSession {
     @ObservationIgnored private var joined: [NetworkPeerID: UUID] = [:]
     @ObservationIgnored private var commandSequences: [NetworkPeerID: UInt64] = [:]
     @ObservationIgnored private var commandSequence: UInt64 = 0
+    @ObservationIgnored private var responseSequence: UInt64 = 0
     @ObservationIgnored private var sentStructure: [NetworkPeerID: [ReplicatedEntity]] = [:]
     @ObservationIgnored private var replicas: [NetworkEntityID: Entity] = [:]
     @ObservationIgnored private var replicaComponents: [NetworkEntityID: Set<String>] = [:]
@@ -110,7 +111,7 @@ public final class NetworkSession {
         if case .client(let host) = role, host == localPeer.id { throw NetworkSessionError.invalidState }
         try world.systems.add(NetworkReplicationSystem.self)
         generation &+= 1; sessionID = UUID(); joinID = UUID(); hostSession = nil
-        sequence = 0; commandSequence = 0; lastError = nil
+        sequence = 0; commandSequence = 0; responseSequence = 0; lastError = nil
         elapsed = 0; joinElapsed = 0; queueOverflow = false
         incoming.removeAll(); queuedBytes = 0; joined.removeAll(); sentStructure.removeAll(); commandSequences.removeAll()
         peers = transport.connectedPeers.sorted { $0.id < $1.id }
@@ -204,6 +205,23 @@ public final class NetworkSession {
                                    sequence: commandSequence, command: data), to: host, reliably: true)
     }
 
+    /// Sends bounded application data from the host to a joined player without granting entity-write authority.
+    /// Unreliable responses must fit 1,000 bytes including the envelope. Consumers validate their own stream revisions.
+    public func sendResponse(_ data: Data, to peer: NetworkPeerID, reliably: Bool = true) throws {
+        guard !operating else { throw NetworkSessionError.reentrantOperation }
+        guard isHost else { throw NetworkSessionError.notHost }
+        guard state == .connected, let join = joined[peer] else { throw NetworkSessionError.notConnected }
+        guard data.count <= configuration.maximumCommandBytes else { throw NetworkSessionError.packetTooLarge }
+        guard responseSequence < UInt64.max else { throw NetworkSessionError.capacityExceeded }
+        let packet = ReplicationPacket(kind: .response, session: sessionID, join: join, sequence: responseSequence + 1, command: data)
+        let encoded = try encode(packet)
+        guard reliably || encoded.count <= 1_000 else { throw NetworkSessionError.packetTooLarge }
+        try transport.send(encoded, to: peer, reliably: reliably); responseSequence += 1
+    }
+
+    /// Whether this started session currently owns the supplied world.
+    public func isAttached(to world: World) -> Bool { self.world === world && world.networkSessionOwner === self }
+
     /// Finds a replica or authoritative entity by network identity. O(n) on a host.
     public func entity(withNetworkID id: NetworkEntityID) -> Entity? {
         if !isHost { return replicas[id] }
@@ -272,7 +290,7 @@ public final class NetworkSession {
             guard packet.sequence > (commandSequences[sender] ?? 0) else { return }
             commandSequences[sender] = packet.sequence
             world?.publish(NetworkEvents.CommandReceived(data: data, sender: sender))
-        case .state, .end:
+        case .state, .response, .end:
             // A client never has authority to publish entity state or end a match.
             throw NetworkSessionError.notHost
         }
@@ -283,6 +301,12 @@ public final class NetworkSession {
         if packet.kind == .end {
             guard packet.session == hostSession else { return }
             throw NetworkSessionError.hostDisconnected
+        }
+        if packet.kind == .response {
+            guard packet.session == hostSession else { return }
+            guard packet.entities.isEmpty, let data = packet.command, data.count <= configuration.maximumCommandBytes else { throw NetworkSessionError.invalidPacket }
+            world?.publish(NetworkEvents.ResponseReceived(data: data, sender: sender))
+            return
         }
         guard packet.kind == .state else { throw NetworkSessionError.invalidPacket }
         guard hostSession != nil || packet.baseline else { return }

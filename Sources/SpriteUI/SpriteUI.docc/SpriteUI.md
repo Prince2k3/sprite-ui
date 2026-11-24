@@ -22,6 +22,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Start with local achievements, scores, and typed saved turns, then opt into native screens | <doc:game-center-services> |
+| Predict owned kinematic movement and reconcile host corrections | <doc:multiplayer-prediction-and-reconciliation> |
 | Recover a checkpoint through an explicit fresh party match | <doc:multiplayer-recovery-and-rejoining> |
 | Match an activity party and hand off prepared worlds | <doc:activity-party-matchmaking-and-handoff> |
 | Route activity invitations and report each native challenge attempt | <doc:game-center-activities-and-challenges> |
@@ -73,6 +74,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:game-center-activities-and-challenges>
 - <doc:activity-party-matchmaking-and-handoff>
 - <doc:multiplayer-recovery-and-rejoining>
+- <doc:multiplayer-prediction-and-reconciliation>
 - <doc:quests-and-leagues>
 - <doc:player-profiles-and-cloud-saves>
 - <doc:game-center-sessions-and-replication>
@@ -273,6 +275,26 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/CloudSaveStatus``
 - ``SpriteUI/CloudSaveVersion``
 - ``SpriteUI/CloudSavePreviewVersion``
+
+### Multiplayer prediction
+
+- ``SpriteUI/NetworkPrediction``
+- ``SpriteUI/NetworkInputAuthority``
+- ``SpriteUI/NetworkPredictionConfiguration``
+- ``SpriteUI/NetworkPredictionStream``
+- ``SpriteUI/NetworkInputCommand``
+- ``SpriteUI/NetworkAuthoritativeState``
+- ``SpriteUI/NetworkReconciliation``
+- ``SpriteUI/NetworkPredictionError``
+- ``SpriteUI/KinematicState2D``
+- ``SpriteUI/KinematicMovement2D``
+- ``SpriteUI/KinematicMovementError``
+- ``SpriteUI/NetworkMovementController2D``
+- ``SpriteUI/NetworkMovementPresentationConfiguration``
+- ``SpriteUI/NetworkMovementStatus``
+- ``SpriteUI/NetworkMovementError``
+- ``SpriteUI/NetworkMovementSystem2D``
+- ``SpriteUI/NetworkMovementPresentationSystem2D``
 
 ### Network sessions and Game Center
 

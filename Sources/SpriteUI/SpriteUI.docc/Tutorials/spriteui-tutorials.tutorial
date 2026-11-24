@@ -148,6 +148,11 @@
             @Image(source: "spriteui-party.svg", alt: "Two prepared worlds acknowledge a host-committed party handoff while the campaign remains separate.")
             @TutorialReference(tutorial: "doc:joining-an-activity-party")
         }
+        @Chapter(name: "Predict multiplayer movement") {
+            Move a separate local visual immediately, acknowledge host-simulated inputs, and replay pending intent after a correction.
+            @Image(source: "spriteui-prediction.svg", alt: "Client input predicts locally; the host acknowledges fixed simulation and the client replays only pending input.")
+            @TutorialReference(tutorial: "doc:predicting-multiplayer-movement")
+        }
         @Chapter(name: "Recover a multiplayer session") {
             Keep a bounded host checkpoint, request a fresh match explicitly, and wait for every returning client to apply its new baseline.
             @Image(source: "spriteui-recovery.svg", alt: "An approved checkpoint passes through fresh-party matching and client resynchronization before play resumes.")

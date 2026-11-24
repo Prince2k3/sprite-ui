@@ -163,6 +163,8 @@ public enum NetworkEvents {
     /// Application commands are opaque. The host must validate ownership,
     /// allowed actions, rate and game rules before changing authoritative state.
     public struct CommandReceived: Event { public let data: Data; public let sender: NetworkPeerID }
+    /// Bounded host application data. The consumer validates its protocol, entity ownership epoch, and state revision.
+    public struct ResponseReceived: Event { public let data: Data; public let sender: NetworkPeerID }
     public struct DidApplyState: Event { public let sequence: UInt64; public let entityCount: Int }
     public struct Failed: Event { public let error: NetworkSessionError }
 }

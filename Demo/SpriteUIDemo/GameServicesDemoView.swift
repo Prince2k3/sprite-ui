@@ -44,6 +44,12 @@ struct GameServicesDemoView: View {
                         Label("Multiplayer recovery lab", systemImage: "arrow.clockwise.circle.fill")
                     }
                     .buttonStyle(.bordered).tint(.mint)
+                    NavigationLink {
+                        PredictionDemoView()
+                    } label: {
+                        Label("Prediction & reconciliation lab", systemImage: "bolt.horizontal.circle")
+                    }
+                    .buttonStyle(.bordered).tint(.cyan)
                     previewIdentity
                     turnBasedCard
                     achievementCard

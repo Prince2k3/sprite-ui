@@ -1,0 +1,42 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Predicting multiplayer movement") {
+        Compare immediate local movement with host authority, then replay pending input after a host correction.
+        @Image(source: "spriteui-prediction.svg", alt: "Client intent predicts a local visual, host fixed steps acknowledge input, and reconciliation replays only pending commands.")
+    }
+    @Section(title: "Compare three views of movement") {
+        @ContentAndMedia {
+            Select the full SpriteUI product in an iOS 18 or macOS 15 SwiftUI app whose entry point presents `ContentView()`. Replace that file with this complete stage. No assets, accounts, entitlements, or other files are required. Connect is explicit; appearance does not create a match or authenticate.
+
+            The exercise retains separate host/client worlds and an in-memory byte link. Both worlds use the same fixed 60 Hz rules and rectangular center bounds. The host owns a synchronized actor whose owner is the client. The client owns a distinct unsynchronized visual and never overwrites the canonical replica. The gray track shows the latest replica model, rather than remote render interpolation.
+        }
+        @Steps {
+            @Step {
+                Connect local preview and wait for Ready. Move right. Cyan responds to client input while host orange and replicated gray follow through the configured link. Stop movement and let all three settle. Even neutral input is sequenced; pending inputs remain nonzero while acknowledgments travel back from the host.
+                @Code(name: "ContentView.swift", file: "spriteui-prediction-01.swift") {
+                    @Image(source: "spriteui-prediction.svg", alt: "Expected schematic: local prediction leads the delayed authority; acknowledgments remove only simulated inputs.")
+                }
+            }
+            @Step {
+                Choose Nudge host left. The host applies a reliable correction of up to 40 units within bounds. The correction count increases, pending inputs are replayed, and the cyan visual eases toward the corrected model. With movement stopped, all three positions converge again. Last model error may return to zero after the next ordinary host result; the correction count retains the event.
+            }
+            @Step {
+                Increase one-way latency and unreliable packet loss, enable jitter, and repeat movement, stopping, and a host nudge. The link drops only ordinary unreliable results. Input commands and explicit corrections stay reliable. Observe acknowledgments and pending counts; the controller fails explicitly if its bounded history is exhausted rather than silently dropping commands.
+            }
+            @Step {
+                Disconnect preview, then reconnect explicitly. The new client attempt receives a fresh host epoch and zero old prediction history. Leaving the screen or making the scene inactive stops this local exercise. Returning does not resume held movement. On Duo, fold and unfold while the app remains active and compare the same retained session across the layout change.
+            }
+        }
+    }
+    @Section(title: "Apply the same contract to a live session") {
+        @ContentAndMedia {
+            Retain controllers with the already-connected session and create the client adapter only after its baseline exists. Stop them on interruption, ownership transfer, or teardown. After recovery, wait for the fresh baseline and create a new prediction stream. Native SpriteKit physics remains host-authoritative; this tutorial does not roll back contacts or arbitrary world state.
+
+            Keep replay rules pure. Effects, audio, achievements, and rewards must not run from a replayed step. The transport supplies authenticated peer identity; the host still validates the allowed action and owns its simulation clock. Presentation smoothing changes only the separate local visual.
+        }
+        @Steps {
+            @Step {
+                Continue with <doc:multiplayer-prediction-and-reconciliation> for generic state, packet bounds, setup, and cleanup. Follow <doc:game-center-sessions-and-replication> for signed app configuration. Verify signed two-account latency, background/rejoin, input cancellation, and ownership-epoch rejection separately. This account-free exercise does not establish live Game Center connectivity.
+            }
+        }
+    }
+}

@@ -4,7 +4,7 @@ Build small host-authoritative matches with explicit wire schemas, validated com
 
 ## Choose authority before starting a session
 
-``SpriteUI/NetworkSession`` synchronizes selected entity state from one host. Only that host creates, removes, reparents, or changes authoritative replicated entities. A client's ``SpriteUI/SynchronizationComponent/owner`` associates commands with a player; ownership does not grant remote write access. Run authoritative gameplay and native physics on the host. Clients submit intent and present the latest validated host state.
+``SpriteUI/NetworkSession`` synchronizes selected entity state from one host. Only that host creates, removes, reparents, or changes authoritative replicated entities. A client's ``SpriteUI/SynchronizationComponent/owner`` associates commands with a player; ownership does not grant remote write access. Run authoritative gameplay and native physics on the host. Clients submit intent and present the latest validated host state. For immediate local kinematic response, opt into <doc:multiplayer-prediction-and-reconciliation>: it moves a separate local visual, acknowledges host-simulated inputs, and replays only pending input. Native SpriteKit physics remains host-authoritative.
 
 Game Center is the native transport path on iOS 18 and macOS 15. ``SpriteUI/GameCenterMultiplayer`` waits for the complete initial match roster, including `expectedPlayerCount == 0`. It selects the smallest sorted full-roster Game Center `gamePlayerID` as a fixed `hostPeerID`. Compare the transport's local ID with that value to choose `.host` or `.client(host:)`. Do not elect from a partial roster, display names, or local entity IDs. A host departure ends the match; there is no automatic host migration.
 
