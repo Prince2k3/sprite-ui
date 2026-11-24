@@ -1,0 +1,45 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Validating multiplayer interactions") {
+        Aim from an exact host-issued view, query retained hit proxies, and confirm each action without repeating gameplay effects.
+        @Image(source: "spriteui-interactions.svg", alt: "An issued historical view leads to sequenced intent, host validation, and one final action receipt.")
+    }
+    @Section(title: "Compare historical and current hits") {
+        @ContentAndMedia {
+            Select the full SpriteUI product in an iOS 18 or macOS 15 SwiftUI app whose entry point presents `ContentView()`. Replace that file with this complete stage. No assets, accounts, entitlements, or other files are required. Start local arena is explicit; appearance does not authenticate or create a match.
+
+            The stage retains independent host/client worlds and a shared byte link. Orange shows the current host target; cyan shows the exact received view used to aim. Shots contain direction and an issued view reference, never client position, time, damage, or hit authority. The host queries inert history and leaves the live world untouched.
+        }
+        @Steps {
+            @Step {
+                Start local arena and wait for Ready. Fire at viewed target several times, waiting between presses. Final receipts become confirmed hits. Compare Host hits with Without rewind: the live moving target may have left the ray by the time the action arrives. Predicted feedback and final receipts are separate counters; only a new host receipt changes the hit count.
+                @Code(name: "ContentView.swift", file: "spriteui-interactions-01.swift") {
+                    @Image(source: "spriteui-interactions.svg", alt: "Expected schematic: a recent cyan snapshot can produce a confirmed hit even after the live orange target moves.")
+                }
+            }
+            @Step {
+                Choose Three-shot burst. Each action gets one final receipt, but only the first eligible action passes the host cooldown; the remaining burst actions are refused. An immediately preceding shot can make the entire burst hit cooldown. Wait, then interact with nearby beacon. A confirmed interaction increases the separate interaction count.
+            }
+            @Step {
+                Enable Block the line of sight and wait for a new host view to arrive. Fire again. The result is blocked, and the hit count does not increase. Disable the wall and wait. Enable Respawn target on next shot, then fire. The target receives a fresh body incarnation before the old-view action arrives, so the host refuses targetUnavailable instead of applying an old hit to a new body.
+            }
+            @Step {
+                Increase latency and enable jitter. Shots from views older than the host's 600 ms allowance are refused; the host does not silently choose another time. Replica pose loss affects ordinary unreliable replication only. Views, commands, and final receipts remain reliable. Disconnect, then start explicitly. Old pending feedback and issued references do not survive the new stream.
+            }
+            @Step {
+                Fold and unfold Duo while the arena is active; it retains the same match. Background or leave the screen, then return. The arena remains stopped until explicitly started, with pending effects cleared. This fixture does not auto-resume actions or contact Game Center.
+            }
+        }
+    }
+    @Section(title: "Separate query approval from gameplay effects") {
+        @ContentAndMedia {
+            Retain one controller per owned actor after the replica baseline. Mark only bodies that may be disclosed to that recipient. Validate health, teams, inventory, and phase in a pure host callback. Apply damage only from a new authoritative Resolved event; Predicted is transient feedback. Final client receipts confirm or cancel temporary effects without granting rewards.
+
+            The host caches receipts and retires older sequence indices. Duplicate commands cannot evaluate or apply gameplay twice, and duplicate final receipts cannot confirm a pending effect twice. These are session guarantees; durable rewards require a separate transaction/receipt policy. Recovery uses fresh controllers, epochs, history, and body-lifetime policy.
+        }
+        @Steps {
+            @Step {
+                Continue with <doc:multiplayer-interactions-and-lag-compensation> for range and time bounds, geometry validation, capacity, visibility, lifecycle, and application responsibilities. Signed two-account Game Center verification remains a separate requirement; this account-free arena verifies the local protocol, not live service delivery.
+            }
+        }
+    }
+}

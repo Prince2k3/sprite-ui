@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+  <title id="title">Aim at what you saw</title>
+  <desc id="desc">A recent host-issued view provides an exact sample reference. The client sends sequenced intent. The host validates ownership, sample age, cooldown, geometry, and target lifetime, then commits one receipt. Duplicate packets cannot repeat effects.</desc>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10" fill="none" stroke="#a1b4c4" stroke-width="2"/></marker></defs>
+  <rect width="1200" height="600" rx="28" fill="#0b1421"/>
+  <g font-family="system-ui, sans-serif">
+    <text x="60" y="70" fill="#f5f8ff" font-size="34" font-weight="700">Aim at what you saw.</text>
+    <text x="60" y="108" fill="#a9bbce" font-size="20">Exact issued sample • bounded rewind • one final receipt</text>
+    <rect x="60" y="170" width="430" height="170" rx="22" fill="#103442" stroke="#53d8f4" stroke-width="2"/>
+    <text x="90" y="210" fill="#53d8f4" font-size="24" font-weight="700">CLIENT VIEW</text>
+    <text x="90" y="252" fill="#eaf4fa" font-size="20">Aim from the host-issued snapshot</text>
+    <text x="90" y="295" fill="#a9bbce" font-size="19">Send reference + sequence + intent</text>
+    <rect x="700" y="170" width="440" height="170" rx="22" fill="#3a2b1d" stroke="#ffb65d" stroke-width="2"/>
+    <text x="730" y="210" fill="#ffb65d" font-size="24" font-weight="700">HOST VALIDATION</text>
+    <text x="730" y="252" fill="#eaf4fa" font-size="20">Owner • age • cooldown • geometry</text>
+    <text x="730" y="295" fill="#a9bbce" font-size="19">Check the target's current lifetime</text>
+    <path d="M505 250 H680" fill="none" stroke="#a1b4c4" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="530" y="225" fill="#a9bbce" font-size="17">reliable intent</text>
+    <rect x="60" y="420" width="1080" height="125" rx="22" fill="#192739"/>
+    <text x="90" y="462" fill="#72e8c0" font-size="24" font-weight="700">COMMIT THE RECEIPT BEFORE EFFECTS</text>
+    <text x="90" y="505" fill="#a9bbce" font-size="20">New acceptance → host gameplay • final receipt → confirm or cancel local feedback</text>
+    <path d="M920 350 V390 H300 V410" fill="none" stroke="#a1b4c4" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="470" y="375" fill="#a9bbce" font-size="17">cached duplicates never reapply effects</text>
+  </g>
+</svg>

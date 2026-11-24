@@ -50,6 +50,12 @@ struct GameServicesDemoView: View {
                         Label("Prediction & reconciliation lab", systemImage: "bolt.horizontal.circle")
                     }
                     .buttonStyle(.bordered).tint(.cyan)
+                    NavigationLink {
+                        InteractionDemoView()
+                    } label: {
+                        Label("Interactions & lag compensation lab", systemImage: "scope")
+                    }
+                    .buttonStyle(.bordered).tint(.mint)
                     previewIdentity
                     turnBasedCard
                     achievementCard

@@ -153,6 +153,11 @@
             @Image(source: "spriteui-prediction.svg", alt: "Client input predicts locally; the host acknowledges fixed simulation and the client replays only pending input.")
             @TutorialReference(tutorial: "doc:predicting-multiplayer-movement")
         }
+        @Chapter(name: "Validate multiplayer interactions") {
+            Aim from a host-issued historical sample, enforce cooldowns and body lifetimes, and finalize local feedback without repeating gameplay effects.
+            @Image(source: "spriteui-interactions.svg", alt: "Issued view references flow to host validation and one cached final receipt.")
+            @TutorialReference(tutorial: "doc:validating-multiplayer-interactions")
+        }
         @Chapter(name: "Recover a multiplayer session") {
             Keep a bounded host checkpoint, request a fresh match explicitly, and wait for every returning client to apply its new baseline.
             @Image(source: "spriteui-recovery.svg", alt: "An approved checkpoint passes through fresh-party matching and client resynchronization before play resumes.")

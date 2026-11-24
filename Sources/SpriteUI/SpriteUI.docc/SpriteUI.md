@@ -22,6 +22,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Start with local achievements, scores, and typed saved turns, then opt into native screens | <doc:game-center-services> |
+| Validate shots and interactions against bounded historical views | <doc:multiplayer-interactions-and-lag-compensation> |
 | Predict owned kinematic movement and reconcile host corrections | <doc:multiplayer-prediction-and-reconciliation> |
 | Recover a checkpoint through an explicit fresh party match | <doc:multiplayer-recovery-and-rejoining> |
 | Match an activity party and hand off prepared worlds | <doc:activity-party-matchmaking-and-handoff> |
@@ -75,6 +76,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:activity-party-matchmaking-and-handoff>
 - <doc:multiplayer-recovery-and-rejoining>
 - <doc:multiplayer-prediction-and-reconciliation>
+- <doc:multiplayer-interactions-and-lag-compensation>
 - <doc:quests-and-leagues>
 - <doc:player-profiles-and-cloud-saves>
 - <doc:game-center-sessions-and-replication>
@@ -275,6 +277,33 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/CloudSaveStatus``
 - ``SpriteUI/CloudSaveVersion``
 - ``SpriteUI/CloudSavePreviewVersion``
+
+### Multiplayer interactions
+
+- ``SpriteUI/NetworkInteractionConfiguration``
+- ``SpriteUI/NetworkInteractionError``
+- ``SpriteUI/NetworkInteractionViewReference``
+- ``SpriteUI/NetworkInteractionView``
+- ``SpriteUI/NetworkInteractionCommand``
+- ``SpriteUI/NetworkInteractionRejection``
+- ``SpriteUI/NetworkInteractionResolution``
+- ``SpriteUI/NetworkInteractionResult``
+- ``SpriteUI/NetworkInteractionDecision``
+- ``SpriteUI/NetworkInteractionAuthority``
+- ``SpriteUI/NetworkInteractionClient``
+- ``SpriteUI/HistoricalCollisionError``
+- ``SpriteUI/HistoricalCollisionBody2D``
+- ``SpriteUI/HistoricalCollisionHit2D``
+- ``SpriteUI/HistoricalCollisionScene2D``
+- ``SpriteUI/NetworkInteractionBodyComponent``
+- ``SpriteUI/NetworkInteractionRules2D``
+- ``SpriteUI/NetworkInteractionIntent2D``
+- ``SpriteUI/NetworkInteractionOutcome2D``
+- ``SpriteUI/NetworkInteractionScene2D``
+- ``SpriteUI/NetworkInteractionControllerStatus``
+- ``SpriteUI/NetworkInteractionEvents``
+- ``SpriteUI/NetworkInteractionController2D``
+- ``SpriteUI/NetworkInteractionSystem2D``
 
 ### Multiplayer prediction
 
