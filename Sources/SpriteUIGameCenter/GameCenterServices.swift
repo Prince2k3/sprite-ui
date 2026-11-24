@@ -12,6 +12,7 @@ public enum GameCenterDestination: Equatable, Sendable {
     case leaderboards
     case leaderboard(String)
     case setup
+    case activities, activityDefinition(String), challenges, challengeOverview, challengeDefinition(String)
 }
 
 /// One application-scoped entry point for Game Center's basic services.
@@ -29,6 +30,10 @@ public final class GameCenterServices {
     public let turnBased: GameCenterTurnBasedMatches
     /// Explicit reporting of player-owned quests and local league scores.
     public let progression: GameCenterProgression
+    /// Explicit activity lifecycle and pending system intents.
+    public let activities: GameCenterActivities
+    /// Native challenge metadata and explicit attempt reporting.
+    public let challenges: GameCenterChallenges
     public private(set) var destination: GameCenterDestination? {
         didSet { if oldValue != destination { presentationRevision &+= 1 } }
     }
@@ -60,6 +65,8 @@ public final class GameCenterServices {
         leaderboards = GameCenterLeaderboards(context: context)
         turnBased = GameCenterTurnBasedMatches(context: context)
         progression = GameCenterProgression(context: context, achievements: achievements, leaderboards: leaderboards)
+        activities = GameCenterActivities(context: context)
+        challenges = GameCenterChallenges(context: context, leaderboards: leaderboards)
     }
 
     isolated deinit { shutdown() }
@@ -74,6 +81,16 @@ public final class GameCenterServices {
     /// presents sign-in, then continues to the originally requested destination.
     public func present(_ destination: GameCenterDestination) {
         lastError = nil
+        switch destination {
+        case .activities, .activityDefinition, .challenges, .challengeOverview, .challengeDefinition:
+            guard isPreview || GameCenterActivities.isSupported else { lastError = .unavailable; return }
+        default: break
+        }
+        switch destination {
+        case .activityDefinition(let id), .challengeDefinition(let id):
+            do { try validateGameCenterIdentifier(id) } catch { recordFailure(error); return }
+        default: break
+        }
         if destination != .matchmaking && destination != .signIn {
             pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil
         }
@@ -153,6 +170,7 @@ public final class GameCenterServices {
     public func shutdown() {
         dismiss(); disconnect(); context.invalidate()
         achievements.reset(); leaderboards.reset(); turnBased.reset()
+        activities.reset(); challenges.reset()
         multiplayer.shutdown(); lastAuthenticatedPlayer = nil
     }
 
@@ -163,6 +181,7 @@ public final class GameCenterServices {
             // Sign-in explicitly enables the shared services. Register early
             // enough to receive pending turn notifications before inbox loading.
             do { try turnBased.start() } catch { recordFailure(error) }
+            do { try activities.startListening() } catch { recordFailure(error) }
         }
         if isAuthenticated, let next = pendingDestination {
             pendingDestination = nil; destination = next
@@ -173,8 +192,9 @@ public final class GameCenterServices {
     // `.authenticated` throughout the transition.
     func updateAuthenticatedIdentity(_ player: NetworkPeerID?) {
         if let previous = lastAuthenticatedPlayer, player != previous {
-            disconnect(); context.invalidate()
+            dismiss(); disconnect(); context.invalidate()
             achievements.reset(); leaderboards.reset(); turnBased.reset()
+            activities.reset(); challenges.reset()
         }
         lastAuthenticatedPlayer = player
     }

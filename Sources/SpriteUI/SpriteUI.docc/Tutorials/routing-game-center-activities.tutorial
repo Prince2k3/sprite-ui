@@ -1,0 +1,39 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Routing Game Center activities") {
+        Let an incoming request wait for your game, stage one activity round, and distinguish each challenge attempt from a personal best.
+        @Image(source: "spriteui-social.svg", alt: "A queued invitation, explicit activity finish, and two challenge attempts with one personal best.")
+    }
+    @Section(title: "Practice without an account") {
+        @ContentAndMedia {
+            Select SpriteUIGameCenter, or the full SpriteUI product, in an iOS 18 or macOS 15 SwiftUI app whose entry point presents `ContentView()`. Replace that file with the complete stage below. No assets, accounts, entitlements, or additional files are required.
+
+            The retained facade has constant fixture definitions and a known arena route. Construction performs no Apple work. Each operation follows a button press, and the view's disappearance cancels work and shuts down the services. The activity and direct challenge reporter deliberately use different practice leaderboards.
+        }
+        @Steps {
+            @Step {
+                Before loading the catalog, queue an activity request. The waiting count becomes one while there is no current activity. Accept it: the application checks the arena property first, then activates the request. This models cold-launch routing without automatically loading a level or replacing an existing game.
+                @Code(name: "ContentView.swift", file: "spriteui-social-01.swift") {
+                    @Image(source: "spriteui-social.svg", alt: "Expected schematic: an incoming request waits for explicit acceptance before round results can be staged.")
+                }
+            }
+            @Step {
+                Stage the default score of 100. Finished activity attempts stays zero. Pause, resume, then finish. One completed round now retains 100 points. Queue another request while a round is active to confirm acceptance stays disabled until you finish or discard. Discard clears staged results without a receipt; it is not a promise to restore native quotas.
+            }
+            @Step {
+                Load the social catalog. Report a challenge attempt at 100, reduce the stepper four times to 20, and report another attempt. Two reports appear while Local best remains 100. Replay the last report: the count stays two because its ID and payload are unchanged. Preview challenge options shows an explanation, with no sign-in or Apple submission.
+            }
+        }
+    }
+    @Section(title: "Connect configured native services") {
+        @ContentAndMedia {
+            Native activities and challenges require OS 26+, Game Center signing, and configured definitions and leaderboards. Configure routes before explicit authentication so a listener can queue a cold request immediately. Before accepting, prepare the level and validate progression and content readiness in the consuming game. A party code does not automatically attach a real-time match.
+
+            Report the latest completed-attempt score, including a lower result. Never both finish an activity and directly submit its score to the same challenge leaderboard. The local attempt ledger is bounded and clears at shutdown; cancellation may follow a remote commit. An uncertain report must not be retried automatically.
+        }
+        @Steps {
+            @Step {
+                Continue with <doc:game-center-activities-and-challenges> for native destinations, bounds, lifecycle, and failure policy. Verify signed two-account invitations, cold and warm delivery, and challenge consumption separately. Preview receipts are local state, not evidence of remote durability or friend competition.
+            }
+        }
+    }
+}

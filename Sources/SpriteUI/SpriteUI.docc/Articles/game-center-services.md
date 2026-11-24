@@ -4,7 +4,7 @@ Start with local achievement progress, scores, and saved turns, then opt into na
 
 ## Retain one services object
 
-``SpriteUI/GameCenterServices`` groups `.multiplayer`, `.achievements`, `.leaderboards`, and `.turnBased`. Keep one instance in SwiftUI state and install `.gameCenter(services)` once on a stable parent. The modifier supplies `EnvironmentValues.gameCenterServices`, one sheet host, and authentication/matchmaking state handling. ``SpriteUI/GameCenterServicesView`` supplies entry buttons and setup help; descendants can instead call `present(_:)` with a ``SpriteUI/GameCenterDestination``.
+``SpriteUI/GameCenterServices`` groups `.multiplayer`, `.achievements`, `.leaderboards`, `.turnBased`, `.activities`, and `.challenges`. Keep one instance in SwiftUI state and install `.gameCenter(services)` once on a stable parent. The modifier supplies `EnvironmentValues.gameCenterServices`, one sheet host, and authentication/matchmaking state handling. ``SpriteUI/GameCenterServicesView`` supplies entry buttons and setup help; descendants can instead call `present(_:)` with a ``SpriteUI/GameCenterDestination``.
 
 This complete menu uses an account-free preview. Replace `.preview()` with `GameCenterServices(mode: .live)` when you deliberately want native services. You can also construct `GameCenterServices(mode: .preview(player: player))` with an explicit ``SpriteUI/NetworkPeer``. Construction, installing the modifier, and displaying the menu never start authentication or matchmaking.
 
@@ -36,7 +36,7 @@ private struct ServiceShortcuts: View {
 }
 ```
 
-Available destinations are `.signIn`, `.matchmaking`, `.turnBased`, `.achievements`, `.leaderboards`, `.leaderboard(identifier)`, and `.setup`. A live account-dependent destination first routes through explicit sign-in when needed, then continues to the requested screen. The sign-in and match-finding controls still require a user action. Preview destinations explain local behavior or expose the local turn inbox; they never authenticate with Apple.
+Basic destinations are `.signIn`, `.matchmaking`, `.turnBased`, `.achievements`, `.leaderboards`, `.leaderboard(identifier)`, and `.setup`. Activities and challenges add `.activities`, `.activityDefinition(identifier)`, `.challenges`, `.challengeOverview`, and `.challengeDefinition(identifier)`; their native path requires OS 26+. A live account-dependent destination first routes through explicit sign-in when needed, then continues to the requested screen. The sign-in and match-finding controls still require a user action. Preview destinations explain local behavior or expose the local turn inbox; they never authenticate with Apple.
 
 `dismiss()` cancels pending presentation work while retaining a ready real-time match. `disconnect()` stops the retained replication session and releases the real-time match. `shutdown()` also invalidates pending service results, clears local caches, and releases listeners; it never signs the person out of their system account. The modifier calls `shutdown()` when its parent disappears, so choose a parent whose lifetime matches the services. Do not put a separate modifier on every button or sheet.
 
@@ -148,4 +148,4 @@ The checker reads local bundle metadata and entitlements extracted from the buil
 
 Signed two-account/two-device native verification remains **pending**. On configured builds, check explicit sign-in/cancellation and account changes; report/reload configured achievements and scores; find, save, pass, reload on the other account, finish, and revisit a turn-based match; then connect a real-time world and disconnect. Confirm persisted turn state after relaunch. Local previews and compilation do not establish these native results.
 
-Follow <doc:starting-with-game-center-services> for three complete, asset-free stages. Build custom progression on top with <doc:quests-and-leagues>. Native social challenges are separate from these local quest and league rules.
+Follow <doc:starting-with-game-center-services> for three complete, asset-free stages. Build custom progression on top with <doc:quests-and-leagues>. Native social challenges are separate from these local quest and league rules; use <doc:game-center-activities-and-challenges> for activity entry points, staged round results, and per-attempt reporting.

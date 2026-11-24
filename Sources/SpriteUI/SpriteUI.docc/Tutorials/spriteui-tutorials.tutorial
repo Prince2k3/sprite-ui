@@ -138,5 +138,10 @@
             @Image(source: "spriteui-saves.svg", alt: "One profile revision keeps typed state, quest receipts, and wallet together; cloud access remains explicit.")
             @TutorialReference(tutorial: "doc:saving-player-profiles")
         }
+        @Chapter(name: "Route activities and report challenge attempts") {
+            Queue a cold invitation, accept a prepared arena, stage a final round score, and keep lower challenge attempts distinct from a personal best.
+            @Image(source: "spriteui-social.svg", alt: "Explicit incoming activity acceptance, staged completion, and per-attempt challenge reporting.")
+            @TutorialReference(tutorial: "doc:routing-game-center-activities")
+        }
     }
 }

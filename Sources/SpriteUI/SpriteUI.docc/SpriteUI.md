@@ -22,6 +22,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Start with local achievements, scores, and typed saved turns, then opt into native screens | <doc:game-center-services> |
+| Route activity invitations and report each native challenge attempt | <doc:game-center-activities-and-challenges> |
 | Define quests, claim reward receipts, and run seasonal leagues | <doc:quests-and-leagues> |
 | Persist profiles and rewards, then opt into cloud saves | <doc:player-profiles-and-cloud-saves> |
 | Synchronize a small host-authoritative match offline or through Game Center | <doc:game-center-sessions-and-replication> |
@@ -67,6 +68,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:input-actions-and-controllers>
 - <doc:player-input-sessions-and-feedback>
 - <doc:game-center-services>
+- <doc:game-center-activities-and-challenges>
 - <doc:quests-and-leagues>
 - <doc:player-profiles-and-cloud-saves>
 - <doc:game-center-sessions-and-replication>
@@ -192,6 +194,22 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/GameCenterTurnBasedOutcome``
 - ``SpriteUI/InMemoryTurnBasedStore``
 - ``SpriteUI/GameCenterTurnBasedMatchmakingView``
+
+### Activities and challenges
+
+- ``SpriteUI/GameCenterActivities``
+- ``SpriteUI/GameCenterActivityDefinition``
+- ``SpriteUI/GameCenterActivity``
+- ``SpriteUI/GameCenterActivityState``
+- ``SpriteUI/GameCenterActivityScore``
+- ``SpriteUI/GameCenterActivityRequest``
+- ``SpriteUI/GameCenterActivityCompletion``
+- ``SpriteUI/GameCenterChallenges``
+- ``SpriteUI/GameCenterChallengeDefinition``
+- ``SpriteUI/GameCenterChallengeAttempt``
+- ``SpriteUI/GameCenterChallengeAttemptStatus``
+- ``SpriteUI/GameCenterActivitiesView``
+- ``SpriteUI/GameCenterChallengesView``
 
 ### Quests and leagues
 

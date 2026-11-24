@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="480" viewBox="0 0 1000 480" role="img" aria-label="An incoming activity waits for acceptance; staged scores finish once; lower challenge scores remain separate attempts.">
+<rect width="1000" height="480" rx="24" fill="#111827"/>
+<g font-family="system-ui,sans-serif" fill="#f3f4f6">
+<text x="48" y="64" font-size="30" font-weight="700">Your game accepts the invitation</text>
+<g stroke="#fb923c" stroke-width="2" fill="#1f2937"><rect x="48" y="108" width="270" height="210" rx="18"/><rect x="365" y="108" width="270" height="210" rx="18"/><rect x="682" y="108" width="270" height="210" rx="18"/></g>
+<text x="72" y="153" font-size="22">Queued request</text><text x="72" y="198" font-size="18">Known arena route</text><text x="72" y="231" font-size="18">Prepare, then accept</text><text x="72" y="279" font-size="16" fill="#fdba74">Current game stays intact</text>
+<text x="389" y="153" font-size="22">Activity round</text><text x="389" y="198" font-size="18">Stage score: 100</text><text x="389" y="231" font-size="18">Finish once</text><text x="389" y="279" font-size="16" fill="#fdba74">Local receipt, not server proof</text>
+<text x="706" y="153" font-size="22">Challenge attempts</text><text x="706" y="198" font-size="18">100, then 20: two attempts</text><text x="706" y="231" font-size="18">Same report ID: no extra</text><text x="706" y="279" font-size="16" fill="#fdba74">Personal best remains 100</text>
+<text x="48" y="379" font-size="20">Account-free practice · explicit actions · no automatic reports</text><text x="48" y="420" font-size="17" fill="#9ca3af">Native activities and challenges require configured Game Center resources on OS 26+.</text></g></svg>

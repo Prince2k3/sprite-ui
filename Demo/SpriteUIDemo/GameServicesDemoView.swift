@@ -26,6 +26,12 @@ struct GameServicesDemoView: View {
                         Label("Player profiles & saves lab", systemImage: "externaldrive.badge.person.crop")
                     }
                     .buttonStyle(.bordered).tint(.cyan)
+                    NavigationLink {
+                        ActivityChallengesDemoView()
+                    } label: {
+                        Label("Activities & challenges lab", systemImage: "person.2.wave.2")
+                    }
+                    .buttonStyle(.bordered).tint(.orange)
                     previewIdentity
                     turnBasedCard
                     achievementCard

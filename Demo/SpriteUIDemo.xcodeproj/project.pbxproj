@@ -51,6 +51,7 @@
 		B36BFE534B5A8722BFFBBC3E /* InputReplayDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B94BE5F6590030481D42A6 /* InputReplayDemoView.swift */; };
 		CA2E123843221506FF47258F /* PathfindingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */; };
 		CBB78677B4DAD6DADA4850F2 /* TileMapDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */; };
+		D09F8919D12A41919B74142D /* ActivityChallengesDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEDCF9C1779DD013B23CC27F /* ActivityChallengesDemoView.swift */; };
 		D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */; };
 		D512D46F4777AEE3716EDFFB /* AttachmentDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E09D3133B059B22C7430498 /* AttachmentDemoView.swift */; };
 		D656A83FAF6BD0798CB1C62D /* HingeInputDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B9F0361E950C696BAE6FFB /* HingeInputDemoView.swift */; };
@@ -120,6 +121,7 @@
 		E98A54802ED807F4B7CCE12F /* LightingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightingDemoView.swift; sourceTree = "<group>"; };
 		EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Dungeon.sks; sourceTree = "<group>"; };
 		ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObstacleDemoView.swift; sourceTree = "<group>"; };
+		EEDCF9C1779DD013B23CC27F /* ActivityChallengesDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityChallengesDemoView.swift; sourceTree = "<group>"; };
 		F552C23458297356E2A23DF8 /* GameServicesDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameServicesDemoView.swift; sourceTree = "<group>"; };
 		FC7AFE09A2843F05C7FD51C2 /* Drawing.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Drawing.sks; sourceTree = "<group>"; };
 		FC8E4C60DDB3E121D89253AB /* PlayerInputDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerInputDemoView.swift; sourceTree = "<group>"; };
@@ -165,6 +167,7 @@
 		A77B3F63AA7F33A9597992C1 /* SpriteUIDemo */ = {
 			isa = PBXGroup;
 			children = (
+				EEDCF9C1779DD013B23CC27F /* ActivityChallengesDemoView.swift */,
 				2C7ED9A92B4214199578454A /* AdaptiveSurfaceDemoView.swift */,
 				95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */,
 				4E09D3133B059B22C7430498 /* AttachmentDemoView.swift */,
@@ -304,6 +307,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DF0D389E25A50C55302D74CD /* APIConsolidationDemoView.swift in Sources */,
+				D09F8919D12A41919B74142D /* ActivityChallengesDemoView.swift in Sources */,
 				8D20A30886BE8D53E9BF587C /* AdaptiveSurfaceDemoView.swift in Sources */,
 				D512D46F4777AEE3716EDFFB /* AttachmentDemoView.swift in Sources */,
 				4B56EED400299D758A88822E /* CharacterDemoView.swift in Sources */,
