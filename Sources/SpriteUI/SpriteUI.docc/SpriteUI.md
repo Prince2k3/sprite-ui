@@ -23,6 +23,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Start with local achievements, scores, and typed saved turns, then opt into native screens | <doc:game-center-services> |
 | Define quests, claim reward receipts, and run seasonal leagues | <doc:quests-and-leagues> |
+| Persist profiles and rewards, then opt into cloud saves | <doc:player-profiles-and-cloud-saves> |
 | Synchronize a small host-authoritative match offline or through Game Center | <doc:game-center-sessions-and-replication> |
 | Render one world through player cameras and a minimap | <doc:viewports-and-split-screen> |
 | Bound render-target work and share completed game frames | <doc:bounded-rendering-and-read-only-presentation> |
@@ -37,7 +38,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 
 ### Understand the package layers
 
-Use `import SpriteUI` for the complete SDK. The umbrella re-exports `SpriteUICore` and `SpriteUIGameCenter`, and this archive presents their public APIs together under SpriteUI. Choose <doc:package-products-and-dependencies> for a smaller dependency graph.
+Use `import SpriteUI` for the complete SDK. The umbrella re-exports `SpriteUICore`, `SpriteUIGameCenter`, and `SpriteUISaves`, and this archive presents their public APIs together under SpriteUI. Choose <doc:package-products-and-dependencies> for a smaller dependency graph.
 
 | Layer | Responsibility | Representative APIs |
 | --- | --- | --- |
@@ -48,7 +49,8 @@ Use `import SpriteUI` for the complete SDK. The umbrella re-exports `SpriteUICor
 | GameUI | SwiftUI scene hosting, gestures, and attachments | ``SpriteUI/GameView``, ``SpriteUI/GameAttachment`` |
 | SpriteUICore | Engine aggregate, noise-image, tile-map, and replay integration; no Game Center target | ``SpriteUI/SpriteImage``, ``SpriteUI/TileMapComponent`` |
 | SpriteUIGameCenter | Optional Game Center services, native UI, and progression reporting | ``SpriteUI/GameCenterServices``, ``SpriteUI/GameCenterProgression`` |
-| SpriteUI | Convenience aggregate for the engine and Game Center | ``SpriteUI/World``, ``SpriteUI/GameCenterServices`` |
+| SpriteUISaves | Optional typed profiles, wallet transactions, and GameSave integration | ``SpriteUI/PlayerProfileStore``, ``SpriteUI/CloudSaveDirectory`` |
+| SpriteUI | Convenience aggregate for the engine, Game Center, and saves | ``SpriteUI/World``, ``SpriteUI/GameCenterServices`` |
 
 Entities, worlds, systems, and scene interaction belong on the main actor. Pure gameplay values can be computed separately where their API permits, then applied to a world on the main actor. Keep app state, per-entity data, and frame simulation in their respective owners; the guides show how those owners meet.
 
@@ -66,6 +68,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:player-input-sessions-and-feedback>
 - <doc:game-center-services>
 - <doc:quests-and-leagues>
+- <doc:player-profiles-and-cloud-saves>
 - <doc:game-center-sessions-and-replication>
 - <doc:viewports-and-split-screen>
 - <doc:bounded-rendering-and-read-only-presentation>
@@ -214,6 +217,23 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/GameCenterProgression``
 - ``SpriteUI/GameCenterQuestMapping``
 - ``SpriteUI/GameCenterLeagueMapping``
+
+### Player profiles and cloud saves
+
+- ``SpriteUI/PlayerProfileID``
+- ``SpriteUI/SaveSlotID``
+- ``SpriteUI/PlayerProfile``
+- ``SpriteUI/PlayerProfileStore``
+- ``SpriteUI/ProfileSaveSchema``
+- ``SpriteUI/ProfileWallet``
+- ``SpriteUI/ProfileSaveError``
+- ``SpriteUI/ProfileSaveLocation``
+- ``SpriteUI/ProfileSlotSummary``
+- ``SpriteUI/ProfileSlotHealth``
+- ``SpriteUI/CloudSaveDirectory``
+- ``SpriteUI/CloudSaveStatus``
+- ``SpriteUI/CloudSaveVersion``
+- ``SpriteUI/CloudSavePreviewVersion``
 
 ### Network sessions and Game Center
 

@@ -10,6 +10,7 @@ let package = Package(
         // Engine-only aggregate; Game Center can be selected independently.
         .library(name: "SpriteUICore", targets: ["SpriteUICore"]),
         .library(name: "SpriteUIGameCenter", targets: ["SpriteUIGameCenter"]),
+        .library(name: "SpriteUISaves", targets: ["SpriteUISaves"]),
         .library(name: "ECSCore", targets: ["ECSCore"]),
         .library(name: "Gameplay", targets: ["Gameplay"]),
         .library(name: "DemoBotsGame", targets: ["DemoBotsGame"]),
@@ -33,12 +34,14 @@ let package = Package(
 
         // Optional platform integration, independent of the renderer and scene host.
         .target(name: "SpriteUIGameCenter", dependencies: ["ECSCore", "Gameplay"]),
+        // Optional typed persistence and GameSave integration, independent of the renderer.
+        .target(name: "SpriteUISaves", dependencies: ["Gameplay"]),
 
         // Engine-only aggregate and integration bridges.
         .target(name: "SpriteUICore", dependencies: ["ECSCore", "SpriteBackend", "GameUI", "Gameplay", "GameplayECS"]),
 
         // Backward-compatible convenience import for the complete SDK.
-        .target(name: "SpriteUI", dependencies: ["SpriteUICore", "SpriteUIGameCenter"]),
+        .target(name: "SpriteUI", dependencies: ["SpriteUICore", "SpriteUIGameCenter", "SpriteUISaves"]),
         .target(name: "DemoBotsGame", dependencies: ["SpriteUI"], path: "Examples/DemoBots/Game", resources: [.process("Resources")]),
 
         .testTarget(name: "ECSCoreTests", dependencies: ["ECSCore"]),
@@ -47,6 +50,7 @@ let package = Package(
         .testTarget(name: "SpriteUITests", dependencies: ["SpriteUI"]),
         .testTarget(name: "GameUITests", dependencies: ["GameUI", "SpriteBackend", "ECSCore"]),
         .testTarget(name: "SpriteUIGameCenterTests", dependencies: ["SpriteUIGameCenter", "ECSCore", "Gameplay"]),
+        .testTarget(name: "SpriteUISavesTests", dependencies: ["SpriteUISaves", "Gameplay"]),
         .testTarget(name: "DemoBotsTests", dependencies: ["DemoBotsGame"]),
     ]
 )

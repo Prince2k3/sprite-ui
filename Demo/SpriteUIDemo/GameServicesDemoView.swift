@@ -20,6 +20,12 @@ struct GameServicesDemoView: View {
                         Label("Quests & leagues lab", systemImage: "flag.checkered")
                     }
                     .buttonStyle(.borderedProminent).tint(.mint)
+                    NavigationLink {
+                        ProfileSavesDemoView()
+                    } label: {
+                        Label("Player profiles & saves lab", systemImage: "externaldrive.badge.person.crop")
+                    }
+                    .buttonStyle(.bordered).tint(.cyan)
                     previewIdentity
                     turnBasedCard
                     achievementCard

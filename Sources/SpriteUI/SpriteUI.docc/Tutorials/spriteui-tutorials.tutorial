@@ -133,5 +133,10 @@
             @Image(source: "spriteui-progression.svg", alt: "Quest objectives, league standings, and optional explicit Game Center reports.")
             @TutorialReference(tutorial: "doc:building-quests-and-leagues")
         }
+        @Chapter(name: "Save player profiles") {
+            Persist a typed player and atomic quest reward, reload across launches, and opt into a local offline cloud-directory fixture.
+            @Image(source: "spriteui-saves.svg", alt: "One profile revision keeps typed state, quest receipts, and wallet together; cloud access remains explicit.")
+            @TutorialReference(tutorial: "doc:saving-player-profiles")
+        }
     }
 }

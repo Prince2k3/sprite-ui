@@ -1,0 +1,36 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Saving player profiles") {
+        Persist a typed local profile, claim quest rewards atomically, and open an explicit offline cloud-directory preview.
+        @Image(source: "spriteui-saves.svg", alt: "Schematic of an atomic profile file containing quest state, a receipt, and ten gold, beside an optional cloud directory.")
+    }
+    @Section(title: "Keep a player across launches") {
+        @ContentAndMedia {
+            Select the SpriteUISaves product, plus Gameplay for quest types, or use the full SpriteUI product. Use an iOS 18 or macOS 15 SwiftUI app whose entry point presents `ContentView()`. Replace that file with this complete stage. No assets, accounts, entitlements, or extra source files are required.
+
+            Open local profile constructs a store at an application-scoped Application Support location. It loads the campaign and only creates a new profile for `slotNotFound`. Other failures remain visible. The typed state contains a ``QuestJournal``. Each write keeps its returned revision for the next transaction. Claim updates both the journal and ``ProfileWallet`` inside one store transaction; an early/repeat claim or failed write is shown rather than silently granting currency.
+        }
+        @Steps {
+            @Step {
+                Open the profile, collect two coins, and claim ten gold. One receipt and ten gold appear. Claim again: the action fails and the wallet stays unchanged. Reload, then quit and relaunch and open the profile: receipt and balance return from disk. The guest and slot are stable fixture identifiers; use application-owned identity and slot policies in a game.
+                @Code(name: "ContentView.swift", file: "spriteui-saves-01.swift") {
+                    @Image(source: "spriteui-saves.svg", alt: "Expected schematic: completed campaign quest, one saved receipt, and wallet balance ten gold.")
+                }
+            }
+            @Step {
+                Open the offline cloud preview. Its phase reads offline; no Apple service is contacted. Its directory is separate from the local profile; nothing automatically imports or overwrites progress. Close the preview and confirm it reads closed. The showcase's Profiles & saves lab additionally demonstrates inspecting two conflicting versions and rejecting access through a closed store.
+            }
+        }
+    }
+    @Section(title: "Add a configured cloud session") {
+        @ContentAndMedia {
+            Native GameSave requires iOS/macOS 26+, configured iCloud Documents and a container, and correct signing. Local profiles remain available on older supported systems. Retain ``CloudSaveDirectory`` while using stores created by it. Close on gameplay exit or an appropriate lifecycle boundary; closing releases native synchronization and invalidates store access. An iCloud account change closes the session; game identity is a separate namespace.
+
+            Inspect conflicts read-only before resolving the whole directory. A high score or newer timestamp is not a safe generic merge policy for receipts and currency. The local reward transaction does not provide cloud-wide currency authority or anti-cheat protection.
+        }
+        @Steps {
+            @Step {
+                Continue with <doc:player-profiles-and-cloud-saves> for migrations, revision failures, bounded archives, backups, native lifecycle, conflict inspection, and configuration. Replace the preview only after configuring the consuming app. Verify signed multi-device synchronization separately; local tutorial results do not establish that behavior.
+            }
+        }
+    }
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="520" viewBox="0 0 1000 520">
+<rect width="1000" height="520" rx="30" fill="#10232d"/>
+<g font-family="system-ui,sans-serif" fill="#effaff">
+<text x="55" y="76" font-size="34" font-weight="700">One profile. One durable commit.</text>
+<text x="55" y="115" font-size="19" fill="#a8cedb">Schematic: typed state, reward receipts, and wallet stay together</text>
+<g fill="#193d4e" stroke="#66ccef" stroke-width="2"><rect x="55" y="160" width="410" height="225" rx="20"/><rect x="535" y="160" width="410" height="225" rx="20"/></g>
+<text x="80" y="205" font-size="24" font-weight="700">Local profile · campaign</text><text x="80" y="250" font-size="21">Quest: complete · Receipt: 1</text><text x="80" y="290" font-size="21">Wallet: 10 gold</text><text x="80" y="335" font-size="18">Revision check → atomic replacement</text>
+<text x="560" y="205" font-size="24" font-weight="700">Optional GameSave directory</text><text x="560" y="250" font-size="21">Ready / offline / local-only</text><text x="560" y="290" font-size="21">Conflict → inspect → choose</text><text x="560" y="335" font-size="18">Close releases the directory to sync</text>
+<text x="55" y="450" font-size="21" fill="#a8cedb">Local saves need no account. The preview performs no cloud synchronization.</text></g></svg>

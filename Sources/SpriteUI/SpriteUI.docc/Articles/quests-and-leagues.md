@@ -130,3 +130,5 @@ func reportPlayerProgress(services: GameCenterServices, journal: QuestJournal,
 The journal owner and season roster must use the current identity's `NetworkPeerID.rawValue` (the Game Center game-player ID in live mode). Foreign profiles are rejected. Cancellation/account changes retire pending local results; a server write may still have committed. No retry queue is installed, and reporting never claims local rewards or controls local promotion. `.preview(player:)` exercises these mappings in memory without Apple sign-in. Signed, configured multi-account verification remains separate from preview tests.
 
 See <doc:game-center-services> for setup and cancellation semantics, <doc:saving-and-debugging> for world snapshots, and <doc:building-quests-and-leagues> for a complete asset-free exercise. The showcase's Game Services tab links to a progression lab with file save/load and folding support.
+
+Use <doc:player-profiles-and-cloud-saves> to commit a journal claim and local wallet together through SpriteUISaves instead of managing that local file transaction yourself. Cloud-wide economies still require game/server authority.
