@@ -4,7 +4,7 @@ import Observation
 
 /// The local phase of an activity party. Gameplay presentation remains application-owned.
 public enum GameCenterPartyState: String, Sendable {
-    case idle, matching, lobby, starting, playing, failed
+    case idle, matching, rejoining, lobby, starting, resynchronizing, playing, interrupted, failed
 }
 
 /// One member of the fixed, authenticated transport roster, including the local player.
@@ -17,6 +17,11 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     public let compatibilityID: String?
     /// The player's stable identity.
     public var id: NetworkPeerID { peer.id }
+    /// The exact checkpoint this player explicitly accepted, or nil for a new game.
+    public let recovery: NetworkRecoveryDescriptor?
+    init(peer: NetworkPeer, isReady: Bool, compatibilityID: String?, recovery: NetworkRecoveryDescriptor? = nil) {
+        self.peer = peer; self.isReady = isReady; self.compatibilityID = compatibilityID; self.recovery = recovery
+    }
 }
 
 /// Activity-scoped matchmaking, readiness, and a prepared-world replication handoff.
@@ -34,15 +39,24 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     public var networkSession: NetworkSession? { synchronize(); return session }
     /// The most recent local failure. No automatic retry or host migration follows it.
     public private(set) var lastError: GameCenterServiceError?
+    /// The host's proposed checkpoint metadata. Accept it explicitly with prepareRecovery; no payload is trusted from a client.
+    public private(set) var recoveryOffer: NetworkRecoveryDescriptor?
+    /// The last interruption. Checkpoints themselves remain application-owned.
+    public private(set) var interruption: GameCenterPartyInterruption?
+    /// Timing and background behavior, captured when an operation starts.
+    public var recoveryConfiguration = GameCenterRecoveryConfiguration()
     /// Whether the local host has a prepared world and every member readied the same compatibility ID.
     /// - Complexity: O(n) in the bounded party roster.
     public var canStart: Bool {
         synchronize()
         return phase == .lobby && hostPeerID == owner?.player.id && preparedWorld != nil &&
-            !roster.isEmpty && roster.allSatisfy { $0.isReady && $0.compatibilityID == compatibility }
+            !roster.isEmpty && roster.allSatisfy { $0.isReady && $0.compatibilityID == compatibility && $0.recovery == selectedRecovery } &&
+            recoveryOffer == selectedRecovery
     }
     /// Whether matchmaking, a lobby, or a playing session currently owns this coordinator.
-    public var isActive: Bool { state != .idle && state != .failed }
+    public var isActive: Bool {
+        switch state { case .idle, .failed, .interrupted: false; default: true }
+    }
 
     @ObservationIgnored private let context: GameCenterServiceContext
     @ObservationIgnored private let activities: GameCenterActivities
@@ -52,6 +66,7 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     @ObservationIgnored var findOverride: ((any GameCenterActivityHandle) async throws -> GameCenterPartyMatch)?
     @ObservationIgnored private var owner: GameCenterServiceContext.Operation?
     @ObservationIgnored private var token: UUID?
+    @ObservationIgnored private var failedAttempt: (UUID, GameCenterServiceError)?
     @ObservationIgnored private var cancelRequest: (() -> Void)?
     @ObservationIgnored private var match: GameCenterPartyMatch?
     @ObservationIgnored private var channel: GameCenterPartyChannel?
@@ -63,6 +78,13 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     @ObservationIgnored private var remoteRevisions: [NetworkPeerID: UInt64] = [:]
     @ObservationIgnored private var launchID: UUID?
     @ObservationIgnored private var acknowledgments: Set<NetworkPeerID> = []
+    @ObservationIgnored private var offeredCheckpoint: NetworkRecoveryCheckpoint?
+    @ObservationIgnored private var selectedRecovery: NetworkRecoveryDescriptor?
+    @ObservationIgnored private var synchronizedPeers: Set<NetworkPeerID> = []
+    @ObservationIgnored private var sentSynchronization = false
+    @ObservationIgnored private var baselineWatcher: EventSubscription?
+    @ObservationIgnored var matchingTimeoutOverride: TimeInterval?
+    @ObservationIgnored var synchronizationTimeoutOverride: TimeInterval?
     @ObservationIgnored private var watcher: EventSubscription?
     @ObservationIgnored private var watchdog: Task<Void, Never>?
     @ObservationIgnored var handoffTimeout: TimeInterval = 15
@@ -85,10 +107,19 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     /// All participants explicitly call this after validating their activity route. It never signs in itself.
     public func findMatch() async throws {
         synchronize()
-        guard phase == .idle || phase == .failed, canBegin() else { throw GameCenterServiceError.operationInProgress }
+        guard phase == .idle || phase == .failed || phase == .interrupted, canBegin() else { throw GameCenterServiceError.operationInProgress }
         let operation = try context.begin(), attempt = UUID()
         let handle = try activities.reserveParty(attempt)
-        owner = operation; token = attempt; activity = handle.snapshot; lastError = nil; phase = .matching
+        let rejoining = interruption != nil
+        owner = operation; token = attempt; failedAttempt = nil; activity = handle.snapshot; lastError = nil
+        phase = rejoining ? .rejoining : .matching
+        let timeout = matchingTimeoutOverride ?? recoveryConfiguration.matchmakingTimeout
+        let matchingTimer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(timeout)) } catch { return }
+            guard let self, self.token == attempt, self.phase == .matching || self.phase == .rejoining else { return }
+            self.fail(GameCenterServiceError.timedOut)
+        }
+        defer { matchingTimer.cancel() }
         let request = GameCenterProgressRequest<GameCenterPartyMatch>()
         cancelRequest = { request.cancel() }
         do {
@@ -117,6 +148,7 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
             try broadcast(.hello)
         } catch {
             if token == attempt { fail(error) }
+            if failedAttempt?.0 == attempt, let failure = failedAttempt?.1 { throw failure }
             throw gameCenterServiceFailure(error)
         }
     }
@@ -125,9 +157,17 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     public func prepare(in world: World, compatibilityID: String, schema: NetworkReplicationSchema = .init(),
                         configuration: NetworkSessionConfiguration = .init()) throws {
         try requireLobby(); try validateGameCenterIdentifier(compatibilityID)
-        preparedWorld = world; compatibility = compatibilityID; self.schema = schema; self.configuration = configuration
-        watcher = world.subscribe(to: WorldEvents.Update.self) { [weak self] _ in self?.synchronize() }
+        guard recoveryOffer == nil else { throw NetworkRecoveryError.incompatibleCheckpoint }
+        configurePrepared(world, compatibilityID: compatibilityID, schema: schema, configuration: configuration, recovery: nil)
         try updateLocal(ready: false)
+    }
+    private func configurePrepared(_ world: World, compatibilityID: String, schema: NetworkReplicationSchema,
+                                   configuration: NetworkSessionConfiguration, recovery: NetworkRecoveryDescriptor?) {
+        selectedRecovery = recovery
+        preparedWorld = world; compatibility = compatibilityID; self.schema = schema; self.configuration = configuration
+        watcher?.cancel(); baselineWatcher?.cancel()
+        watcher = world.subscribe(to: WorldEvents.Update.self) { [weak self] _ in self?.synchronize(); self?.checkResynchronization() }
+        baselineWatcher = world.subscribe(to: NetworkEvents.DidApplyState.self) { [weak self] _ in self?.checkResynchronization() }
     }
     /// Advertises explicit readiness after preparation; does not start gameplay.
     public func setReady(_ ready: Bool) throws {
@@ -146,7 +186,59 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     }
     /// Cancels only this party and its replication. The activity and current gameplay remain application-owned.
     /// Leave before finishing/discarding the activity. Cancellation never reports staged activity scores.
-    public func leave() { retire(notify: true); phase = .idle; lastError = nil }
+    public func leave() { retire(notify: true); phase = .idle; lastError = nil; interruption = nil }
+
+    /// Captures a host checkpoint without persisting it or reporting rewards. Save it before a possible interruption.
+    public func recoveryCheckpoint(applicationState: Data = Data(), at date: Date = Date()) throws -> NetworkRecoveryCheckpoint {
+        synchronize()
+        guard phase == .playing, let session, let compatibility else { throw GameCenterServiceError.operationInProgress }
+        return try session.recoveryCheckpoint(compatibilityID: compatibility, scope: recoveryScope, applicationState: applicationState, at: date)
+    }
+    /// Stops this connection while retaining the activity. A subsequent findMatch is an explicit fresh rejoin attempt.
+    public func interrupt(reason: GameCenterInterruptionReason = .applicationRequested) {
+        guard isActive else { return }
+        retire(notify: true); interruption = .init(reason: reason, message: nil); phase = .interrupted; lastError = nil
+    }
+    /// Applies the configured background policy. Call from a custom host; the gameCenter modifier already does so.
+    public func applicationDidEnterBackground() {
+        if recoveryConfiguration.interruptsOnBackground { interrupt(reason: .backgrounded) }
+    }
+    /// Proposes an exact application-approved checkpoint after a fresh match. Only the original host and roster may recover it.
+    public func offerRecovery(_ checkpoint: NetworkRecoveryCheckpoint) throws {
+        try requireLobby()
+        let descriptor = checkpoint.descriptor; try validateRecoveryDescriptor(descriptor)
+        guard owner?.player.id == hostPeerID else { throw NetworkSessionError.notHost }
+        offeredCheckpoint = checkpoint; recoveryOffer = descriptor
+        clearPreparation(); try updateLocal(ready: false); try broadcast(.checkpoint)
+    }
+    /// Accepts a host offer into a fresh prepared world. Only the host restores payload; clients wait for a new validated baseline.
+    /// Validate your applicationState schema before calling this. No existing synchronized state is overwritten.
+    public func prepareRecovery(in world: World, accepting descriptor: NetworkRecoveryDescriptor, compatibilityID: String,
+                                schema: NetworkReplicationSchema = .init(), configuration: NetworkSessionConfiguration = .init()) throws {
+        try requireLobby(); try validateRecoveryDescriptor(descriptor)
+        guard recoveryOffer == descriptor, descriptor.compatibilityID == compatibilityID else { throw NetworkRecoveryError.incompatibleCheckpoint }
+        guard !world.allEntities.contains(where: { $0.components.has(SynchronizationComponent.self) }) else { throw NetworkRecoveryError.worldNotEmpty }
+        guard !world.isNetworkSessionActive else { throw NetworkRecoveryError.worldInUse }
+        if owner?.player.id == hostPeerID {
+            guard let checkpoint = offeredCheckpoint, checkpoint.descriptor == descriptor else { throw NetworkRecoveryError.invalidCheckpoint }
+            try checkpoint.restore(in: world, approving: descriptor, schema: schema)
+        }
+        configurePrepared(world, compatibilityID: descriptor.compatibilityID, schema: schema, configuration: configuration, recovery: descriptor)
+        try updateLocal(ready: false)
+    }
+    private var recoveryScope: String? {
+        guard let activity, let code = activity.partyCode else { return nil }
+        // Length-prefixed definition avoids collisions without trusting a display title or hashing a match group.
+        return "activity:\(activity.definitionID.utf8.count):\(activity.definitionID):\(code)"
+    }
+    private func validateRecoveryDescriptor(_ descriptor: NetworkRecoveryDescriptor) throws {
+        try descriptor.validate()
+        guard descriptor.scope == recoveryScope, descriptor.hostPeerID == hostPeerID, descriptor.peerIDs == roster.map(\.id) else { throw NetworkRecoveryError.incompatibleCheckpoint }
+    }
+    private func clearPreparation() {
+        preparedWorld = nil; compatibility = nil; selectedRecovery = nil
+        watcher?.cancel(); watcher = nil; baselineWatcher?.cancel(); baselineWatcher = nil
+    }
 
     private func requireLobby() throws {
         synchronize(); guard phase == .lobby else { throw GameCenterServiceError.operationInProgress }
@@ -155,13 +247,14 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     private func updateLocal(ready: Bool) throws {
         guard let id = owner?.player.id, let index = roster.firstIndex(where: { $0.id == id }) else { throw GameCenterServiceError.invalidData }
         revision &+= 1
-        roster[index] = .init(peer: roster[index].peer, isReady: ready, compatibilityID: compatibility)
+        roster[index] = .init(peer: roster[index].peer, isReady: ready, compatibilityID: compatibility, recovery: selectedRecovery)
         do { try broadcast(.status) } catch { fail(error); throw error }
     }
     private func packet(_ kind: GameCenterPartyPacket.Kind) throws -> GameCenterPartyPacket {
         guard let activity, let code = activity.partyCode else { throw GameCenterServiceError.activityEnded }
         return .init(kind: kind, definition: activity.definitionID, code: code, roster: roster.map(\.id), revision: revision,
-                     compatibility: compatibility, ready: roster.first(where: { $0.id == owner?.player.id })?.isReady ?? false, launch: launchID)
+                     compatibility: compatibility, ready: roster.first(where: { $0.id == owner?.player.id })?.isReady ?? false, launch: launchID,
+                     recovery: kind == .checkpoint ? recoveryOffer : selectedRecovery)
     }
     private func broadcast(_ kind: GameCenterPartyPacket.Kind) throws {
         guard let channel else { throw GameCenterServiceError.matchEnded }
@@ -170,40 +263,55 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     }
     private func receive(_ data: Data, from sender: NetworkPeerID) {
         synchronize()
-        guard phase == .lobby || phase == .starting || phase == .playing,
+        guard phase == .lobby || phase == .starting || phase == .resynchronizing || phase == .playing,
               let index = roster.firstIndex(where: { $0.id == sender }), sender != owner?.player.id else { return }
         do {
             let value = try JSONDecoder().decode(GameCenterPartyPacket.self, from: data)
-            guard value.version == 1, value.definition == activity?.definitionID, value.code == activity?.partyCode,
+            guard value.version == 2, value.definition == activity?.definitionID, value.code == activity?.partyCode,
                   value.roster == roster.map(\.id), value.compatibility == nil || (try? validateGameCenterIdentifier(value.compatibility!)) != nil else {
                 throw GameCenterServiceError.invalidData
             }
+            if let recovery = value.recovery { try validateRecoveryDescriptor(recovery) }
             switch value.kind {
             case .hello, .status:
                 guard phase == .lobby else { return }
                 if let old = remoteRevisions[sender], value.revision < old { return }
                 guard !value.ready || value.compatibility != nil else { throw GameCenterServiceError.invalidData }
                 remoteRevisions[sender] = value.revision
-                roster[index] = .init(peer: roster[index].peer, isReady: value.ready, compatibilityID: value.compatibility)
-                if value.kind == .hello, let channel { try channel.sendControl(packet(.status), to: sender) }
+                roster[index] = .init(peer: roster[index].peer, isReady: value.ready, compatibilityID: value.compatibility, recovery: value.recovery)
+                if value.kind == .hello, let channel {
+                    try channel.sendControl(packet(.status), to: sender)
+                    if owner?.player.id == hostPeerID, recoveryOffer != nil { try channel.sendControl(packet(.checkpoint), to: sender) }
+                }
             case .launch:
                 guard sender == hostPeerID, owner?.player.id != hostPeerID else { throw GameCenterServiceError.invalidData }
-                if phase == .starting || phase == .playing {
-                    guard launchID == value.launch else { throw GameCenterServiceError.invalidData }
+                if phase == .starting || phase == .resynchronizing || phase == .playing {
+                    guard launchID == value.launch, selectedRecovery == value.recovery else { throw GameCenterServiceError.invalidData }
                 } else {
-                    guard let launch = value.launch, value.compatibility == compatibility,
+                    guard let launch = value.launch, value.compatibility == compatibility, value.recovery == selectedRecovery,
                           roster.first(where: { $0.id == owner?.player.id })?.isReady == true else { throw GameCenterServiceError.invalidData }
                     launchID = launch; phase = .starting; try attach(); startWatchdog()
                 }
                 if let channel { try channel.sendControl(packet(.ack), to: sender) }
             case .ack:
                 guard owner?.player.id == hostPeerID, value.launch != nil, value.launch == launchID,
-                      phase == .starting || phase == .playing else { throw GameCenterServiceError.invalidData }
+                      phase == .starting || phase == .resynchronizing || phase == .playing, value.recovery == selectedRecovery else { throw GameCenterServiceError.invalidData }
                 acknowledgments.insert(sender); try commitIfReady()
             case .play:
-                guard sender == hostPeerID, value.launch != nil, value.launch == launchID, phase == .starting || phase == .playing,
-                      session != nil else { throw GameCenterServiceError.invalidData }
-                phase = .playing; watchdog?.cancel(); watchdog = nil
+                guard sender == hostPeerID, value.launch != nil, value.launch == launchID, phase == .starting || phase == .resynchronizing || phase == .playing,
+                      value.recovery == selectedRecovery, session != nil else { throw GameCenterServiceError.invalidData }
+                if phase == .starting { beginResynchronizationOrPlay() }
+            case .checkpoint:
+                guard phase == .lobby, sender == hostPeerID, let offered = value.recovery else { throw GameCenterServiceError.invalidData }
+                if recoveryOffer != offered { recoveryOffer = offered; clearPreparation(); try updateLocal(ready: false) }
+            case .synchronized:
+                guard phase == .resynchronizing || phase == .playing, owner?.player.id == hostPeerID,
+                      selectedRecovery != nil, value.recovery == selectedRecovery, value.launch == launchID else { throw GameCenterServiceError.invalidData }
+                synchronizedPeers.insert(sender); try finishResynchronization()
+            case .recovered:
+                guard sender == hostPeerID, selectedRecovery != nil, value.recovery == selectedRecovery,
+                      value.launch == launchID, phase == .resynchronizing || phase == .playing, sentSynchronization else { throw GameCenterServiceError.invalidData }
+                phase = .playing; interruption = nil; watchdog?.cancel(); watchdog = nil
             case .cancel: throw GameCenterServiceError.cancelled
             }
         } catch { fail(error) }
@@ -217,14 +325,39 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     private func commitIfReady() throws {
         guard phase == .starting, owner?.player.id == hostPeerID,
               acknowledgments.count == roster.count - 1 else { return }
-        try broadcast(.play); phase = .playing; watchdog?.cancel(); watchdog = nil
+        try broadcast(.play); beginResynchronizationOrPlay()
+    }
+    private func beginResynchronizationOrPlay() {
+        watchdog?.cancel(); watchdog = nil
+        guard selectedRecovery != nil else { phase = .playing; interruption = nil; return }
+        phase = .resynchronizing
+        let expected = token, delay = synchronizationTimeoutOverride ?? recoveryConfiguration.resynchronizationTimeout
+        watchdog = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            guard let self, self.token == expected, self.phase == .resynchronizing else { return }
+            self.fail(GameCenterServiceError.timedOut)
+        }
+        checkResynchronization()
+    }
+    private func checkResynchronization() {
+        guard phase == .resynchronizing, session?.state == .connected, let local = owner?.player.id else { return }
+        do {
+            if local == hostPeerID { synchronizedPeers.insert(local); try finishResynchronization() }
+            else if !sentSynchronization, let channel, let hostPeerID {
+                sentSynchronization = true; try channel.sendControl(packet(.synchronized), to: hostPeerID)
+            }
+        } catch { fail(error) }
+    }
+    private func finishResynchronization() throws {
+        guard phase == .resynchronizing, synchronizedPeers == Set(roster.map(\.id)) else { return }
+        try broadcast(.recovered); phase = .playing; interruption = nil; watchdog?.cancel(); watchdog = nil
     }
     private func startWatchdog() {
         let expected = token, delay = handoffTimeout
         watchdog = Task { @MainActor [weak self] in
             do { try await Task.sleep(for: .seconds(delay)) } catch { return }
             guard let self, self.token == expected, self.phase == .starting else { return }
-            self.fail(GameCenterServiceError.gameCenter("The prepared-world handoff timed out."))
+            self.fail(GameCenterServiceError.timedOut)
         }
     }
     private func synchronize() {
@@ -236,19 +369,24 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
         } catch is CancellationError { } catch { fail(error) }
     }
     private func fail(_ error: any Error) {
-        guard token != nil else { return }
-        retire(notify: true); lastError = gameCenterServiceFailure(error); phase = .failed
+        guard let token else { return }
+        let failure = gameCenterServiceFailure(error)
+        failedAttempt = (token, failure)
+        retire(notify: true); lastError = failure
+        interruption = .init(reason: failure == .timedOut ? .timedOut : .connectionLost, message: failure.localizedDescription)
+        phase = .failed
     }
     private func retire(notify: Bool) {
         let previous = token; token = nil
         if notify, channel != nil { try? broadcast(.cancel) }
         cancelRequest?(); cancelRequest = nil; watchdog?.cancel(); watchdog = nil
-        watcher?.cancel(); watcher = nil
+        watcher?.cancel(); watcher = nil; baselineWatcher?.cancel(); baselineWatcher = nil
         let session = session; self.session = nil; session?.stop()
         channel?.close(); channel = nil
         let match = match; self.match = nil; match?.close()
         if let previous { activities.releaseParty(previous) }
         owner = nil; activity = nil; roster = []; hostPeerID = nil; preparedWorld = nil; compatibility = nil
         revision = 0; remoteRevisions = [:]; launchID = nil; acknowledgments = []
+        recoveryOffer = nil; offeredCheckpoint = nil; selectedRecovery = nil; synchronizedPeers = []; sentSynchronization = false
     }
 }

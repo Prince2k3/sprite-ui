@@ -148,5 +148,10 @@
             @Image(source: "spriteui-party.svg", alt: "Two prepared worlds acknowledge a host-committed party handoff while the campaign remains separate.")
             @TutorialReference(tutorial: "doc:joining-an-activity-party")
         }
+        @Chapter(name: "Recover a multiplayer session") {
+            Keep a bounded host checkpoint, request a fresh match explicitly, and wait for every returning client to apply its new baseline.
+            @Image(source: "spriteui-recovery.svg", alt: "An approved checkpoint passes through fresh-party matching and client resynchronization before play resumes.")
+            @TutorialReference(tutorial: "doc:recovering-a-multiplayer-session")
+        }
     }
 }

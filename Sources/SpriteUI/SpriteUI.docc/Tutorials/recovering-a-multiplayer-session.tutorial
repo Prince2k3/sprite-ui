@@ -1,0 +1,39 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Recovering a multiplayer session") {
+        Persist a host-approved checkpoint, interrupt a connection, and recover through an explicitly requested fresh party match.
+        @Image(source: "spriteui-recovery.svg", alt: "An approved checkpoint, a fresh same-roster party, and client resynchronization before Playing.")
+    }
+    @Section(title: "Keep an approved round") {
+        @ContentAndMedia {
+            Select the full SpriteUI product in an iOS 18 or macOS 15 SwiftUI app whose entry point presents `ContentView()`. Replace that file with this complete stage. No assets, accounts, entitlements, or other files are required. The exercise writes one local checkpoint under its application-scoped Application Support folder only when you press Save; appearance does not read or resume it.
+
+            Both preview identities share a retained byte fixture. Separate headless worlds advance their networking from the local clock. Only selected inert state enters the checkpoint. The local approved descriptor pins the exact file for this exercise; a production game must persist and validate its own trustworthy approval policy and application payload schema.
+        }
+        @Steps {
+            @Step {
+                Start a new local round. Both players reach playing with progress 3 and matching host/client positions. Save the host checkpoint, then advance the round. Progress becomes 4 and the actor moves beyond its saved position. The file is not silently updated.
+                @Code(name: "ContentView.swift", file: "spriteui-recovery-01.swift") {
+                    @Image(source: "spriteui-recovery.svg", alt: "Expected schematic: saved progress 3 remains available after an interruption and is restored only after explicit approval.")
+                }
+            }
+            @Step {
+                Simulate background interruption. Alice reads interrupted and Bob leaves the old connection. Retry the fresh match from the saved checkpoint. Both players return to lobby; the host offer has been explicitly accepted into fresh prepared worlds, but gameplay has not resumed. Choose Resume approved checkpoint. Wait through resynchronizing until both read playing: progress returns to 3 and the client receives the saved host position.
+            }
+            @Step {
+                Interrupt again, keep Bob offline during retry, and request a fresh match. It times out after two seconds without automatically retrying. Return to the game menu. Clear the offline option, retry both players, and resume. To test the second deadline, stall client baseline updates before Resume; resynchronization times out instead of claiming successful play. Clear the stall before another explicit retry.
+            }
+        }
+    }
+    @Section(title: "Configure the live recovery path") {
+        @ContentAndMedia {
+            Native activity matching requires OS 26+, configured party-capable activity resources, signing, and authenticated accounts. Recovery requires the original host, exact roster, original activity definition and party code, matching content/protocol ID, and an application-approved checkpoint. A client cannot supply a world payload or become the recovered host automatically.
+
+            Keep the one services host stable across lobby and gameplay. Background interruption is enabled by default; a custom host can supply another deliberate policy. Keep networking advancing during resynchronization while authoritative game rules and presentation changes stay gated on playing. An old checkpoint, mismatched content, cancellation, account change, or missing baseline must not overwrite the old application world or grant rewards.
+        }
+        @Steps {
+            @Step {
+                Continue with <doc:multiplayer-recovery-and-rejoining> for bounds, exact approval, local persistence, stale-packet rejection, lifecycle, and native test requirements. Verify signed two-account background/rejoin behavior separately. This preview demonstrates local protocol and state behavior, not successful Game Center service connectivity.
+            }
+        }
+    }
+}

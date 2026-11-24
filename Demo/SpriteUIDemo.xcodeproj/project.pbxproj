@@ -60,6 +60,7 @@
 		DD3287454DA5B45AE92B6504 /* Dungeon.sks in Resources */ = {isa = PBXBuildFile; fileRef = EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */; };
 		DE2C19546DECB3C0712FACFF /* Runner.atlas in Resources */ = {isa = PBXBuildFile; fileRef = 4E6B60BFB5AC5EA7E1A86B4C /* Runner.atlas */; };
 		DF0D389E25A50C55302D74CD /* APIConsolidationDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */; };
+		DFD041ACF30670CBAB49BEF3 /* MultiplayerRecoveryDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4043CC2338A6D5B12669F1C4 /* MultiplayerRecoveryDemoView.swift */; };
 		E97EE4905384C3E54DD197A4 /* SpatialDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D2D5AF881914EC9A71D2EF /* SpatialDemoView.swift */; };
 		F4ADA338FC9E58E31452A0A0 /* LightingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98A54802ED807F4B7CCE12F /* LightingDemoView.swift */; };
 		F5AF3D9FCF521AFE474F32DF /* DebugDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2087AC349F8F142CD3B41790 /* DebugDemoView.swift */; };
@@ -80,6 +81,7 @@
 		336679CC6AC0F80F32FB81A4 /* playback-demo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "playback-demo.wav"; sourceTree = "<group>"; };
 		363FD31E7C468C0C2080419D /* SteeringDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteeringDemoView.swift; sourceTree = "<group>"; };
 		3E7FA495E00535524F68A83E /* swiftui-ecs */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "swiftui-ecs"; path = ..; sourceTree = SOURCE_ROOT; };
+		4043CC2338A6D5B12669F1C4 /* MultiplayerRecoveryDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiplayerRecoveryDemoView.swift; sourceTree = "<group>"; };
 		48D59140F86FFD9C2335ED7B /* FixedStepDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixedStepDemoView.swift; sourceTree = "<group>"; };
 		4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollisionDemoView.swift; sourceTree = "<group>"; };
 		4D552B0900BBD668FE6A20F9 /* Scanlines.fsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; path = Scanlines.fsh; sourceTree = "<group>"; };
@@ -194,6 +196,7 @@
 				7C990CEAD9255BAA7FB81E0E /* MaskDemoView.swift */,
 				96DB786457C0B4185B6BB04C /* Masking.sks */,
 				E8A22DF470AC5CDDA85B0C6D /* MaterialDemoView.swift */,
+				4043CC2338A6D5B12669F1C4 /* MultiplayerRecoveryDemoView.swift */,
 				D53B0DBFB69AA77F456FF461 /* NetworkDemoView.swift */,
 				93920852539B40941CCCD9D6 /* NoiseDemoView.swift */,
 				ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */,
@@ -329,6 +332,7 @@
 				439215201EA704C5DD96FFDF /* ManipulationDemoView.swift in Sources */,
 				7DFD7309BD8338BFE1922C67 /* MaskDemoView.swift in Sources */,
 				1541F88FA3EEB8B0756899C6 /* MaterialDemoView.swift in Sources */,
+				DFD041ACF30670CBAB49BEF3 /* MultiplayerRecoveryDemoView.swift in Sources */,
 				3ADD1CAE4162795AC730D351 /* NetworkDemoView.swift in Sources */,
 				AFE3EB6EC6605EBA36A44F3B /* NoiseDemoView.swift in Sources */,
 				543B4CE6BF2485071CC94735 /* ObstacleDemoView.swift in Sources */,

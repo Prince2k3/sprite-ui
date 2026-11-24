@@ -25,6 +25,7 @@ extension View {
 @MainActor
 private struct GameCenterServicesModifier: ViewModifier {
     let services: GameCenterServices
+    @Environment(\.scenePhase) private var scenePhase
     func body(content: Content) -> some View {
         content
             .environment(\.gameCenterServices, services)
@@ -34,6 +35,7 @@ private struct GameCenterServicesModifier: ViewModifier {
             .onChange(of: services.multiplayer.authenticationState, initial: true) { _, _ in services.authenticationDidChange() }
             .onChange(of: services.multiplayer.localPeer?.id) { _, _ in services.authenticationDidChange() }
             .onChange(of: services.multiplayer.matchmakingState) { _, _ in services.matchmakingDidChange() }
+            .onChange(of: scenePhase) { _, phase in if phase == .background { services.party.applicationDidEnterBackground() } }
             .onDisappear { services.shutdown() }
     }
 }

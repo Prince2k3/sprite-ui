@@ -15,8 +15,8 @@ import SwiftUI
             Text("Activity party").font(.title2.bold())
             Text("Party: \(services.party.state.rawValue)")
             if let code = services.party.activity?.partyCode { Text("Party code: \(code)").monospaced() }
-            if services.party.state == .idle || services.party.state == .failed {
-                Button("Match current activity") {
+            if services.party.state == .idle || services.party.state == .failed || services.party.state == .interrupted {
+                Button(services.party.interruption == nil ? "Match current activity" : "Rejoin activity") {
                     guard operation == nil else { return }
                     let id = UUID(); operation = id
                     task = Task { @MainActor in
@@ -26,6 +26,9 @@ import SwiftUI
                     }
                 }.disabled(operation != nil)
             }
+            if let interruption = services.party.interruption { Text("Interrupted: \(interruption.reason.rawValue). Retry explicitly or return to your menu.").font(.footnote) }
+            if services.party.state == .interrupted || services.party.state == .failed { Button("Return to game menu") { services.party.leave() } }
+            if let offer = services.party.recoveryOffer { Text("Recovery checkpoint: \(offer.id.uuidString.prefix(8)) · sequence \(offer.sequence)").font(.caption) }
             ForEach(services.party.members) { member in
                 HStack {
                     Text(member.peer.displayName)

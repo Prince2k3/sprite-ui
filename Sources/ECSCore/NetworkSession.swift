@@ -1,12 +1,12 @@
 import Foundation
 import Observation
 
-struct ReplicatedComponent: Codable, Equatable {
+struct ReplicatedComponent: Codable, Equatable, Sendable {
     let name: String
     let value: Data
 }
 
-struct ReplicatedEntity: Codable, Equatable {
+struct ReplicatedEntity: Codable, Equatable, Sendable {
     let id: NetworkEntityID
     let parent: NetworkEntityID?
     let name: String
@@ -361,34 +361,7 @@ public final class NetworkSession {
     }
 
     private func validate(_ records: [ReplicatedEntity]) throws -> [NetworkEntityID: [String: any Component]] {
-        guard records.count <= configuration.maximumEntities else { throw NetworkSessionError.capacityExceeded }
-        var byID: [NetworkEntityID: ReplicatedEntity] = [:]
-        var decoded: [NetworkEntityID: [String: any Component]] = [:]
-        for record in records {
-            guard byID[record.id] == nil, record.name.utf8.count <= 256,
-                  record.selected.count <= 16, Set(record.selected).count == record.selected.count,
-                  record.components.count <= record.selected.count,
-                  record.owner.map({ !$0.rawValue.isEmpty && $0.rawValue.utf8.count <= 256 }) ?? true else {
-                throw NetworkSessionError.invalidPacket
-            }
-            for name in record.selected where schema.entries[name] == nil { throw NetworkSessionError.invalidSchema }
-            var values: [String: any Component] = [:]
-            for box in record.components {
-                guard record.selected.contains(box.name), values[box.name] == nil,
-                      let entry = schema.entries[box.name] else { throw NetworkSessionError.invalidPacket }
-                values[box.name] = try entry.decode(box.value)
-            }
-            byID[record.id] = record; decoded[record.id] = values
-        }
-        for record in records {
-            var seen: Set<NetworkEntityID> = [record.id]
-            var parent = record.parent
-            while let id = parent {
-                guard seen.insert(id).inserted, seen.count <= 64, let ancestor = byID[id] else { throw NetworkSessionError.invalidPacket }
-                parent = ancestor.parent
-            }
-        }
-        return decoded
+        try NetworkRecordValidation.decode(records, schema: schema, maximumEntities: configuration.maximumEntities)
     }
 
     private func apply(_ records: [ReplicatedEntity], decoded: [NetworkEntityID: [String: any Component]],
@@ -500,6 +473,9 @@ public struct NetworkReplicationSystem: System {
 }
 
 extension World {
+    /// Whether a replication session currently owns this world.
+    public var isNetworkSessionActive: Bool { networkSessionOwner != nil }
+
     @_spi(Backend)
     public var hasNetworkTransformPresentation: Bool {
         guard let owner = networkSessionOwner else { return false }
@@ -511,5 +487,22 @@ extension World {
     @_spi(Backend)
     public func networkPresentedTransform(for entity: Entity) -> Transform? {
         networkSessionOwner?.presentedTransform(for: entity)
+    }
+}
+
+extension NetworkSession {
+    /// Captures a host-approved inert checkpoint using only this session's replication allowlist.
+    /// Persist the returned value in application-owned storage before an interruption. Client replicas cannot author one.
+    public func recoveryCheckpoint(compatibilityID: String, scope: String? = nil, applicationState: Data = Data(), at date: Date = Date()) throws -> NetworkRecoveryCheckpoint {
+        guard isHost else { throw NetworkSessionError.notHost }
+        guard state == .connected, !operating, let world else { throw NetworkSessionError.invalidState }
+        operating = true; defer { operating = false }
+        let revision = generation
+        let records = try capture(world)
+        guard generation == revision, state == .connected else { throw NetworkSessionError.invalidState }
+        _ = try encode(ReplicationPacket(kind: .state, session: sessionID, join: UUID(), sequence: sequence, baseline: true, entities: records))
+        return try NetworkRecoveryCheckpoint(records: records, compatibilityID: compatibilityID, scope: scope, host: localPeer.id,
+            peers: ([localPeer.id] + peers.map(\.id)).sorted(), sessionID: sessionID, sequence: sequence,
+            applicationState: applicationState, at: date)
     }
 }

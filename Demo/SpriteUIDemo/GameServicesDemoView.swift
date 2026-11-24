@@ -38,6 +38,12 @@ struct GameServicesDemoView: View {
                         Label("Party matchmaking lab", systemImage: "person.2.fill")
                     }
                     .buttonStyle(.bordered).tint(.cyan)
+                    NavigationLink {
+                        MultiplayerRecoveryDemoView()
+                    } label: {
+                        Label("Multiplayer recovery lab", systemImage: "arrow.clockwise.circle.fill")
+                    }
+                    .buttonStyle(.bordered).tint(.mint)
                     previewIdentity
                     turnBasedCard
                     achievementCard

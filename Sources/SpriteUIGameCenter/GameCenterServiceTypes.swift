@@ -14,7 +14,7 @@ public enum GameCenterServiceError: Error, Equatable, Sendable, LocalizedError {
     case notAuthenticated, unavailable, invalidIdentifier, invalidValue, invalidData
     case accountChanged, cancelled, operationInProgress, notFound, notYourTurn
     case matchEnded, staleMatch, capacityExceeded
-    case activityEnded, attemptUncertain
+    case activityEnded, attemptUncertain, timedOut
     case gameCenter(String)
 
     public var errorDescription: String? {
@@ -33,6 +33,7 @@ public enum GameCenterServiceError: Error, Equatable, Sendable, LocalizedError {
         case .staleMatch: "The match changed. Reload it before submitting your turn."
         case .capacityExceeded: "This operation exceeds the configured data limit."
         case .activityEnded: "Start or accept a current activity before changing or finishing it."
+        case .timedOut: "The multiplayer operation timed out. Retry explicitly or return to your game menu."
         case .attemptUncertain: "This attempt may already have been reported. Do not retry it automatically."
         case .gameCenter(let message): message
         }

@@ -22,6 +22,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Start with local achievements, scores, and typed saved turns, then opt into native screens | <doc:game-center-services> |
+| Recover a checkpoint through an explicit fresh party match | <doc:multiplayer-recovery-and-rejoining> |
 | Match an activity party and hand off prepared worlds | <doc:activity-party-matchmaking-and-handoff> |
 | Route activity invitations and report each native challenge attempt | <doc:game-center-activities-and-challenges> |
 | Define quests, claim reward receipts, and run seasonal leagues | <doc:quests-and-leagues> |
@@ -71,6 +72,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:game-center-services>
 - <doc:game-center-activities-and-challenges>
 - <doc:activity-party-matchmaking-and-handoff>
+- <doc:multiplayer-recovery-and-rejoining>
 - <doc:quests-and-leagues>
 - <doc:player-profiles-and-cloud-saves>
 - <doc:game-center-sessions-and-replication>
@@ -196,6 +198,15 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/GameCenterTurnBasedOutcome``
 - ``SpriteUI/InMemoryTurnBasedStore``
 - ``SpriteUI/GameCenterTurnBasedMatchmakingView``
+
+### Multiplayer recovery
+
+- ``SpriteUI/NetworkRecoveryCheckpoint``
+- ``SpriteUI/NetworkRecoveryDescriptor``
+- ``SpriteUI/NetworkRecoveryError``
+- ``SpriteUI/GameCenterRecoveryConfiguration``
+- ``SpriteUI/GameCenterPartyInterruption``
+- ``SpriteUI/GameCenterInterruptionReason``
 
 ### Activity parties
 

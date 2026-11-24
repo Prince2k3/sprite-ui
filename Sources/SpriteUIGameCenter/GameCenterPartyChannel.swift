@@ -2,8 +2,8 @@ import ECSCore
 import Foundation
 
 struct GameCenterPartyPacket: Codable {
-    enum Kind: String, Codable { case hello, status, launch, ack, play, cancel }
-    var version = 1
+    enum Kind: String, Codable { case hello, status, launch, ack, play, cancel, checkpoint, synchronized, recovered }
+    var version = 2
     let kind: Kind
     let definition: String
     let code: String
@@ -12,6 +12,7 @@ struct GameCenterPartyPacket: Codable {
     var compatibility: String?
     var ready = false
     var launch: UUID?
+    var recovery: NetworkRecoveryDescriptor? = nil
 }
 
 /// Keeps lobby control ownership while NetworkSession exclusively owns the inner callback.
