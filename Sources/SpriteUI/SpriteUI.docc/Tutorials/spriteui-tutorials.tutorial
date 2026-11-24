@@ -1,14 +1,14 @@
 @Tutorials(name: "SpriteUI") {
     @Intro(title: "Build an interactive SpriteUI scene") {
-        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, render their shared world through independent viewports, choose different world and map art with render layers, add a repeating parallax landscape, switch levels while keeping player progress, adapt cameras and controls to reported surface regions, bind optional hinge input with portable virtual controls, bound rendering while sharing completed game frames, separate fixed custom simulation from interpolated presentation and buffered input, and record and inspect fixed-input replays.
+        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, render their shared world through independent viewports, choose different world and map art with render layers, add a repeating parallax landscape, switch levels while keeping player progress, adapt cameras and controls to reported surface regions, bind optional hinge input with portable virtual controls, bound rendering while sharing completed game frames, separate fixed custom simulation from interpolated presentation and buffered input, record and inspect fixed-input replays, and synchronize a small host-authoritative match offline or with optional Game Center.
 
         @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
     }
 
-    @Volume(name: "From your first sprite to local multiplayer") {
-        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, add split screen with a minimap, filter camera visibility without stopping physics, scroll decorative artwork while preserving model anchors, replace physics rooms without replacing players, fit cameras and HUDs around reserved regions, explicitly assign calibrated hinge input, publish bounded read-only game presentation, run fixed kinematic ticks with interpolated artwork and buffered input, and replay recorded commands with diagnostic checksums.
+    @Volume(name: "From your first sprite to network sessions") {
+        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, add split screen with a minimap, filter camera visibility without stopping physics, scroll decorative artwork while preserving model anchors, replace physics rooms without replacing players, fit cameras and HUDs around reserved regions, explicitly assign calibrated hinge input, publish bounded read-only game presentation, run fixed kinematic ticks with interpolated artwork and buffered input, replay recorded commands with diagnostic checksums, and validate network commands and repair lost pose updates.
 
-        @Image(source: "spriteui-tutorials-overview.svg", alt: "Fifteen tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen, camera-specific artwork, repeating parallax landscapes, persistent-player level transitions, adaptive game surfaces, optional hinge input with virtual fallbacks, bounded rendering with read-only mirrors, fixed-step simulation with interpolation and buffered input, and input recording with replay transport and diagnostics.")
+        @Image(source: "spriteui-tutorials-overview.svg", alt: "Sixteen tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen, camera-specific artwork, repeating parallax landscapes, persistent-player level transitions, adaptive game surfaces, optional hinge input with virtual fallbacks, bounded rendering with read-only mirrors, fixed-step simulation with interpolation and buffered input, input recording with replay transport and diagnostics, and small network matches with optional Game Center.")
 
         @Chapter(name: "Create and retain a scene") {
             Learn how a SwiftUI view owns an observable scene and adds entities to GameView.
@@ -113,6 +113,13 @@
 
             @Image(source: "spriteui-input-replay.svg", alt: "Frozen initial state and relative input frames feed fixed rules and completion-time checksum comparison.")
             @TutorialReference(tutorial: "doc:running-input-replays")
+        }
+
+        @Chapter(name: "Synchronize a small network match") {
+            Connect independent worlds offline, validate client commands, repair unreliable pose loss, and optionally configure a fixed-roster Game Center match.
+
+            @Image(source: "spriteui-network-sessions.svg", alt: "Validated client commands flow to one host; complete selected state returns through offline or Game Center transports.")
+            @TutorialReference(tutorial: "doc:synchronizing-a-small-network-match")
         }
     }
 }

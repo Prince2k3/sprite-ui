@@ -18,6 +18,7 @@
 		30DBDF2FA936A07445B67C72 /* PresentationDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762B334CCA2BBBB48820D0FB /* PresentationDemoView.swift */; };
 		34BC0125BB63B500F46459E3 /* PrefabDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A07FC6D53E7ACB7F7547F5 /* PrefabDemoView.swift */; };
 		399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */; };
+		3ADD1CAE4162795AC730D351 /* NetworkDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53B0DBFB69AA77F456FF461 /* NetworkDemoView.swift */; };
 		3F4792AE09AFD6FC9F1AAC69 /* PlayerInputDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8E4C60DDB3E121D89253AB /* PlayerInputDemoView.swift */; };
 		439215201EA704C5DD96FFDF /* ManipulationDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F132032237EA3F1BA27CA86 /* ManipulationDemoView.swift */; };
 		4480B98749CACB532C5EDFAB /* FixedStepDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48D59140F86FFD9C2335ED7B /* FixedStepDemoView.swift */; };
@@ -105,6 +106,7 @@
 		C2D9BC5FCCAB76BF294439F0 /* ConstraintDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstraintDemoView.swift; sourceTree = "<group>"; };
 		D200C57D852A152275BB8377 /* SceneDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDemoView.swift; sourceTree = "<group>"; };
 		D30D56C2F72A47BC882F8D3E /* PoolingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoolingDemoView.swift; sourceTree = "<group>"; };
+		D53B0DBFB69AA77F456FF461 /* NetworkDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDemoView.swift; sourceTree = "<group>"; };
 		D7386C3C0BCBEF0A3A80FFAA /* thud.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = thud.wav; sourceTree = "<group>"; };
 		E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileMapDemoView.swift; sourceTree = "<group>"; };
 		E2306185D689FF19095B67F0 /* StateMachineDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateMachineDemoView.swift; sourceTree = "<group>"; };
@@ -180,6 +182,7 @@
 				7C990CEAD9255BAA7FB81E0E /* MaskDemoView.swift */,
 				96DB786457C0B4185B6BB04C /* Masking.sks */,
 				E8A22DF470AC5CDDA85B0C6D /* MaterialDemoView.swift */,
+				D53B0DBFB69AA77F456FF461 /* NetworkDemoView.swift */,
 				93920852539B40941CCCD9D6 /* NoiseDemoView.swift */,
 				ECA0AF7C89163C62C21F1EF1 /* ObstacleDemoView.swift */,
 				316FDBDE2503F4214B702DD9 /* ParallaxDemoView.swift */,
@@ -309,6 +312,7 @@
 				439215201EA704C5DD96FFDF /* ManipulationDemoView.swift in Sources */,
 				7DFD7309BD8338BFE1922C67 /* MaskDemoView.swift in Sources */,
 				1541F88FA3EEB8B0756899C6 /* MaterialDemoView.swift in Sources */,
+				3ADD1CAE4162795AC730D351 /* NetworkDemoView.swift in Sources */,
 				AFE3EB6EC6605EBA36A44F3B /* NoiseDemoView.swift in Sources */,
 				543B4CE6BF2485071CC94735 /* ObstacleDemoView.swift in Sources */,
 				648C8DB7BEBDF9B0CCE61F02 /* ParallaxDemoView.swift in Sources */,

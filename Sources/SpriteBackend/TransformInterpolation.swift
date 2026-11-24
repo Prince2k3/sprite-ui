@@ -78,6 +78,12 @@ extension SpriteRenderer {
     /// A separate visual child needs its own changing fixed local transform;
     /// marking a static child cannot smooth its parent's simulation movement.
     func fixedInterpolatedPose(for entity: Entity) -> Transform? {
+        if let pose = world.networkPresentedTransform(for: entity), !world.isPaused, world.timeScale > 0,
+           entity.isActive, let node = node(for: entity),
+           !manipulationSessions.values.contains(where: { $0.isActive && $0.entity === entity }),
+           !hasFixedInterpolationConflict(in: entity, node: node), entity.presentation.transform == entity.transform {
+            return pose != entity.transform ? pose : nil
+        }
         guard world.fixedStep != nil, !world.isPaused, world.timeScale > 0,
               entity.isActive, let node = node(for: entity),
               let sample = world.fixedTransformSample(for: entity) else { return nil }
@@ -154,7 +160,8 @@ extension SpriteRenderer {
     /// The caller supplies canonical poses so already-evaluated constraints keep
     /// their authority. Constraint sources continue to use their own baseline.
     func proposedFixedTargetMatrix(of entity: Entity, canonicalPose: (Entity) -> Transform) -> AffineTransform2D? {
-        guard world.fixedStep != nil, !world.isPaused, world.timeScale > 0 else { return nil }
+        guard world.fixedStep != nil || world.hasNetworkTransformPresentation,
+              !world.isPaused, world.timeScale > 0 else { return nil }
         var chain: [Entity] = [], current: Entity? = entity
         while let value = current { chain.append(value); current = value.parent }
         var matrix = AffineTransform2D.identity
@@ -171,7 +178,8 @@ extension SpriteRenderer {
     /// Called after cameras and the last flush. Capture every canonical value
     /// before applying any parent offsets, so nested samples stay independent.
     func applyFixedTransformPresentation() {
-        guard world.fixedStep != nil, !world.isPaused, world.timeScale > 0 else { return }
+        guard world.fixedStep != nil || world.hasNetworkTransformPresentation,
+              !world.isPaused, world.timeScale > 0 else { return }
         var poses: [(Entity.ID, SKNode, Transform)] = []
         for entity in world.allEntities {
             if let pose = fixedInterpolatedPose(for: entity), let node = node(for: entity) {

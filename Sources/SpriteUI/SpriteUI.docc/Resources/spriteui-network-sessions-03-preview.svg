@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="480" viewBox="0 0 1040 480" role="img" aria-labelledby="title desc">
+<title id="title">Stage 3 · optional Game Center</title>
+<desc id="desc">Offline lab remains available without opening native sheets</desc>
+<rect width="1040" height="480" rx="24" fill="#101b2c"/>
+<text x="44" y="64" fill="#f3f7ff" font-family="system-ui,sans-serif" font-size="28" font-weight="700">Stage 3 · optional Game Center</text>
+<text x="44" y="101" fill="#b8cadf" font-family="system-ui,sans-serif" font-size="18">Offline lab remains available without opening native sheets</text>
+<rect x="44" y="145" width="440" height="220" rx="18" fill="#192b42" stroke="#63d7f5" stroke-width="2"/>
+<text x="68" y="188" fill="#63d7f5" font-family="system-ui,sans-serif" font-size="23" font-weight="600">Always available</text>
+<text x="68" y="230" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Offline commands + loss controls</text>
+<text x="68" y="264" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">No account or entitlement needed</text>
+<text x="68" y="298" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">No automatic sign-in</text>
+<rect x="556" y="145" width="440" height="220" rx="18" fill="#192b42" stroke="#ffb663" stroke-width="2"/>
+<text x="580" y="188" fill="#ffb663" font-family="system-ui,sans-serif" font-size="23" font-weight="600">Optional configured app</text>
+<text x="580" y="230" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Explicit Sign in → Matchmaking</text>
+<text x="580" y="264" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Wait for complete roster + host ID</text>
+<text x="580" y="298" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Signed two-account test: pending</text>
+<text x="44" y="420" fill="#b8cadf" font-family="system-ui,sans-serif" font-size="18">Fixed initial roster · No midmatch additions, reinvites, or automatic host migration</text>
+</svg>

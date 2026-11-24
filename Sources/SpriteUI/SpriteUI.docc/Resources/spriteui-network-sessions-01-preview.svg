@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="480" viewBox="0 0 1040 480" role="img" aria-labelledby="title desc">
+<title id="title">Stage 1 · independent worlds</title>
+<desc id="desc">Schematic result after Host +10, then Pump</desc>
+<rect width="1040" height="480" rx="24" fill="#101b2c"/>
+<text x="44" y="64" fill="#f3f7ff" font-family="system-ui,sans-serif" font-size="28" font-weight="700">Stage 1 · independent worlds</text>
+<text x="44" y="101" fill="#b8cadf" font-family="system-ui,sans-serif" font-size="18">Schematic result after Host +10, then Pump</text>
+<rect x="44" y="145" width="440" height="220" rx="18" fill="#192b42" stroke="#ffb663" stroke-width="2"/>
+<text x="68" y="188" fill="#ffb663" font-family="system-ui,sans-serif" font-size="23" font-weight="600">Host · x = 10</text>
+<text x="68" y="230" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Creates the synchronized actor</text>
+<text x="68" y="264" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Actor parent is the world root</text>
+<text x="68" y="298" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Manual session update owner</text>
+<rect x="556" y="145" width="440" height="220" rx="18" fill="#192b42" stroke="#63d7f5" stroke-width="2"/>
+<text x="580" y="188" fill="#63d7f5" font-family="system-ui,sans-serif" font-size="23" font-weight="600">Client · x = 10</text>
+<text x="580" y="230" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Fresh baseline from the host</text>
+<text x="580" y="264" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Different local entity ID</text>
+<text x="580" y="298" fill="#e5eefc" font-family="system-ui,sans-serif" font-size="18">Local camera preserved: yes</text>
+<text x="44" y="420" fill="#b8cadf" font-family="system-ui,sans-serif" font-size="18">Stop → Restart requests a fresh baseline · No assets or account required</text>
+</svg>

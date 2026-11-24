@@ -20,6 +20,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Drag, rotate, and scale entities with automatic gestures or buttons | <doc:manipulating-entities> |
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
+| Synchronize a small host-authoritative match offline or through Game Center | <doc:game-center-sessions-and-replication> |
 | Render one world through player cameras and a minimap | <doc:viewports-and-split-screen> |
 | Bound render-target work and share completed game frames | <doc:bounded-rendering-and-read-only-presentation> |
 | Fit cameras and controls around safe areas and reserved regions | <doc:adaptive-game-surfaces> |
@@ -37,11 +38,11 @@ Use `import SpriteUI` for the complete SDK. The umbrella re-exports the package'
 
 | Layer | Responsibility | Representative APIs |
 | --- | --- | --- |
-| ECSCore | Entities, components, queries, scheduling, events, and snapshots | ``SpriteUI/Entity``, ``SpriteUI/World``, ``SpriteUI/System`` |
+| ECSCore | Entities, components, queries, scheduling, snapshots, and network sessions | ``SpriteUI/Entity``, ``SpriteUI/World``, ``SpriteUI/System`` |
 | Gameplay | Value-oriented algorithms independent of a world or renderer | ``SpriteUI/Agent2D``, ``SpriteUI/Graph``, ``SpriteUI/NavigationMesh`` |
 | GameplayECS | Components and systems that connect gameplay algorithms to entities | ``SpriteUI/SteeringComponent``, ``SpriteUI/PathFollowSystem`` |
 | SpriteBackend | Rendering, resources, playback, collision, physics, and diagnostics | ``SpriteUI/SpriteRenderer``, ``SpriteUI/ResourceLibrary`` |
-| GameUI | SwiftUI scene hosting, entity gestures, and attachments | ``SpriteUI/GameView``, ``SpriteUI/GameAttachment`` |
+| GameUI | SwiftUI scene hosting, gestures, attachments, and Game Center integration | ``SpriteUI/GameView``, ``SpriteUI/GameAttachment`` |
 | SpriteUI | One import for the SDK, plus noise-image and tile-map integration | ``SpriteUI/SpriteImage``, ``SpriteUI/TileMapComponent`` |
 
 Entities, worlds, systems, and scene interaction belong on the main actor. Pure gameplay values can be computed separately where their API permits, then applied to a world on the main actor. Keep app state, per-entity data, and frame simulation in their respective owners; the guides show how those owners meet.
@@ -57,6 +58,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:input-recording-and-replay>
 - <doc:input-actions-and-controllers>
 - <doc:player-input-sessions-and-feedback>
+- <doc:game-center-sessions-and-replication>
 - <doc:viewports-and-split-screen>
 - <doc:bounded-rendering-and-read-only-presentation>
 - <doc:adaptive-game-surfaces>
@@ -158,6 +160,32 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/ControllerFeedback``
 - ``SpriteUI/InputFeedbackResult``
 - ``SpriteUI/InputFeedbackProvider``
+
+### Network sessions and Game Center
+
+- ``SpriteUI/NetworkSession``
+- ``SpriteUI/NetworkTransport``
+- ``SpriteUI/NetworkTransportEvent``
+- ``SpriteUI/NetworkPeer``
+- ``SpriteUI/NetworkPeerID``
+- ``SpriteUI/NetworkEntityID``
+- ``SpriteUI/SynchronizationComponent``
+- ``SpriteUI/NetworkReplicationSchema``
+- ``SpriteUI/NetworkSessionConfiguration``
+- ``SpriteUI/NetworkSessionError``
+- ``SpriteUI/NetworkReplicationSystem``
+- ``SpriteUI/NetworkEvents``
+- ``SpriteUI/InMemoryNetwork``
+- ``SpriteUI/InMemoryNetworkTransport``
+- ``SpriteUI/InMemoryNetworkError``
+- ``SpriteUI/GameCenterMultiplayer``
+- ``SpriteUI/GameCenterTransport``
+- ``SpriteUI/GameCenterMatchRequest``
+- ``SpriteUI/GameCenterAuthenticationState``
+- ``SpriteUI/GameCenterMatchmakingState``
+- ``SpriteUI/GameCenterAuthenticationView``
+- ``SpriteUI/GameCenterMatchmakingView``
+- ``SpriteUI/GameCenterError``
 
 ### Gameplay and movement
 

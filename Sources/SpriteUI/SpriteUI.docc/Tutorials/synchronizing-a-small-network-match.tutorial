@@ -1,0 +1,64 @@
+@Tutorial(time: 30) {
+    @Intro(title: "Synchronizing a small network match") {
+        Compare a host and client offline, validate client intent, repair lost pose updates, and optionally connect a configured Game Center match.
+
+        @Image(source: "spriteui-network-sessions.svg", alt: "A host validates client commands and sends complete selected state; Game Center and a controlled offline hub provide alternative transports.")
+    }
+
+    @Section(title: "Create two worlds with one authority") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Each stage completely replaces ContentView.swift and uses your existing ContentView() entry point. Use one stage at a time; there are no asset, entitlement, account, or additional source-file requirements for the offline path, including stage three. The SVGs are explanatory schematics, not device screenshots.
+
+            Retain a main-actor observable lab with one InMemoryNetwork and two independent worlds and sessions. The host creates a synchronized actor directly under its world root; the client creates its own unsynchronized camera. Only the built-in transform schema entry is selected. The replica's local entity ID is unrelated to the shared NetworkEntityID.
+
+            Starting installs a presentation-phase replication system. This lab disables it on both worlds and calls session.update explicitly, so there is exactly one update owner and no GameView frame loop. Three bounded rounds of hub advance, host update, and client update deliver the hello and baseline. Even zero-latency traffic needs advance(by:). The circles and numbers show canonical model positions, not native interpolated presentation.
+        }
+        @Steps {
+            @Step {
+                Replace ContentView.swift with stage one and run. Both positions read zero and the client camera is preserved. Select Host +10: the host reads 10 while the client stays at zero. Select Pump 0.3 seconds: both read 10. Select Stop: the local camera remains. Select Restart / request fresh baseline: a new join attempt receives the host's retained position. No account dialog appears.
+
+                @Code(name: "ContentView.swift", file: "spriteui-network-sessions-01.swift") {
+                    @Image(source: "spriteui-network-sessions-01-preview.svg", alt: "Expected offline result after one host move and a pump: host and client x are 10; the independent client camera is preserved.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Validate commands and recover from lost poses") {
+        @ContentAndMedia {
+            Stage two sends a Codable command containing a network UUID and a step. Only the host decodes and applies it, after checking the authenticated sender against ownership, size, action range, a per-update acceptance budget, and arena bounds. The client never writes its replica. The intentionally invalid command is validly encoded but rejected by the host's game rules.
+
+            The loss switch drops all unreliable packets; it cannot drop reliable commands, baselines, or structural changes. Unchanged-structure coordinates use unreliable delivery only if the entire encoded frame is at most 1,000 bytes. Every state contains the full selected values, so the next delivered pose repairs loss. Larger frames are reliable, capped at 48,000 bytes. The 100 ms latency switch changes future sends; Pump advances a controlled clock, not wall time. Pump again if the client is still joining or a packet remains delayed.
+        }
+        @Steps {
+            @Step {
+                Replace the file with stage two. Select Client +10 command, then Pump: both positions become 10. Select Send invalid +900 command, then Pump: both stay 10. Enable Drop all small unreliable states, select Host +10, then Pump: the host reads 20 and the client remains 10. Disable loss and Pump: the client catches up to 20 without replaying the missing frame. Enable 100 ms latency and repeat a valid move, pumping again as needed. Stop and restart while loss is enabled to confirm that a reliable fresh baseline still joins and the local camera survives.
+
+                @Code(name: "ContentView.swift", file: "spriteui-network-sessions-02.swift", previousFile: "spriteui-network-sessions-01.swift") {
+                    @Image(source: "spriteui-network-sessions-02-preview.svg", alt: "Expected loss experiment: host x 20, client x 10 while small unreliable states drop; restoring delivery repairs client x to 20.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Add optional Game Center authentication and matchmaking") {
+        @ContentAndMedia {
+            Stage three retains the offline lab and adds a separate online world and coordinator. Nothing signs in automatically. Sign in opens GameCenterAuthenticationView; its button initiates authentication. Matchmaking opens GameCenterMatchmakingView with an explicit two-player request and a common playerGroup. Its buttons find a match or accept a pending invite. The coordinator publishes ready only when the initial roster is complete. Observe ready, dismiss the sheet, and select the session role by comparing the local peer ID with the coordinator's fixed hostPeerID, derived from sorted full-roster Game Center IDs.
+
+            The online host creates one actor owned by the remote client. The client submits bounded moves; the host can also move directly. The app-owned task pumps the session at a bounded cadence with the automatic system disabled. It never advances the offline hub. End online match stops the session before disconnecting the transport; disappearing also shuts down coordinator ownership. Match disconnection clears the online session. Local pause policy is app-owned: a paused World stops automatic updates, whereas an explicit task continues until the app suspends or cancels it.
+
+            Before trying online controls, configure the consuming app's Game Center capability, GameKit linkage, signed entitlement and provisioning, matching bundle ID and enabled Game Center app version, and multiplayer compatibility in App Store Connect. Sandboxed Mac apps need appropriate incoming and outgoing networking. Use identical schemas and playerGroup on both devices. See <doc:game-center-sessions-and-replication> for configuration sources and limitations. Without configuration or accounts, continue using the fully functional offline lab.
+
+            This is a fixed-roster Game Center match: no midmatch additions or native reinvites. A delayed replication session may request a baseline on an already connected participant; offline hubs can additionally connect new peers. There is no host migration, prediction, rollback, or native-physics determinism. Remote native smoothing is read-only; these diagnostic circles show latest model values. Only inert values belong in an explicit custom schema, with network UUID references instead of local entity IDs.
+        }
+        @Steps {
+            @Step {
+                Replace the file with stage three. First repeat the offline command and loss experiment without opening the optional sheets; it requires no account. On configured signed builds on two devices with distinct Game Center accounts, optionally sign in, find the same two-player match, and confirm one host and one client. Use Online +10 / send command on the client and wait for both online numbers to match. End the host's match and confirm the client cannot continue sending commands; start a new match explicitly. Cancel authentication or matchmaking to inspect cleanup and retry. Signed two-account/two-device verification is pending because credentials are unavailable; the illustration does not claim a live match was tested.
+
+                @Code(name: "ContentView.swift", file: "spriteui-network-sessions-03.swift", previousFile: "spriteui-network-sessions-02.swift") {
+                    @Image(source: "spriteui-network-sessions-03-preview.svg", alt: "Stage three retains the account-free offline lab and exposes optional explicit sign-in and matchmaking buttons; signed native verification remains pending.")
+                }
+            }
+        }
+    }
+}

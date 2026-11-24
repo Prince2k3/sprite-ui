@@ -52,6 +52,7 @@ public final class World {
     weak var activeFrameCompletion: FrameCompletion?
     var fixedTickCompletions: [@MainActor (Bool) -> Void] = []
     weak var inputReplayOwner: InputReplayController?
+    weak var networkSessionOwner: NetworkSession?
 
     /// Fixed simulation is opt-in; variable systems retain their display-frame cadence.
     public var fixedStep: FixedStepConfiguration? {
