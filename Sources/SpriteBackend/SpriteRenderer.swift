@@ -66,6 +66,7 @@ public final class SpriteRenderer: SKScene {
     /// Rectangles use normalized top-left coordinates; later views draw on top.
     /// The native multi-viewport host advances this scene once before drawing them.
     public var viewports: [GameViewport] = []
+    var reportedSurfaceGeometry: GameSurfaceGeometry?
     var viewportRenderSurfaceSize: CGSize?
     private var viewportPhysicsSuspended = false
     var renderVisibilityOverrides: [ObjectIdentifier: VisibilityOverride] = [:]

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+<title id="title">Stage 2 · Fit stable camera regions</title><desc id="desc">Independent cameras use usable indices in one retained world. Schematic illustration, not a runtime capture.</desc>
+<rect width="800" height="600" rx="24" fill="#0c1425"/>
+<g font-family="system-ui, sans-serif"><text x="28" y="48" font-size="28" fill="#edf5ff">Stage 2 · Fit stable camera regions</text>
+<text x="28" y="82" font-size="17" fill="#a4bad0">Independent cameras use usable indices in one retained world.</text>
+<rect x="36" y="120" width="728" height="280" fill="#111c30" stroke="#66819a"/><rect x="48" y="132" width="336" height="256" fill="#132c38" stroke="#6ee7b7" stroke-width="2"/><rect x="416" y="132" width="336" height="256" fill="#182b43" stroke="#6ee7b7" stroke-width="2"/><rect x="390" y="120" width="20" height="280" fill="#9d4153"/><text x="60" y="158" fill="#6ee7b7" font-size="18">Usable 0</text><text x="428" y="158" fill="#6ee7b7" font-size="18">Usable 1</text><rect x="200" y="244" width="32" height="32" fill="#49d8ee"/><rect x="568" y="244" width="32" height="32" fill="#ffb25e"/>
+<text x="28" y="520" font-size="19" fill="#a4bad0">Missing usable index hides a pane, preserving its camera</text>
+<text x="28" y="570" font-size="16" fill="#a4bad0">Schematic preview · bounds and insets depend on the actual host</text></g></svg>

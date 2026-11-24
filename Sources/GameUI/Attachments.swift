@@ -28,14 +28,19 @@ public struct AttachmentComponent: Component, Equatable, Codable, Sendable {
     public var isEnabled: Bool
     /// A pane ID, or nil to present an independent SwiftUI instance in every pane.
     public var viewportID: String?
+    /// Clips the attachment to the safe area and active reserved regions. This
+    /// does not move its world anchor; use surface placement for floating HUDs.
+    public var avoidsReservedRegions: Bool
 
     public init(id: String, offset: SIMD2<Float> = .zero, anchor: UnitPoint = .center,
-                sizing: Sizing = .screen, isInteractive: Bool = false, isEnabled: Bool = true, viewportID: String? = nil) {
+                sizing: Sizing = .screen, isInteractive: Bool = false, isEnabled: Bool = true, viewportID: String? = nil,
+                avoidsReservedRegions: Bool = true) {
         attachmentID = id; self.offset = offset; self.anchor = anchor; self.sizing = sizing
         self.isInteractive = isInteractive; self.isEnabled = isEnabled
         self.viewportID = viewportID
+        self.avoidsReservedRegions = avoidsReservedRegions
     }
-    private enum CodingKeys: String, CodingKey { case attachmentID, offset, anchor, sizing, isInteractive, isEnabled, viewportID }
+    private enum CodingKeys: String, CodingKey { case attachmentID, offset, anchor, sizing, isInteractive, isEnabled, viewportID, avoidsReservedRegions }
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         attachmentID = try c.decode(String.self, forKey: .attachmentID)
@@ -46,6 +51,7 @@ public struct AttachmentComponent: Component, Equatable, Codable, Sendable {
         isInteractive = try c.decodeIfPresent(Bool.self, forKey: .isInteractive) ?? false
         isEnabled = try c.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         viewportID = try c.decodeIfPresent(String.self, forKey: .viewportID)
+        avoidsReservedRegions = try c.decodeIfPresent(Bool.self, forKey: .avoidsReservedRegions) ?? true
     }
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -54,6 +60,7 @@ public struct AttachmentComponent: Component, Equatable, Codable, Sendable {
         try c.encode(sizing, forKey: .sizing); try c.encode(isInteractive, forKey: .isInteractive)
         try c.encode(isEnabled, forKey: .isEnabled)
         try c.encodeIfPresent(viewportID, forKey: .viewportID)
+        try c.encode(avoidsReservedRegions, forKey: .avoidsReservedRegions)
     }
 }
 
@@ -340,6 +347,10 @@ final class AttachmentStore {
     private func invalidateContexts() {
         for id in Array(definitions.keys) { nextDefinition &+= 1; definitions[id] = nextDefinition }
     }
+    func surfaceDidChange() {
+        invalidateContexts()
+        refresh()
+    }
     func blocksInput(at point: CGPoint) -> Bool {
         guard let host, CGRect(origin: .zero, size: host.renderer.size).contains(point) else { return false }
         let front = host.renderer.viewport(at: point)
@@ -402,11 +413,16 @@ final class AttachmentStore {
                                                           existing.viewportRevision == (viewportRevisions[viewport.id] ?? 0) ? existing.visibilityPolicyRevision : nil
                                                   } ?? renderer.visibilityEventRevision)
                 currentIdentities[key] = identity
-                let occlusions = viewports.dropFirst(order + 1).compactMap { renderer.viewportRect(id: $0.id) }.filter { $0.intersects(rect) }
+                var occlusions = viewports.dropFirst(order + 1).compactMap { renderer.viewportRect(id: $0.id) }.filter { $0.intersects(rect) }
+                let clipRect: CGRect
+                if component.avoidsReservedRegions {
+                    clipRect = rect.intersection(renderer.surfaceGeometry.safeBounds)
+                    occlusions += renderer.surfaceGeometry.reservedRegions.filter(\.isActive).map(\.frame)
+                } else { clipRect = rect }
                 next.append(AttachmentProjection(id: identity, definitionID: component.attachmentID, entity: entity,
                     position: origin, basis: component.sizing == .screen ? .identity : raw, anchor: component.anchor,
                     opacity: Double(min(1, max(0, opacity))), zIndex: Double(z), interactive: component.isInteractive && viewport.isInteractive,
-                    viewport: renderer.size, clipRect: rect, occlusions: occlusions, viewportOrder: order))
+                    viewport: renderer.size, clipRect: clipRect, occlusions: occlusions, viewportOrder: order))
             }
         }
         next.sort {

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+<title id="title">Stage 1 · Inspect surface geometry</title><desc id="desc">Mint outlines subtract an active division. Full-surface art can overlap it. Schematic illustration, not a runtime capture.</desc>
+<rect width="800" height="600" rx="24" fill="#0c1425"/>
+<g font-family="system-ui, sans-serif"><text x="28" y="48" font-size="28" fill="#edf5ff">Stage 1 · Inspect surface geometry</text>
+<text x="28" y="82" font-size="17" fill="#a4bad0">Mint outlines subtract an active division. Full-surface art can overlap it.</text>
+<rect x="36" y="120" width="728" height="280" fill="#111c30" stroke="#66819a"/><rect x="48" y="132" width="336" height="256" fill="#132c38" stroke="#6ee7b7" stroke-width="2"/><rect x="416" y="132" width="336" height="256" fill="#182b43" stroke="#6ee7b7" stroke-width="2"/><rect x="390" y="120" width="20" height="280" fill="#9d4153"/><text x="60" y="158" fill="#6ee7b7" font-size="18">Usable 0</text><text x="428" y="158" fill="#6ee7b7" font-size="18">Usable 1</text><rect x="384" y="244" width="32" height="32" fill="#49d8ee"/>
+<text x="28" y="520" font-size="19" fill="#a4bad0">Book / Tabletop / Inactive / Clear / Native fixtures</text>
+<text x="28" y="570" font-size="16" fill="#a4bad0">Schematic preview · bounds and insets depend on the actual host</text></g></svg>

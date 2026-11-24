@@ -24,6 +24,9 @@ final class DemoBotsInput {
     /// Compatibility access for existing action-level callers and tests.
     var input: InputController { player.input }
     var selectedLevel = 1
+    /// Replaces only the touch controls, ending their captured gestures while
+    /// the GameView, world, and player input session retain their identity.
+    private(set) var surfaceInputRevision: UInt64 = 0
     @ObservationIgnored private let game: DemoBotsSession
     @ObservationIgnored private let toggleDebugPause: @MainActor () -> Void
     @ObservationIgnored private var subscription: InputSubscription?
@@ -36,6 +39,7 @@ final class DemoBotsInput {
     @ObservationIgnored private var lastAim = SIMD2<Float>.zero
     @ObservationIgnored private var lastFiring = false
     @ObservationIgnored private var lastSelectionDirection = 0
+    @ObservationIgnored private var surfaceState: DemoBotsSurfaceLayout.SurfaceState?
 
     init(game: DemoBotsSession, hub: PlayerInputHub = PlayerInputHub(),
          toggleDebugPause: @escaping @MainActor () -> Void = {}) {
@@ -159,6 +163,24 @@ final class DemoBotsInput {
         hub.cancelAll()
         game.pause()
         synchronizeContext()
+    }
+
+    /// Geometry invalidates held controls without changing match playback.
+    /// Scale-only and inactive-reservation updates keep the same point space.
+    func surfaceDidChange(_ surface: GameSurfaceGeometry) {
+        let state = DemoBotsSurfaceLayout.SurfaceState(surface)
+        if let previous = surfaceState, previous != state { cancelSurfaceInput() }
+        surfaceState = state
+        game.resize(surface.largestUsableRegion.size)
+    }
+
+    private func cancelSurfaceInput() {
+        player.stopFeedback()
+        hub.cancelAll()
+        game.move(.zero)
+        game.aim(.zero, firing: false)
+        lastMove = .zero; lastAim = .zero; lastFiring = false
+        surfaceInputRevision &+= 1
     }
 
     private func tap(_ control: InputControl) {

@@ -1,0 +1,69 @@
+@Tutorial(time: 25) {
+    @Intro(title: "Adapting to game surfaces") {
+        Inspect local surface geometry, fit stable cameras into usable regions, and place virtual controls without replacing the world or its player session.
+
+        @Image(source: "spriteui-surfaces.svg", alt: "A reported division separates two usable camera regions while a floating HUD fits wholly inside one region.")
+    }
+
+    @Section(title: "Inspect reported and synthetic geometry") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Every stage completely replaces `ContentView.swift`; retain your app's `ContentView()` entry point and use only one stage at a time. No external assets, physical controllers, or folding hardware are required. The drawings are schematic expected results, not device captures.
+
+            ``GameSurfaceGeometry`` uses local top-left points. Apply `.onGameSurfaceChange` to one `GameView`, then draw overlays in those same bounds. Initial geometry may be empty before native layout. The mint rectangles show `usableRegions()` after safe-area insets and active reservations have been removed.
+
+            The fixture picker supplies `surfaceRegions:` explicitly. Book creates a vertical `.division`; Tabletop creates a horizontal one. Inactive retains a division with `isActive: false`, so only `usableRegions(includingInactive: true)` subtracts it. Clear supplies an empty array. Each nonnil choice replaces native regions; Native supplies nil to restore reporting. These fixtures describe geometry, not a device model or hinge sensor.
+        }
+
+        @Steps {
+            @Step {
+                Run stage one. Book shows two usable regions around a red strip. Select Tabletop for top and bottom regions, then Inactive: the strip becomes yellow and the normal usable count returns to one while the including-inactive count remains two, provided the host has enough space. Native uses iOS 27.1 UIKit reserved-region reporting when available; older iOS and macOS use native safe areas only. Resize the window or rotate the simulator and inspect the local outlines. The cyan sprite still uses the full surface at this stage and may be underneath a reserved strip.
+
+                @Code(name: "ContentView.swift", file: "spriteui-surfaces-01.swift") {
+                    @Image(source: "spriteui-surfaces-01-preview.svg", alt: "Schematic stage one: a vertical reserved strip splits two mint usable outlines; the full-surface sprite can overlap the strip.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Assign stable cameras to usable regions") {
+        @ContentAndMedia {
+            Stage two keeps both player entities and cameras in a retained scene owner. The `p1` and `p2` viewport IDs and camera entity IDs remain stable. Their `region` selectors are `.usable(0)` and `.usable(1)`, in deterministic top-left order. Each default `.full` frame fills its selected region. Existing normalized frames continue to work within the selected region; `.surface` is the default for existing callers.
+
+            If a usable index disappears, its viewport becomes unavailable; it does not fall back beneath the division. Both players and cameras remain in one world. Usable indices describe current rectangles rather than permanent hardware panels. Camera clamping uses the first assigned viewport's resolved point dimensions; independent framing needs separate cameras. <doc:viewports-and-split-screen> explains the shared simulation and camera rules.
+
+            The `update:` closure reads observable `content.surfaceGeometry` and shows the shared mint beacon only when the largest usable region is at least 120 points wide. This updates an existing entity during SwiftUI updates; it does not rebuild the scene or add another simulation clock.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage two. Book centers cyan P1 in the left region and orange P2 in the right. Tabletop puts P1 above P2. Clear and Inactive normally leave one usable rectangle, so P2's pane disappears. Return to Book to see it again with the same entity and camera. Resize to narrow the regions and observe the beacon policy without resetting either player.
+
+                @Code(name: "ContentView.swift", file: "spriteui-surfaces-02.swift", previousFile: "spriteui-surfaces-01.swift") {
+                    @Image(source: "spriteui-surfaces-02-preview.svg", alt: "Schematic stage two: stable cyan and orange cameras fill separate usable rectangles around the reserved division.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Place a HUD and release held virtual input") {
+        @ContentAndMedia {
+            Stage three creates one ``PlayerInputSession`` and virtual pad, then polls its movement action in a system. The Move button holds virtual Right until Stop or a release. One hub is attached to the shared host. Layout changes preserve the session, device assignment, world, and moving entity; release does not pause simulation.
+
+            `placement(of:anchor:)` requests a 156-by-44-point HUD near `[1, 1]`. Its entire rectangle must fit a usable region or the result is nil. The example hides that HUD when no rectangle fits and keeps a separate Stop button outside the arena. Surface placement never scales the requested control down.
+
+            The P1 label is an attachment descendant and reads `@Environment(\.gameSurfaceGeometry)`. Its default `avoidsReservedRegions: true` clips against safe bounds and active reserved frames without moving its world anchor. Set that argument to false to opt out of surface avoidance. External overlays obtain their geometry through the callback, not that attachment environment.
+
+            The host cancels pointer captures, manipulation sessions, and native actions only when the effective layout changes: `size`, `safeBounds`, or active `usableRegions()`. The callback compares those same values and submits a false virtual sample. Scale-only and inactive-metadata changes still publish events without cancelling held input; only actual layout changes invalidate attachment contexts. The app also releases on disappearance and loss of app activity. A retained ``GameSurfaceEvents`` subscription counts actual `DidChange` deliveries after setup; the count can include metadata-only changes and depends on native layout timing.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage three. Tap Move P1 right, then switch from Book to Tabletop or resize the arena: the button returns to Move and P1 stops without losing its world position or pad assignment. The camera follows P1, so use the mint beacon's relative motion to observe travel. Clear to Inactive normally keeps the effective layout unchanged: a held control keeps moving even though the metadata and event count change. Stop explicitly. On a sufficiently narrow region the HUD disappears; the external Stop remains available. Return to a wider Book layout and continue moving. Compare the clipped world label with the wholly fitting floating control.
+
+                @Code(name: "ContentView.swift", file: "spriteui-surfaces-03.swift", previousFile: "spriteui-surfaces-02.swift") {
+                    @Image(source: "spriteui-surfaces-03-preview.svg", alt: "Schematic stage three: a fitting Move control sits wholly within a usable region; a world label remains anchored to P1 and Stop stays outside the arena.")
+                }
+            }
+        }
+    }
+}

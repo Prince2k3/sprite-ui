@@ -38,6 +38,7 @@
 		7DFD7309BD8338BFE1922C67 /* MaskDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C990CEAD9255BAA7FB81E0E /* MaskDemoView.swift */; };
 		7EB43AEF065D6756EB90E8CE /* SteeringDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363FD31E7C468C0C2080419D /* SteeringDemoView.swift */; };
 		834AC392652D26FA615C2843 /* PoolingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30D56C2F72A47BC882F8D3E /* PoolingDemoView.swift */; };
+		8D20A30886BE8D53E9BF587C /* AdaptiveSurfaceDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7ED9A92B4214199578454A /* AdaptiveSurfaceDemoView.swift */; };
 		957F35C1A2CDA8A3200EA432 /* coin.wav in Resources */ = {isa = PBXBuildFile; fileRef = AD4B56781DDCE0AD924A5FAD /* coin.wav */; };
 		9724ED58A1891C9FFE8B84F5 /* playback-demo.wav in Resources */ = {isa = PBXBuildFile; fileRef = 336679CC6AC0F80F32FB81A4 /* playback-demo.wav */; };
 		ACFD314C738A69C31108374A /* Drawing.sks in Resources */ = {isa = PBXBuildFile; fileRef = FC7AFE09A2843F05C7FD51C2 /* Drawing.sks */; };
@@ -62,6 +63,7 @@
 		12FE4943894947F4C1F1F764 /* PhysicsDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicsDemoView.swift; sourceTree = "<group>"; };
 		1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionDemoView.swift; sourceTree = "<group>"; };
 		2087AC349F8F142CD3B41790 /* DebugDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDemoView.swift; sourceTree = "<group>"; };
+		2C7ED9A92B4214199578454A /* AdaptiveSurfaceDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSurfaceDemoView.swift; sourceTree = "<group>"; };
 		2E17EFBCE495B5D694E70CC3 /* RenderGroupDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderGroupDemoView.swift; sourceTree = "<group>"; };
 		316FDBDE2503F4214B702DD9 /* ParallaxDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParallaxDemoView.swift; sourceTree = "<group>"; };
 		336679CC6AC0F80F32FB81A4 /* playback-demo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "playback-demo.wav"; sourceTree = "<group>"; };
@@ -147,6 +149,7 @@
 		A77B3F63AA7F33A9597992C1 /* SpriteUIDemo */ = {
 			isa = PBXGroup;
 			children = (
+				2C7ED9A92B4214199578454A /* AdaptiveSurfaceDemoView.swift */,
 				95997F8CCE1AD15EC67015E8 /* APIConsolidationDemoView.swift */,
 				4E09D3133B059B22C7430498 /* AttachmentDemoView.swift */,
 				8AF8BBC73CE04F21EF2DDBAC /* CharacterDemoView.swift */,
@@ -277,6 +280,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DF0D389E25A50C55302D74CD /* APIConsolidationDemoView.swift in Sources */,
+				8D20A30886BE8D53E9BF587C /* AdaptiveSurfaceDemoView.swift in Sources */,
 				D512D46F4777AEE3716EDFFB /* AttachmentDemoView.swift in Sources */,
 				4B56EED400299D758A88822E /* CharacterDemoView.swift in Sources */,
 				399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */,

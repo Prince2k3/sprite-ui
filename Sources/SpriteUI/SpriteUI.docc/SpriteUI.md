@@ -19,6 +19,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Render one world through player cameras and a minimap | <doc:viewports-and-split-screen> |
+| Fit cameras and controls around safe areas and reserved regions | <doc:adaptive-game-surfaces> |
 | Give cameras different art while hidden objects keep simulating | <doc:render-layers-and-camera-visibility> |
 | Scroll and repeat decorative backgrounds independently per camera | <doc:parallax-and-repeating-backgrounds> |
 | Replace levels while preserving players and cameras | <doc:scene-transitions-and-level-management> |
@@ -51,6 +52,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:input-actions-and-controllers>
 - <doc:player-input-sessions-and-feedback>
 - <doc:viewports-and-split-screen>
+- <doc:adaptive-game-surfaces>
 - <doc:render-layers-and-camera-visibility>
 - <doc:parallax-and-repeating-backgrounds>
 - <doc:scene-transitions-and-level-management>
@@ -151,6 +153,12 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/GameAttachment``
 - ``SpriteUI/AttachmentComponent``
 - ``SpriteUI/AttachmentContext``
+
+### Adaptive game surfaces
+
+- ``SpriteUI/GameSurfaceGeometry``
+- ``SpriteUI/GameSurfaceRegion``
+- ``SpriteUI/GameSurfaceEvents``
 
 ### Drawing and resource reuse
 

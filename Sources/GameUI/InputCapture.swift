@@ -19,11 +19,13 @@ struct GameHostPreferenceKey: PreferenceKey {
 struct InputViewportLatch {
     let viewport: GameViewport
     let cameraID: Entity.ID?
+    let rect: CGRect?
     private weak var camera: Entity?
     private let cameraActivation: UInt64?
 
     init(viewport: GameViewport, renderer: SpriteRenderer) {
         self.viewport = viewport
+        rect = renderer.viewportRect(id: viewport.id)
         cameraID = viewport.camera ?? renderer.activeCamera?.id
         let resolved = cameraID.flatMap { renderer.world.entity(withID: $0) }
         camera = resolved
@@ -32,6 +34,7 @@ struct InputViewportLatch {
 
     func isValid(in renderer: SpriteRenderer) -> Bool {
         guard renderer.resolvedViewports.contains(viewport), viewport.isInteractive,
+              renderer.viewportRect(id: viewport.id) == rect,
               (viewport.camera ?? renderer.activeCamera?.id) == cameraID else { return false }
         guard let cameraID else { return true }
         return camera === renderer.world.entity(withID: cameraID) && camera?.activationRevision == cameraActivation

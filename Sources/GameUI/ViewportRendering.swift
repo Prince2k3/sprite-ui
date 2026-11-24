@@ -303,6 +303,7 @@ final class ViewportRendering: NSObject {
 
     private func drawFrame() {
         guard isRunning else { return }
+        (container as? GameSKView)?.synchronizeSurfaceGeometry()
         synchronizeGeometry()
         guard let container, container.window != nil,
               container.bounds.width > 0, container.bounds.height > 0,

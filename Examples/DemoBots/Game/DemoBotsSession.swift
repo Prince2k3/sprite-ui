@@ -98,6 +98,7 @@ public final class DemoBotsSession {
         attach(to: content.world)
         renderer = content.renderer
         content.scene.physics.gravity = .zero
+        resize(content.surfaceGeometry.largestUsableRegion.size)
     }
 
     func attach(to world: World) {
@@ -245,7 +246,10 @@ public final class DemoBotsSession {
     }
     public func sendPlayer(toView point: CGPoint) {
         guard phase == .playing, !isInspecting, let renderer, let player, let navigation else { return }
-        let goal = renderer.scenePoint(fromView: point)
+        // Legacy conversion returns the scene origin for a gap. Resolve the hit
+        // first so tapping a hinge cannot create a route to that valid location.
+        guard let viewport = renderer.viewport(at: point),
+              let goal = renderer.scenePoint(fromView: point, inViewport: viewport.id) else { return }
         guard navigation.isWalkable(goal), recoverNavigationStart(player, navigation: navigation) else { return }
         destination = goal
         playerRoute = navigation.path(from: player.position, to: goal)

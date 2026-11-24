@@ -7,10 +7,15 @@ public struct DemoBotsView: View {
     @State private var game: DemoBotsSession
     @State private var controls: DemoBotsInput
     @State private var showsHelp = false
+    @State private var surfaceGeometry: GameSurfaceGeometry?
+    private let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
     @State private var sceneDebug: SceneDebugController
     @Environment(\.scenePhase) private var scenePhase
 
-    public init() {
+    /// Synthetic reservations are an override for previews; production hosts
+    /// leave this nil and use the geometry reported by GameView.
+    public init(surfaceRegions: [GameSurfaceGeometry.ReservedRegion]? = nil) {
+        self.surfaceRegions = surfaceRegions
         let game = DemoBotsSession()
         let debug = SceneDebugController(options: [.collisionShapes, .selection, .statistics, .inspector, .simulationControls])
         _game = State(initialValue: game)
@@ -19,10 +24,13 @@ public struct DemoBotsView: View {
     }
 
     public var body: some View {
-        GeometryReader { geometry in
-            ZStack {
+        GeometryReader { _ in
+            let layout = surfaceGeometry.map { DemoBotsSurfaceLayout(surface: $0) }
+            ZStack(alignment: .topLeading) {
                 Color(red: 0.025, green: 0.07, blue: 0.06)
-                GameView(debug: game.isInspecting ? sceneDebug : nil) { content in
+                GameView(viewports: DemoBotsSurfaceLayout.viewports,
+                         surfaceRegions: surfaceRegions,
+                         debug: game.isInspecting ? sceneDebug : nil) { content in
                     game.build(in: content)
                     await game.prepareResources()
                 } attachments: {
@@ -36,17 +44,35 @@ public struct DemoBotsView: View {
                 }
                     .contentShape(Rectangle())
                     .gesture(SpatialTapGesture().onEnded { game.sendPlayer(toView: $0.location) })
-                    .onGeometryChange(for: CGSize.self) { $0.size } action: { game.resize($0) }
-                    .padding(.top, game.isInspecting ? inspectionTopInset(for: geometry.size) + 52 : 0)
-                    .padding(.bottom, game.isInspecting ? 90 : 0)
-                if game.phase == .home { home(size: geometry.size).allowsHitTesting(!game.isLoadingResources) }
-                else if game.isInspecting { inspectionControls(size: geometry.size) }
-                else {
-                    gameplayHUD(size: geometry.size)
-                    if game.phase == .paused { pauseMenu }
-                    if game.phase == .won || game.phase == .lost { resultMenu }
+                    .onGameSurfaceChange { surface in
+                        controls.surfaceDidChange(surface)
+                        surfaceGeometry = surface
+                    }
+                if let layout {
+                    if game.phase == .home {
+                        surfaceElement(in: layout.menu) { rect in
+                            home(size: rect.size).allowsHitTesting(!game.isLoadingResources)
+                        }
+                    } else if game.isInspecting {
+                        inspectionControls(layout: layout)
+                    } else {
+                        gameplayHUD(layout: layout)
+                        if game.phase == .paused || game.phase == .won || game.phase == .lost {
+                            Color.black.opacity(0.7).frame(maxWidth: .infinity, maxHeight: .infinity)
+                            surfaceElement(in: layout.menu) { _ in
+                                if game.phase == .paused { pauseMenu }
+                                else { resultMenu }
+                            }
+                        }
+                    }
+                    if game.isLoadingResources {
+                        surfaceElement(in: layout.menu) { _ in
+                            ProgressView("Loading sprites…").padding(20)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                    }
                 }
-                if game.isLoadingResources { ProgressView("Loading sprites…").padding(20).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)) }
             }
         }
         .ignoresSafeArea()
@@ -64,7 +90,16 @@ public struct DemoBotsView: View {
             if attached, game.isInspecting { sceneDebug.select(game.player) }
         }
         .onDisappear { controls.setInputActive(false); controls.suspend() }
-        .sheet(isPresented: $showsHelp) { instructions }
+        .overlay(alignment: .topLeading) {
+            if showsHelp, let surfaceGeometry {
+                let layout = DemoBotsSurfaceLayout(surface: surfaceGeometry)
+                Color.black.opacity(0.7)
+                surfaceElement(in: layout.menu) { _ in
+                    ScrollView { instructions.frame(maxWidth: .infinity) }
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                }
+            }
+        }
 #if os(iOS)
         .statusBarHidden()
 #endif
@@ -112,7 +147,7 @@ public struct DemoBotsView: View {
                     .font(.system(size: 10)).foregroundStyle(.white.opacity(0.35))
             }
             .padding(28).frame(maxWidth: 610).frame(maxWidth: .infinity)
-            .padding(.top, size.height < 500 ? 10 : 65)
+            .padding(.vertical, 12)
         }
         .background(LinearGradient(colors: [Color(red: 0.02, green: 0.18, blue: 0.12), .black], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
@@ -131,54 +166,82 @@ public struct DemoBotsView: View {
         }.buttonStyle(.plain).accessibilityLabel("Level \(number): \(title)").accessibilityAddTraits(controls.selectedLevel == number ? .isSelected : [])
     }
 
-    private func gameplayHUD(size: CGSize) -> some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("LEVEL 0\(game.levelNumber)").font(.system(size: 10, weight: .bold, design: .monospaced)).tracking(2).foregroundStyle(.mint)
-                    Text("\(game.totalBots - game.badBots) / \(game.totalBots) restored").font(.system(size: 18, weight: .bold, design: .rounded))
+    /// Rectangles use GameView's top-left coordinates. Clip each element so
+    /// intrinsic text sizes and scrolling cannot paint across a reservation.
+    @ViewBuilder private func surfaceElement<Content: View>(
+        in rect: CGRect?, @ViewBuilder content: (CGRect) -> Content
+    ) -> some View {
+        if let rect {
+            content(rect)
+                .frame(width: rect.width, height: rect.height)
+                .clipped()
+                .contentShape(Rectangle())
+                .position(x: rect.midX, y: rect.midY)
+        }
+    }
+
+    private func gameplayHUD(layout: DemoBotsSurfaceLayout) -> some View {
+        ZStack(alignment: .topLeading) {
+            surfaceElement(in: layout.header) { _ in
+                ViewThatFits(in: .horizontal) {
+                    hudHeader(compact: false)
+                    hudHeader(compact: true)
                 }
-                Spacer()
-                Text(String(format: "%d:%02d", game.secondsLeft / 60, game.secondsLeft % 60))
-                    .font(.system(size: 26, weight: .medium, design: .monospaced)).monospacedDigit()
-                    .foregroundStyle(game.secondsLeft < 30 ? .red : .white)
-                Button { controls.toggleInspection() } label: { Image(systemName: "ladybug").frame(width: 42, height: 42) }
-                    .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Open scene tools")
-                Button { controls.togglePause() } label: { Image(systemName: "pause.fill").frame(width: 42, height: 42) }
-                    .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Pause game")
+                .padding(12).frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 20))
             }
-            .padding(16).background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 20))
-            HStack(alignment: .top) {
+            surfaceElement(in: layout.prompts) { _ in
                 VStack(alignment: .leading, spacing: 4) {
                     inputPrompt(DemoBotsInput.fire, title: "Fire")
                     inputPrompt(DemoBotsInput.pause, title: "Pause")
-                }
-                if game.isRecharging {
-                    Text("RECHARGING…").font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .padding(10).background(.black.opacity(0.8), in: Capsule()).foregroundStyle(.cyan)
-                }
-                Spacer()
-                minimap.frame(width: 85, height: 96).padding(9).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
-            }.padding(.top, 8)
-            Spacer(minLength: 0)
-            VStack(spacing: 6) {
-                Text(game.isRecharging ? "POWER RESTORING" : "DEBUG BEAM")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(2)
-                meter(value: game.beamFraction, color: .cyan).frame(width: 125, height: 5)
-                meter(value: game.charge / 100, color: game.charge < 30 ? .red : .green).frame(width: 125, height: 3)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .padding(10).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 10))
-            .padding(.bottom, 10)
-            HStack(alignment: .bottom) {
-                BotThumbstick(label: "MOVE", symbol: "arrow.up.and.down.and.arrow.left.and.right", tint: .white) { vector, _ in controls.moveStick(vector) }
-                Spacer()
-                BotThumbstick(label: "AIM + DEBUG", symbol: "bolt.fill", tint: .cyan) { vector, pressed in controls.aimStick(vector, pressed: pressed) }
+            surfaceElement(in: layout.radar) { _ in
+                minimap.padding(9).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+            }
+            surfaceElement(in: layout.beamMeter) { _ in
+                VStack(spacing: 6) {
+                    Text(game.isRecharging ? "POWER RESTORING" : "DEBUG BEAM")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(2)
+                    meter(value: game.beamFraction, color: .cyan).frame(height: 5)
+                    meter(value: game.charge / 100, color: game.charge < 30 ? .red : .green).frame(height: 3)
+                }
+                .padding(10).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 10))
+            }
+            surfaceElement(in: layout.moveStick) { _ in
+                BotThumbstick(label: "MOVE", symbol: "arrow.up.and.down.and.arrow.left.and.right", tint: .white,
+                              isActive: game.phase == .playing) { vector, _ in controls.moveStick(vector) }
+                    .id(controls.surfaceInputRevision)
+            }
+            surfaceElement(in: layout.aimStick) { _ in
+                BotThumbstick(label: "AIM + DEBUG", symbol: "bolt.fill", tint: .cyan,
+                              isActive: game.phase == .playing) { vector, pressed in controls.aimStick(vector, pressed: pressed) }
+                    .id(controls.surfaceInputRevision)
             }
         }
-        .padding(.horizontal, size.width > 650 ? 32 : 20)
-        .padding(.top, size.width > size.height ? 18 : 60)
-        .padding(.bottom, size.width > size.height ? 18 : 40)
         .allowsHitTesting(game.phase == .playing)
+    }
+
+    private func hudHeader(compact: Bool) -> some View {
+        HStack(spacing: compact ? 8 : 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(compact ? "L0\(game.levelNumber)" : "LEVEL 0\(game.levelNumber)")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .tracking(compact ? 0 : 2).foregroundStyle(.mint)
+                Text(compact ? "\(game.totalBots - game.badBots)/\(game.totalBots)" : "\(game.totalBots - game.badBots) / \(game.totalBots) restored")
+                    .font(.system(size: compact ? 12 : 18, weight: .bold, design: .rounded))
+                    .accessibilityLabel("\(game.totalBots - game.badBots) of \(game.totalBots) restored")
+            }
+            Spacer(minLength: 0)
+            Text(String(format: "%d:%02d", game.secondsLeft / 60, game.secondsLeft % 60))
+                .font(.system(size: compact ? 18 : 26, weight: .medium, design: .monospaced)).monospacedDigit()
+                .foregroundStyle(game.secondsLeft < 30 ? .red : .white)
+            Button { controls.toggleInspection() } label: { Image(systemName: "ladybug").frame(width: 42, height: 42) }
+                .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Open scene tools")
+            Button { controls.togglePause() } label: { Image(systemName: "pause.fill").frame(width: 42, height: 42) }
+                .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Pause game")
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private var minimap: some View {
@@ -264,25 +327,19 @@ public struct DemoBotsView: View {
         }
     }
     private func menu<Content: View>(title: String, subtitle: String, @ViewBuilder content: @escaping () -> Content) -> some View {
-        ZStack {
-            Color.black.opacity(0.7).ignoresSafeArea()
-            GeometryReader { geometry in
-                ScrollView {
-                    VStack(spacing: 20) {
-                        Text(title).font(.title.bold()).multilineTextAlignment(.center)
-                        Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        content()
-                        inputPrompt(DemoBotsInput.confirm, title: "Confirm")
-                    }
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(28).frame(maxWidth: 350)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
-                    .padding(20)
-                    .frame(maxWidth: .infinity, minHeight: geometry.size.height)
-                }
-                .scrollBounceBehavior(.basedOnSize)
+        ScrollView {
+            VStack(spacing: 20) {
+                Text(title).font(.title.bold()).multilineTextAlignment(.center)
+                Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                content()
+                inputPrompt(DemoBotsInput.confirm, title: "Confirm")
             }
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(24).frame(maxWidth: 350)
+            .frame(maxWidth: .infinity)
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
     }
     @ViewBuilder private func inputPrompt(_ action: InputAction, title: String) -> some View {
         if let prompt = controls.prompt(for: action) {
@@ -308,49 +365,38 @@ public struct DemoBotsView: View {
             Text("Keyboard: WASD/arrows move · F/Space fires · P/Escape pauses · I opens scene tools").font(.caption).foregroundStyle(.secondary)
             Text("Gamepad: left stick/D-pad moves · right stick aims and fires · south button/right trigger fires · Menu pauses · South/Return confirms menus").font(.caption).foregroundStyle(.secondary)
             Button("Ready", systemImage: "checkmark") { showsHelp = false }.buttonStyle(BotPrimaryButton())
-        }.padding(30).frame(maxWidth: 560).presentationDetents([.large])
+        }.padding(24).frame(maxWidth: 560)
     }
 
-    private func inspectionTopInset(for size: CGSize) -> CGFloat {
-#if os(iOS)
-        size.width > size.height ? 16 : 54
-#else
-        12
-#endif
-    }
-
-    private func inspectionControls(size: CGSize) -> some View {
-        VStack {
-            HStack {
-                Button { controls.toggleInspection() } label: {
-                    Image(systemName: "xmark").frame(width: 44, height: 44)
-                        .background(.regularMaterial, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close scene tools")
-                Text("Scene tools").font(.headline)
-                Spacer()
+    private func inspectionControls(layout: DemoBotsSurfaceLayout) -> some View {
+        ZStack(alignment: .topLeading) {
+            surfaceElement(in: layout.inspectionHeader) { _ in
+                HStack {
+                    Button { controls.toggleInspection() } label: {
+                        Image(systemName: "xmark").frame(width: 44, height: 44)
+                            .background(.regularMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain).accessibilityLabel("Close scene tools")
+                    Text("Scene tools").font(.headline)
+                    Spacer(minLength: 0)
+                }.padding(.horizontal, 8)
             }
-            .padding(.horizontal, 8)
-            .padding(.top, inspectionTopInset(for: size) + 8)
-            Spacer()
-            HStack(spacing: 14) {
-                Button("Player", systemImage: "scope") { sceneDebug.select(game.player) }
-                Button(sceneDebug.options.contains(.origins) ? "Less guides" : "More guides", systemImage: "square.dashed") {
-                    let extras: SceneDebugOptions = [.origins, .bounds, .joints, .constraintTargets]
-                    if sceneDebug.options.contains(.origins) { sceneDebug.options.subtract(extras) }
-                    else { sceneDebug.options.formUnion(extras) }
+            surfaceElement(in: layout.inspectionFooter) { _ in
+                ScrollView(.horizontal) {
+                    HStack(spacing: 14) {
+                        Button("Player", systemImage: "scope") { sceneDebug.select(game.player) }
+                        Button(sceneDebug.options.contains(.origins) ? "Less guides" : "More guides", systemImage: "square.dashed") {
+                            let extras: SceneDebugOptions = [.origins, .bounds, .joints, .constraintTargets]
+                            if sceneDebug.options.contains(.origins) { sceneDebug.options.subtract(extras) }
+                            else { sceneDebug.options.formUnion(extras) }
+                        }
+                        Text("Player controls off").font(.caption).foregroundStyle(.secondary)
+                    }.padding(10)
                 }
-                Text("Player controls off").font(.caption).foregroundStyle(.secondary)
+                .font(.footnote).buttonStyle(.bordered)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
             }
-            .font(.footnote)
-            .buttonStyle(.bordered)
-            .padding(10)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 24)
-        }
-        .tint(.mint)
+        }.tint(.mint)
     }
 }
 
@@ -365,6 +411,7 @@ private struct BotThumbstick: View {
     let label: String
     let symbol: String
     let tint: Color
+    let isActive: Bool
     var changed: (SIMD2<Float>, Bool) -> Void
     @State private var offset = CGSize.zero
     @State private var pressed = false
@@ -390,6 +437,9 @@ private struct BotThumbstick: View {
                     changed([Float(delta.width / radius), -Float(delta.height / radius)], true)
                 }
                 .onEnded { _ in pressed = false; offset = .zero; changed(.zero, false) })
+            .onChange(of: isActive) { _, active in
+                if !active { pressed = false; offset = .zero; changed(.zero, false) }
+            }
             .onDisappear { pressed = false; offset = .zero; changed(.zero, false) }
             Text(label).font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(2).foregroundStyle(tint.opacity(0.75))
         }.accessibilityElement(children: .ignore).accessibilityLabel(label == "MOVE" ? "Movement joystick" : "Aim and fire Debug Beam")

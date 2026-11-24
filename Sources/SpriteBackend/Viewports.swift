@@ -50,15 +50,37 @@ public struct GameViewport: Identifiable, Hashable, Sendable {
     public var isInteractive: Bool
     /// Optionally narrows the selected camera's culling mask. Never broadens it.
     public var cullingMask: RenderLayer?
+    /// The usable surface region containing ``frame``. Missing regions hide the
+    /// viewport instead of falling back beneath a fold or hardware occlusion.
+    public var region: GameSurfaceRegion
     public init(id: String, camera: Entity.ID? = nil, frame: ViewportRect = .full,
-                isInteractive: Bool = true, cullingMask: RenderLayer? = nil) {
+                isInteractive: Bool = true, cullingMask: RenderLayer? = nil,
+                region: GameSurfaceRegion = .surface) {
         self.id = id; self.camera = camera; self.frame = frame; self.isInteractive = isInteractive
         self.cullingMask = cullingMask
+        self.region = region
     }
 }
 
 extension SpriteRenderer {
     private var viewportCanvasSize: CGSize { viewportRenderSurfaceSize ?? size }
+    /// The current host's local, top-left geometry in points. Headless renderers
+    /// default to their scene size with no reserved regions.
+    public var surfaceGeometry: GameSurfaceGeometry {
+        reportedSurfaceGeometry ?? GameSurfaceGeometry(size: viewportCanvasSize)
+    }
+
+    /// Supplies host geometry without changing entities or advancing simulation.
+    @_spi(Backend) public func setSurfaceGeometry(_ geometry: GameSurfaceGeometry) {
+        reportedSurfaceGeometry = geometry
+    }
+
+    private func frame(of viewport: GameViewport) -> CGRect {
+        let region = surfaceGeometry.rect(for: viewport.region)
+        let local = viewport.frame.rect(in: region.size)
+        guard !local.isEmpty else { return .zero }
+        return local.offsetBy(dx: region.minX, dy: region.minY)
+    }
     /// Views with usable geometry and cameras, in drawing order. Empty IDs and
     /// duplicate IDs are ignored (the first declaration wins). An empty configured
     /// list supplies a full-surface view named `main` for legacy compatibility.
@@ -67,7 +89,7 @@ extension SpriteRenderer {
         var seen: Set<String> = []
         return declared.filter { viewport in
             guard !viewport.id.isEmpty, seen.insert(viewport.id).inserted,
-                  !viewport.frame.rect(in: viewportCanvasSize).isEmpty else { return false }
+                  !frame(of: viewport).isEmpty else { return false }
             return viewport.camera == nil || viewportCamera(viewport) != nil
         }
     }
@@ -76,12 +98,12 @@ extension SpriteRenderer {
     /// noninteractive overlays never pass a gameplay hit to an underlying view.
     public func viewport(at point: CGPoint, interactiveOnly: Bool = true) -> GameViewport? {
         guard point.x.isFinite, point.y.isFinite else { return nil }
-        guard let viewport = resolvedViewports.reversed().first(where: { $0.frame.rect(in: viewportCanvasSize).contains(point) }) else { return nil }
+        guard let viewport = resolvedViewports.reversed().first(where: { frame(of: $0).contains(point) }) else { return nil }
         return !interactiveOnly || viewport.isInteractive ? viewport : nil
     }
 
     public func viewportRect(id: String) -> CGRect? {
-        resolvedViewports.first { $0.id == id }?.frame.rect(in: viewportCanvasSize)
+        resolvedViewports.first { $0.id == id }.map { frame(of: $0) }
     }
 
     /// Converts global surface points through a specific presented camera. Points
@@ -90,7 +112,7 @@ extension SpriteRenderer {
     public func scenePoint(fromView point: CGPoint, inViewport id: String) -> SIMD2<Float>? {
         guard point.x.isFinite, point.y.isFinite,
               let viewport = resolvedViewports.first(where: { $0.id == id }) else { return nil }
-        let frame = viewport.frame.rect(in: viewportCanvasSize)
+        let frame = frame(of: viewport)
         var native = CGPoint(x: point.x - frame.midX, y: frame.midY - point.y)
         if let camera = viewportCamera(viewport) { native = camera.convert(native, to: self) }
         let result = SIMD2(Float(native.x), Float(native.y))
@@ -109,7 +131,7 @@ extension SpriteRenderer {
             native = node.convert(native, to: self)
         }
         if let camera = viewportCamera(viewport) { native = camera.convert(native, from: self) }
-        let frame = viewport.frame.rect(in: viewportCanvasSize)
+        let frame = frame(of: viewport)
         let result = CGPoint(x: native.x + frame.midX, y: frame.midY - native.y)
         return result.x.isFinite && result.y.isFinite ? result : nil
     }
@@ -123,7 +145,7 @@ extension SpriteRenderer {
         let oldSurfaceSize = viewportRenderSurfaceSize
         let oldBackground = backgroundContext
         let selected = viewportCamera(viewport)
-        let frame = viewport.frame.rect(in: viewportCanvasSize)
+        let frame = frame(of: viewport)
         defer {
             restoreBackgroundPresentation()
             size = oldSize; camera = oldCamera; viewportRenderSurfaceSize = oldSurfaceSize
@@ -142,7 +164,7 @@ extension SpriteRenderer {
     /// usable rectangle. Every camera's smoothing and shake advances once per frame.
     func viewportSize(for camera: Entity) -> SIMD2<Float> {
         let viewport = resolvedViewports.first { ($0.camera ?? activeCamera?.id) == camera.id }
-        let dimensions = viewport?.frame.rect(in: viewportCanvasSize).size ?? viewportCanvasSize
+        let dimensions = viewport.map { frame(of: $0).size } ?? viewportCanvasSize
         return [Float(dimensions.width), Float(dimensions.height)]
     }
 

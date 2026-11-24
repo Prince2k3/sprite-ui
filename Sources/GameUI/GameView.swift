@@ -14,11 +14,17 @@ public struct GameViewContent {
     /// Loads levels in this same world and preserves the native input session.
     public let levels: LevelCoordinator
     private let presentation: GameLevelPresentation
+    private let surfaceState: GameSurfaceState
+
+    /// Live geometry of this GameView in local top-left points. Reading this in
+    /// `update:` observes resizing, safe-area changes, and reserved regions.
+    public var surfaceGeometry: GameSurfaceGeometry { surfaceState.geometry }
 
     init(world: World, renderer: SpriteRenderer, levels: LevelCoordinator,
-         attachments: GameViewAttachments, presentation: GameLevelPresentation) {
+         attachments: GameViewAttachments, presentation: GameLevelPresentation, surfaceState: GameSurfaceState) {
         self.world = world; self.renderer = renderer; self.levels = levels
         self.attachments = attachments; self.presentation = presentation
+        self.surfaceState = surfaceState
     }
 
     /// Captures the last game surface, excluding SwiftUI attachments.
@@ -85,6 +91,7 @@ public struct GameView: View {
     private let update: Update?
     private let showsStatistics: Bool
     private let viewports: [GameViewport]?
+    private let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
     private let debug: SceneDebugController?
     private let makeAttachments: @MainActor () -> [GameAttachment]
 
@@ -93,6 +100,7 @@ public struct GameView: View {
 
     public init(
         viewports: [GameViewport]? = nil,
+        surfaceRegions: [GameSurfaceGeometry.ReservedRegion]? = nil,
         debug: SceneDebugController? = nil,
         showsStatistics: Bool = false,
         make: @escaping Make,
@@ -102,6 +110,7 @@ public struct GameView: View {
         self.update = update
         self.showsStatistics = showsStatistics
         self.viewports = viewports
+        self.surfaceRegions = surfaceRegions
         self.debug = debug
         self.makeAttachments = { [] }
     }
@@ -120,10 +129,11 @@ public struct GameView: View {
     ///     GameAttachment(id: "name") { Text("Player") }
     /// }
     /// ```
-    public init(viewports: [GameViewport]? = nil, debug: SceneDebugController? = nil, showsStatistics: Bool = false, make: @escaping Make, update: Update? = nil,
+    public init(viewports: [GameViewport]? = nil, surfaceRegions: [GameSurfaceGeometry.ReservedRegion]? = nil, debug: SceneDebugController? = nil, showsStatistics: Bool = false, make: @escaping Make, update: Update? = nil,
                 @GameAttachmentBuilder attachments: @escaping @MainActor () -> [GameAttachment]) {
         self.make = make; self.update = update; self.showsStatistics = showsStatistics
         self.viewports = viewports
+        self.surfaceRegions = surfaceRegions
         self.debug = debug
         makeAttachments = attachments
     }
@@ -131,12 +141,14 @@ public struct GameView: View {
     public var body: some View {
         let definitions = makeAttachments()
         let ids = definitions.map(\.id)
-        return SKViewHost(host: host, update: update, showsStatistics: showsStatistics, debug: debug, viewports: viewports)
+        return SKViewHost(host: host, update: update, showsStatistics: showsStatistics, debug: debug, viewports: viewports, surfaceRegions: surfaceRegions)
             .overlay {
                 if let debug { SceneDebugOverlay(controller: debug, host: host) }
             }
             .overlay { AttachmentOverlay(store: host.attachmentStore, definitions: definitions) }
             .overlay { LevelPresentationOverlay(levels: host.levels) }
+            .environment(\.gameSurfaceGeometry, host.surfaceState.geometry)
+            .preference(key: GameSurfacePreferenceKey.self, value: host.surfaceState.geometry)
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { host.viewFrame = $0 }
             .preference(key: GameHostPreferenceKey.self, value: [GameHostReference(id: host.inputHostID, host: host)])
             .onAppear {
@@ -167,6 +179,10 @@ public struct GameView: View {
 @MainActor
 final class GameHost {
     let world = World()
+    let surfaceState = GameSurfaceState()
+    var surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
+    var isUpdatingSurface = false
+    var publishedSurfaceGeometry = GameSurfaceGeometry(size: .zero)
     lazy var renderer = SpriteRenderer(world: world)
     lazy var attachmentStore = AttachmentStore(host: self)
     lazy var levelPresentation = GameLevelPresentation(host: self)
@@ -176,7 +192,7 @@ final class GameHost {
         return coordinator
     }()
     var levelInputBlocked: Bool { levelPresentation.blocksInput }
-    var content: GameViewContent { GameViewContent(world: world, renderer: renderer, levels: levels, attachments: GameViewAttachments(store: attachmentStore), presentation: levelPresentation) }
+    var content: GameViewContent { GameViewContent(world: world, renderer: renderer, levels: levels, attachments: GameViewAttachments(store: attachmentStore), presentation: levelPresentation, surfaceState: surfaceState) }
     var isReady = false
     let debugInput = SceneDebugInputState()
     private var requestedDebugController: SceneDebugController?
@@ -300,6 +316,7 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
     private var legacyFramePending = false
 
     func view(_ view: SKView, shouldRenderAtTime time: TimeInterval) -> Bool {
+        synchronizeSurfaceGeometry()
         // The previous native frame has returned before SpriteKit requests the
         // next one. Capture itself never asks SpriteKit to perform an update.
         hasLegacyFrame = legacyFramePending
@@ -390,11 +407,13 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
 #if os(macOS)
     override func layout() {
         super.layout()
+        synchronizeSurfaceGeometry()
         viewportRendering?.synchronizeGeometry()
     }
     private var mouseMonitor: Any?
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        synchronizeSurfaceGeometry()
         updateViewportActivity()
         host?.manipulationInput?.windowChanged()
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
@@ -422,13 +441,20 @@ final class GameSKView: SKView, @preconcurrency SKViewDelegate {
         }
     }
 #elseif os(iOS) || os(tvOS) || os(visionOS)
+    var nativeRegionIDs: [AnyHashable: String] = [:]
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        synchronizeSurfaceGeometry()
+    }
     override func layoutSubviews() {
         super.layoutSubviews()
+        synchronizeSurfaceGeometry()
         viewportRendering?.synchronizeGeometry()
     }
     private var contactObserver: GameInputRecognizer?
     override func didMoveToWindow() {
         super.didMoveToWindow()
+        synchronizeSurfaceGeometry()
         updateViewportActivity()
         host?.manipulationInput?.windowChanged()
         if let observer = contactObserver {
@@ -454,14 +480,18 @@ private struct SKViewHost: UIViewRepresentable {
     let showsStatistics: Bool
     let debug: SceneDebugController?
     let viewports: [GameViewport]?
+    let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
 
     func makeUIView(context: Context) -> SKView {
         host.configureViewports(viewports)
+        host.surfaceRegions = surfaceRegions
         return makeView(host: host, debug: debug)
     }
 
     func updateUIView(_ view: SKView, context: Context) {
         host.configureViewports(viewports)
+        host.surfaceRegions = surfaceRegions
+        (view as? GameSKView)?.synchronizeSurfaceGeometry()
         configure(view, showsStatistics: showsStatistics)
         host.configureDebugController(debug)
         host.runUpdate(update)
@@ -475,14 +505,18 @@ private struct SKViewHost: NSViewRepresentable {
     let showsStatistics: Bool
     let debug: SceneDebugController?
     let viewports: [GameViewport]?
+    let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
 
     func makeNSView(context: Context) -> SKView {
         host.configureViewports(viewports)
+        host.surfaceRegions = surfaceRegions
         return makeView(host: host, debug: debug)
     }
 
     func updateNSView(_ view: SKView, context: Context) {
         host.configureViewports(viewports)
+        host.surfaceRegions = surfaceRegions
+        (view as? GameSKView)?.synchronizeSurfaceGeometry()
         configure(view, showsStatistics: showsStatistics)
         host.configureDebugController(debug)
         host.runUpdate(update)

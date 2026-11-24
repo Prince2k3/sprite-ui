@@ -1,14 +1,14 @@
 @Tutorials(name: "SpriteUI") {
     @Intro(title: "Build an interactive SpriteUI scene") {
-        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, render their shared world through independent viewports, choose different world and map art with render layers, add a repeating parallax landscape, and switch levels while keeping player progress.
+        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, render their shared world through independent viewports, choose different world and map art with render layers, add a repeating parallax landscape, switch levels while keeping player progress, and adapt cameras and controls to reported surface regions.
 
         @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
     }
 
     @Volume(name: "From your first sprite to local multiplayer") {
-        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, add split screen with a minimap, filter camera visibility without stopping physics, scroll decorative artwork while preserving model anchors, and replace physics rooms without replacing players.
+        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, add split screen with a minimap, filter camera visibility without stopping physics, scroll decorative artwork while preserving model anchors, replace physics rooms without replacing players, and fit cameras and HUDs around reserved regions.
 
-        @Image(source: "spriteui-tutorials-overview.svg", alt: "Ten tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen, camera-specific artwork, repeating parallax landscapes, and persistent-player level transitions.")
+        @Image(source: "spriteui-tutorials-overview.svg", alt: "Eleven tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen, camera-specific artwork, repeating parallax landscapes, persistent-player level transitions, and adaptive game surfaces.")
 
         @Chapter(name: "Create and retain a scene") {
             Learn how a SwiftUI view owns an observable scene and adds entities to GameView.
@@ -78,6 +78,13 @@
 
             @Image(source: "spriteui-levels.svg", alt: "Garden and Workshop level roots share a persistent player, camera, and runtime sessions.")
             @TutorialReference(tutorial: "doc:switching-levels-with-persistent-players")
+        }
+
+        @Chapter(name: "Adapt to game surfaces") {
+            Inspect active and inactive reserved regions, assign stable cameras, place fully fitting HUDs, and release virtual controls only when the effective layout changes.
+
+            @Image(source: "spriteui-surfaces.svg", alt: "Two stable cameras and a fully fitting HUD avoid a reported division in one game surface.")
+            @TutorialReference(tutorial: "doc:adapting-to-game-surfaces")
         }
     }
 }
