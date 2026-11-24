@@ -49,6 +49,23 @@ public final class World {
     var scheduledSystems: [SystemEntry] = []
     var isRunningSystems = false
 
+    /// Fixed simulation is opt-in; variable systems retain their display-frame cadence.
+    public var fixedStep: FixedStepConfiguration? {
+        didSet {
+            if oldValue != fixedStep {
+                resetFixedStepClock()
+                simulationDidChange()
+            }
+        }
+    }
+    public internal(set) var fixedStepState = FixedStepState()
+    @_spi(Backend) public internal(set) var isFixedUpdating = false
+    var fixedAccumulator: TimeInterval = 0
+    var fixedStepEpoch: UInt64 = 0
+    var fixedFrameEpoch: UInt64 = 0
+    var fixedTransformHistory: [Entity.ID: FixedTransformHistory] = [:]
+    var fixedTickStart: [Entity.ID: FixedTransformHistory] = [:]
+
     /// Collects wall-clock durations for systems that actually run in a frame.
     /// Turning profiling off immediately discards the previous measurements.
     public var isProfilingEnabled = false {
@@ -67,13 +84,14 @@ public final class World {
 
     /// Whether simulation, backend physics, and actions are paused. Component edits
     /// still render while paused. User interface updates are not scene simulation.
-    public var isPaused = false { didSet { if oldValue != isPaused { simulationDidChange() } } }
+    public var isPaused = false { didSet { if oldValue != isPaused { resetFixedStepClock(); simulationDidChange() } } }
     /// Scene time multiplier. Zero freezes simulation. Values must be finite and
     /// nonnegative; invalid assignments are ignored.
     public var timeScale: Double {
         get { storedTimeScale }
         set {
             guard newValue.isFinite, newValue >= 0, newValue != storedTimeScale else { return }
+            resetFixedStepClock()
             storedTimeScale = newValue
             simulationDidChange()
         }
@@ -201,6 +219,10 @@ public final class World {
     /// Publishes an event that involves several entities, such as a contact between two
     /// bodies. Subscribers on any of them get it, and each subscriber gets it once.
     public func publish<E: Event>(_ event: E, from sources: [Entity]) {
+        if let activation = event as? WorldEvents.DidChangeEntityActivation {
+            if activation.entity === root { resetFixedStepClock() }
+            invalidateFixedTransform(for: activation.entity)
+        }
         observer?.worldWillPublishEvent(self)
         for handler in events.handlers(for: E.self, sources: sources) {
             handler(event)
@@ -225,6 +247,7 @@ public final class World {
         for entity in order.reversed() {
             publish(WorldEvents.WillRemoveEntity(entity: entity), from: entity)
             observer?.world(self, willRemove: entity)
+            invalidateFixedTransform(for: entity)
             index[entity.id] = nil
             entity.invalidateActivation()
             entity.world = nil
@@ -232,6 +255,9 @@ public final class World {
     }
 
     func componentDidChange(on entity: Entity, type: any Component.Type, added: Bool) {
+        if type == TransformInterpolationComponent.self || (type == Transform.self && !isFixedUpdating) {
+            invalidateFixedTransform(for: entity)
+        }
         if added {
             publish(ComponentEvents.DidAdd(entity: entity, componentType: type), from: entity)
         }

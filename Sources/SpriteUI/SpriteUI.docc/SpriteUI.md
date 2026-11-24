@@ -15,6 +15,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Install the package and display a scene | <doc:getting-started> |
 | Organize hierarchies, activation, shared state, and events | <doc:entity-and-scene-lifecycle> |
 | Run frame logic and handle targeted gestures | <doc:systems-and-input> |
+| Run fixed custom ticks, interpolate kinematic art, and buffer input | <doc:fixed-step-simulation-and-interpolation> |
 | Drag, rotate, and scale entities with automatic gestures or buttons | <doc:manipulating-entities> |
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
@@ -51,6 +52,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:getting-started>
 - <doc:entity-and-scene-lifecycle>
 - <doc:systems-and-input>
+- <doc:fixed-step-simulation-and-interpolation>
 - <doc:input-actions-and-controllers>
 - <doc:player-input-sessions-and-feedback>
 - <doc:viewports-and-split-screen>
@@ -98,6 +100,15 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - ``SpriteUI/EventSubscription``
 - ``SpriteUI/InputTargetComponent``
 - ``SpriteUI/EntityTargetValue``
+
+### Fixed simulation and interpolation
+
+- ``SpriteUI/FixedStepConfiguration``
+- ``SpriteUI/FixedStepState``
+- ``SpriteUI/TransformInterpolationComponent``
+- ``SpriteUI/FixedInputBuffer``
+- ``SpriteUI/FixedInputSample``
+- ``SpriteUI/WorldEvents``
 
 ### Direct manipulation
 

@@ -26,6 +26,14 @@ public enum WorldEvents {
         public let deltaTime: TimeInterval
     }
 
+    /// Published before the systems of each fixed simulation tick.
+    public struct FixedUpdate: Event {
+        public let world: World
+        public let deltaTime: TimeInterval
+        public let unscaledDeltaTime: TimeInterval
+        public let tick: UInt64
+    }
+
     public struct DidAddEntity: Event {
         public let entity: Entity
     }

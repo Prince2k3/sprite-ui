@@ -258,7 +258,9 @@ extension SpriteRenderer {
         while let index = remaining.firstIndex(where: { (dependencies[$0.id] ?? []).isSubset(of: completed) }) {
             let entity = remaining.remove(at: index); completed.insert(entity.id)
             guard let camera = entity.components[CameraComponent.self] else { continue }
-            let goal = camera.target.flatMap(target(of:)).map { presentedSceneMatrix(of: $0).apply(to: .zero) }
+            let goal = camera.target.flatMap(target(of:)).map {
+                proposedFixedTargetPosition(of: $0) ?? presentedSceneMatrix(of: $0).apply(to: .zero)
+            }
             let position = presentedSceneMatrix(of: entity).apply(to: .zero)
             let next = camera.step(from: position, toward: goal, viewSize: viewportSize(for: entity), deltaTime: Float(deltaTime))
             if next != position, let inverse = presentedSceneMatrix(of: entity.parent).inverted() {

@@ -1,14 +1,14 @@
 @Tutorials(name: "SpriteUI") {
     @Intro(title: "Build an interactive SpriteUI scene") {
-        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, render their shared world through independent viewports, choose different world and map art with render layers, add a repeating parallax landscape, switch levels while keeping player progress, adapt cameras and controls to reported surface regions, bind optional hinge input with portable virtual controls, and bound rendering while sharing completed game frames.
+        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, render their shared world through independent viewports, choose different world and map art with render layers, add a repeating parallax landscape, switch levels while keeping player progress, adapt cameras and controls to reported surface regions, bind optional hinge input with portable virtual controls, bound rendering while sharing completed game frames, and separate fixed custom simulation from interpolated presentation and buffered input.
 
         @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
     }
 
     @Volume(name: "From your first sprite to local multiplayer") {
-        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, add split screen with a minimap, filter camera visibility without stopping physics, scroll decorative artwork while preserving model anchors, replace physics rooms without replacing players, fit cameras and HUDs around reserved regions, explicitly assign calibrated hinge input, and publish bounded read-only game presentation.
+        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, add split screen with a minimap, filter camera visibility without stopping physics, scroll decorative artwork while preserving model anchors, replace physics rooms without replacing players, fit cameras and HUDs around reserved regions, explicitly assign calibrated hinge input, publish bounded read-only game presentation, and run fixed kinematic ticks with interpolated artwork and buffered input.
 
-        @Image(source: "spriteui-tutorials-overview.svg", alt: "Thirteen tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen, camera-specific artwork, repeating parallax landscapes, persistent-player level transitions, adaptive game surfaces, optional hinge input with virtual fallbacks, and bounded rendering with read-only mirrors.")
+        @Image(source: "spriteui-tutorials-overview.svg", alt: "Fourteen tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen, camera-specific artwork, repeating parallax landscapes, persistent-player level transitions, adaptive game surfaces, optional hinge input with virtual fallbacks, bounded rendering with read-only mirrors, and fixed-step simulation with interpolation and buffered input.")
 
         @Chapter(name: "Create and retain a scene") {
             Learn how a SwiftUI view owns an observable scene and adds entities to GameView.
@@ -99,6 +99,13 @@
 
             @Image(source: "spriteui-rendering.svg", alt: "One bounded primary canvas publishes completed frames through three reserved GPU buffers to passive mirrors.")
             @TutorialReference(tutorial: "doc:bounding-rendering-and-sharing-presentation")
+        }
+
+        @Chapter(name: "Run fixed simulation with interpolated artwork") {
+            Move pure kinematic actors at a fixed frequency, compare display FPS independently, and preserve input transitions with explicit pause cleanup.
+
+            @Image(source: "spriteui-fixed-step.svg", alt: "Fixed ticks feed orange canonical and cyan interpolated actors with caller-owned buffered input.")
+            @TutorialReference(tutorial: "doc:running-fixed-step-simulation")
         }
     }
 }

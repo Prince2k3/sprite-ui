@@ -192,13 +192,21 @@ final class ViewportFrameRenderer {
         scene.scaleMode = .fill
         defer { scene.scaleMode = oldScaleMode; scene.size = logicalSize }
         scene.size = logicalSize
+        var fixedElapsed: TimeInterval = 0
         if time.isFinite {
             if let previous = lastDisplayTime {
                 let interval = time - previous
-                if interval.isFinite { nativeTime += min(max(interval, 0), 1.0 / 15.0) }
+                if interval.isFinite {
+                    fixedElapsed = max(interval, 0)
+                    nativeTime += min(fixedElapsed, 1.0 / 15.0)
+                }
             }
             lastDisplayTime = time
         }
+        // Native SpriteKit retains its existing bounded clock. Custom fixed
+        // systems receive the real elapsed interval and apply their own bounded
+        // catch-up policy, including the first resumed frame's zero interval.
+        scene.setNextFixedStepDeltaTime(fixedElapsed)
         let suspendPhysics = suspendPhysicsOnNextUpdate
         suspendPhysicsOnNextUpdate = false
         hasNativeUpdate = true

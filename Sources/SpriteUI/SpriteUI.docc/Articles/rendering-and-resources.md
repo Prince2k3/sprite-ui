@@ -12,6 +12,14 @@ Use one visual responsibility per entity when independent transforms or animatio
 
 Use <doc:render-layers-and-camera-visibility> for separate world and map art under the same physical parent. Its visibility gates affect presentation while simulation continues; <doc:presenting-a-world-with-render-layers> provides three complete runnable stages.
 
+## Interpolate fixed kinematic transforms
+
+Use <doc:fixed-step-simulation-and-interpolation> to opt custom systems into `world.fixedStep` and smooth eligible artwork with `TransformInterpolationComponent(isEnabled: true)`. <doc:running-fixed-step-simulation> compares two pure kinematic actors at 20 Hz while requesting 30, 60, or 120 display FPS through `GameRenderConfiguration`. Rendering cadence and simulation frequency are independent.
+
+Interpolation affects presentation only: local position, scale, and z blend linearly, rotation takes the shortest arc, and the display trails canonical simulation by one fixed tick. `entity.presentation`, displayed hit testing, and SwiftUI attachment projection follow that pose; model queries and snapshots keep canonical transforms. Writes outside a fixed tick snap automatically. For a teleport inside a tick, call `entity.components[TransformInterpolationComponent.self]?.reset()`; activation and reparenting also invalidate old history.
+
+Keep interpolation on kinematic entities with a single fixed-system transform owner. Native physics/body-related subtrees, cameras, character controllers, transform constraints, and active native transform animation ownership reject interpolation. Do not use an animation or constraint to compete with fixed transform writes. SpriteKit physics and actions retain their existing display-frame lifecycle; fixed custom systems do not guarantee deterministic native physics or a deterministic whole world. Pause, configuration/time-scale changes, root disable, and host suspension/resume reset debt and interpolation history without replaying background time.
+
 ## Preload resources before exposing content
 
 ``SpriteUI/ResourceLibrary`` loads and caches textures, atlases, audio, shaders, and prefabs. Retain a library for an app or level, or use `shared`. Completed and in-flight loads are shared; cancelling one waiter does not cancel a shared load. Clearing the library's cache does not invalidate resources that entities still use.
@@ -224,6 +232,8 @@ Release stops playback and clears particles/actions; it is stronger than setting
 ``SpriteUI/TileMapComponent`` stores tile visuals and metadata. The umbrella's grid helpers can turn walkability metadata into a route graph; see <doc:gameplay-and-movement>. Keep loading at a setup boundary and report errors through app UI rather than leaving a partly configured scene visible.
 
 ## See also
+
+- <doc:fixed-step-simulation-and-interpolation>
 
 - <doc:parallax-and-repeating-backgrounds>
 - <doc:entity-and-scene-lifecycle>

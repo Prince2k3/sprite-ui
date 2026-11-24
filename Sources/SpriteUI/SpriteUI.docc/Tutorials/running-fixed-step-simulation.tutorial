@@ -1,0 +1,67 @@
+@Tutorial(time: 25) {
+    @Intro(title: "Running fixed-step simulation") {
+        Run custom kinematic motion at a fixed frequency, compare canonical and interpolated artwork, and retain input transitions until a tick consumes them.
+
+        @Image(source: "spriteui-fixed-step.svg", alt: "Fixed ticks feed canonical orange and interpolated cyan actors while buffered input and display frames follow independent cadences.")
+    }
+
+    @Section(title: "Move a kinematic actor in fixed ticks") {
+        @ContentAndMedia {
+            Use an iOS 18 or macOS 15 SwiftUI app linked to SpriteUI. Each stage completely replaces `ContentView.swift`; keep the existing `ContentView()` app entry point and use only one stage at a time. No assets or hardware controls are required. The SVG previews are schematic expected results, not device captures.
+
+            Assign `FixedStepConfiguration(stepsPerSecond: 20)` to `world.fixedStep` and install `DemoFixedStepMotionSystem` in `.fixedSimulation`. The low frequency makes stepping visible; the configuration's default is 60 Hz. `context.deltaTime` is always 0.05 scaled seconds in this example. The actor reverses at two limits using only component transforms. It has no physics body, character controller, constraints, or native transform animation.
+
+            `WorldEvents.Update` still publishes once per advancing frame before all systems. Each fixed tick publishes `WorldEvents.FixedUpdate` before fixed systems, then legacy simulation and presentation systems retain their once-per-frame behavior. A frame can contain zero or several fixed ticks. This schedules custom game rules; SpriteKit physics and actions retain their existing display-frame backend lifecycle and the world is not guaranteed deterministic.
+        }
+
+        @Steps {
+            @Step {
+                Install stage one. Watch the cyan square move between its limits in visible steps. Inspect the system's phase and its single delta-time multiplication. Keep the actor purely kinematic; adding a native body would introduce another motion owner.
+
+                @Code(name: "ContentView.swift", file: "spriteui-fixed-step-01.swift") {
+                    @Image(source: "spriteui-fixed-step-01-preview.svg", alt: "One cyan square advances along a horizontal rail at twenty fixed ticks per scaled second.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Compare stepped and interpolated presentation") {
+        @ContentAndMedia {
+            Stage two creates identical orange and cyan kinematic actors. Only cyan has `TransformInterpolationComponent(isEnabled: true)`. Both canonical transforms advance at 20 Hz. The renderer blends cyan's previous and current local poses with `interpolationAlpha`, intentionally displaying motion one fixed tick behind the model. Position, scale, and z blend linearly; rotation follows the shortest arc.
+
+            The FPS selector changes `GameRenderConfiguration(preferredFramesPerSecond:)` on the same GameView identity. It requests display cadence independently of fixed simulation. Actual FPS depends on the device. Model queries and snapshots remain canonical; `entity.presentation`, displayed hit testing, and attachment projection follow the displayed pose. Do not opt native physics/body-related subtrees, cameras, controllers, constraints, or active native transform animations into interpolation.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage two. Select 30, 60, and 120 preferred FPS while the actors move. Orange stays visibly stepped; cyan fills the intervals at the available display cadence and trails by one fixed tick. Their model motion still uses the same 0.05-second steps. Changing preferred FPS must not reconstruct the scene or change the configured fixed frequency.
+
+                @Code(name: "ContentView.swift", file: "spriteui-fixed-step-02.swift", previousFile: "spriteui-fixed-step-01.swift") {
+                    @Image(source: "spriteui-fixed-step-02-preview.svg", alt: "An orange stepped actor and a cyan interpolated actor share twenty-hertz model motion under a 30, 60, or 120 preferred-FPS selector.")
+                }
+            }
+        }
+    }
+
+    @Section(title: "Buffer input and reset pending work on pause") {
+        @ContentAndMedia {
+            Stage three changes both actors to input-driven motion. One caller-owned `FixedInputBuffer(input:capacity:)` retains action transitions. The fixed system calls `consume()` once per tick and shares that immutable sample with both actors. Held movement persists; edges drain once. The tap button submits press and release synchronously, so both transitions can occur entirely between ticks while `wasPressed` and `wasReleased` still see them. Later catch-up ticks cannot replay the tap. A/D and Space are optional focused keyboard bindings.
+
+            Cancellation invalidates queued edges through the controller's cancellation revision, even if an action was already released. `didOverflow` reports dropped oldest events when capacity is exceeded; resolved held values remain available. The example counts burst presses, releases, and overflow samples separately. Its last-event count can return to zero on a later tick, so use the cumulative press/release counters to verify a short tap.
+
+            Pause, inactivity, and disappearance disable input, call `input.cancelAll()`, reset the buffer, and neutralize app-owned virtual controls. World pause alone does not own or clear this buffer. Resume explicitly and actuate a control again. Clock debt and interpolation history reset at pause, configuration or time-scale changes, root disable, and host suspension/resume, preventing background catch-up. Reset positions writes outside a fixed tick and automatically snaps presentation; a teleport inside a tick must also call the interpolation component's `reset()` as shown in <doc:fixed-step-simulation-and-interpolation>.
+
+            A presentation system copies `world.fixedStepState` after fixed processing. Tick is a lifetime executed count, ticks/frame is the latest frame's work, alpha is the fractional remainder, and simulation time sums executed tick durations. Dropped time is scaled excess discarded this frame, not a cumulative counter. The raw interval is clamped before time scaling; catch-up runs at most `maximumCatchUpSteps`, drops whole excess ticks, and retains the fraction.
+        }
+
+        @Steps {
+            @Step {
+                Replace the file with stage three. Hold left or right, release, and tap the burst button once; press and release counts each increase once, including when no tick occurred during the tap. Reset positions near the right limit to keep burst movement visible. Switch preferred FPS and inspect the actual ticks/frame and alpha readouts. Pause while holding a control, wait, then resume: actors must not jump through the paused interval or fire a stale burst. Background and return to the app, then choose Resume. Normal motion need not drop time; zero dropped time is a valid result. A paused debug step, if used through scene tools, advances one fixed tick while its ordinary native physics frame remains separate.
+
+                @Code(name: "ContentView.swift", file: "spriteui-fixed-step-03.swift", previousFile: "spriteui-fixed-step-02.swift") {
+                    @Image(source: "spriteui-fixed-step-03-preview.svg", alt: "Two input-driven actors appear above hold, tap, pause, and reset controls with real tick, interpolation, dropped-time, and buffered-transition readouts.")
+                }
+            }
+        }
+    }
+}

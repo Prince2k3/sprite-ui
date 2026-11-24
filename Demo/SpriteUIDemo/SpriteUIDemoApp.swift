@@ -18,6 +18,7 @@ struct SpriteUIDemoApp: App {
                     Tab("Presentation", systemImage: "rectangle.on.rectangle") { PresentationDemoView() }
                 }
                 Group {
+                    Tab("Fixed Step", systemImage: "metronome") { FixedStepDemoView() }
                     Tab("Random", systemImage: "dice") { RandomDemoView() }
                     Tab("States", systemImage: "arrow.triangle.branch") { StateMachineDemoView() }
                     Tab("Paths", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { PathfindingDemoView() }

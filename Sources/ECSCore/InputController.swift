@@ -17,6 +17,8 @@ public final class InputController {
     @ObservationIgnored private var handlers: [Handler] = []
     @ObservationIgnored private var queuedEvents: [(event: InputActionEvent, revision: UInt64)] = []
     @ObservationIgnored private var revisions: [InputAction: UInt64] = [:]
+    // Invalidates deferred transitions even when no held action emits cancellation.
+    @ObservationIgnored internal private(set) var cancellationRevision: UInt64 = 0
     @ObservationIgnored private var suppressionOwners: Set<UUID> = []
     @ObservationIgnored private var isDelivering = false
     @ObservationIgnored private var isCancellingCoordinateSpace = false
@@ -76,6 +78,7 @@ public final class InputController {
     /// Permanent device handoff removes both samples and their neutral gates.
     /// Cancellation alone deliberately retains those gates for focus recovery.
     func removeDevice(_ device: InputDevice) {
+        cancellationRevision &+= 1
         samples = samples.filter { $0.key.device != device }
         blocked = blocked.filter { $0.key.device != device }
         resolve(cancelling: true)
@@ -126,6 +129,7 @@ public final class InputController {
     /// samples and their neutral gates. Other held controls must return to neutral.
     @_spi(Backend) public func cancelForCoordinateSpaceChange() {
         guard !isCancellingCoordinateSpace else { return }
+        cancellationRevision &+= 1
         isCancellingCoordinateSpace = true
         // Callbacks can supply new samples. Gate all affected producers before
         // resolving once, so shared actions retain their hinge contribution.
@@ -145,6 +149,7 @@ public final class InputController {
     /// Cancels one producer, preserving other devices' contributions. A disconnected
     /// controller must send neutral before reusing its identity.
     public func cancel(device: InputDevice) {
+        cancellationRevision &+= 1
         onDeviceCancellation?(device)
         for source in samples.keys where source.device == device { block(source) }
         resolve(cancelling: true)
@@ -158,6 +163,7 @@ public final class InputController {
     }
 
     private func cancelState() -> [InputActionEvent] {
+        cancellationRevision &+= 1
         onCancellation?()
         for source in samples.keys { block(source) }
         var events: [InputActionEvent] = []

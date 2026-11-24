@@ -116,6 +116,8 @@ public final class SpriteRenderer: SKScene {
     var validatingManipulations = false
     var cancellingManipulations = false
     private var lastUpdateTime: TimeInterval?
+    private var nextFixedStepDeltaTime: TimeInterval?
+    var fixedPresentedPoses: [Entity.ID: FixedPresentedPose] = [:]
     private var lastDeltaTime: TimeInterval = 0
     private var currentFrame: WorldFrame?
     /// Capture must not render a partially updated native scene from a callback.
@@ -180,6 +182,7 @@ public final class SpriteRenderer: SKScene {
     }
 
     isolated deinit {
+        restoreFixedTransformPresentation()
         restoreRenderVisibility()
         if let currentFrame { world.cancelFrame(currentFrame) }
         if let prior = debugPriorProfiling { world.isProfilingEnabled = prior }
@@ -211,8 +214,17 @@ public final class SpriteRenderer: SKScene {
     /// Rebase the display clock when a viewport host resumes. Simulation time,
     /// action state and physics settings are preserved.
     @_spi(Backend) public func resetFrameClock() {
+        restoreFixedTransformPresentation()
+        nextFixedStepDeltaTime = nil
+        world.resetFixedStepClock()
         lastUpdateTime = nil
         lastDeltaTime = 0
+    }
+
+    /// Supplies one display interval before the native driver's clock is capped.
+    /// Consumed by the next update, including a paused or priming frame.
+    @_spi(Backend) public func setNextFixedStepDeltaTime(_ raw: TimeInterval) {
+        nextFixedStepDeltaTime = raw
     }
 
     /// Seeds a replacement presentation driver from the scene's existing clock.
@@ -234,9 +246,12 @@ public final class SpriteRenderer: SKScene {
     }
 
     public override func update(_ currentTime: TimeInterval) {
+        restoreFixedTransformPresentation()
         isUpdatingPresentation = true
         restoreRenderVisibility()
         let interval = lastUpdateTime.map { currentTime - $0 } ?? 0
+        let fixedDeltaTime = nextFixedStepDeltaTime ?? interval
+        nextFixedStepDeltaTime = nil
         let deltaTime = min(interval, 1.0 / 15.0)
         lastUpdateTime = currentTime
         if pendingDebugStep && (!world.isPaused || !world.root.isActive) { cancelDebugStep() }
@@ -249,7 +264,7 @@ public final class SpriteRenderer: SKScene {
             worldSimulationDidChange(world)
             currentFrame = nil
         } else {
-            currentFrame = world.beginFrame(deltaTime: deltaTime, debugStep: step)
+            currentFrame = world.beginFrame(deltaTime: deltaTime, debugStep: step, fixedDeltaTime: fixedDeltaTime)
         }
         steppingThisFrame = currentFrame?.isDebugStep == true
         if steppingThisFrame { pendingDebugStep = false; debugStepPrimed = false; worldSimulationDidChange(world) }
@@ -284,6 +299,7 @@ public final class SpriteRenderer: SKScene {
             }
         }
         flush()
+        if settled { applyFixedTransformPresentation() }
         finishDebugFrame()
         world.publish(RenderingEvents.DidUpdate(scene: world))
         applyRenderVisibility(visibilityMask() ?? .all)
@@ -293,6 +309,7 @@ public final class SpriteRenderer: SKScene {
     /// Constraints write only owned channels, keeping other animation targets and
     /// their native actions intact. Copy-back updates the binding cache too.
     func commitPresentedPose(_ pose: Transform, channels: Set<AnimationChannel>, entity: Entity) {
+        restoreFixedTransformPresentation()
         guard let node = node(for: entity) else { return }
         var model = entity.transform
         var previous = applied[entity.id]?[Self.transformKey] as? Transform ?? model
@@ -310,6 +327,7 @@ public final class SpriteRenderer: SKScene {
     /// Pushes pending component changes, resolves body connections, then lets
     /// transactions that started no actions complete.
     public func flush() {
+        restoreFixedTransformPresentation()
         restoreRenderVisibility()
         validateManipulations()
         if !dirty.isEmpty {
@@ -353,6 +371,7 @@ public final class SpriteRenderer: SKScene {
     /// Copies each dynamic body's position, rotation and velocity back into its entity,
     /// then publishes the contacts the step reported.
     public override func didSimulatePhysics() {
+        restoreFixedTransformPresentation()
         guard !viewportPhysicsSuspended else { contacts.removeAll(); return }
         guard world.isDebugStepping || (!world.isPaused && world.timeScale > 0) else { contacts.removeAll(); return }
         for id in bodies { copyPhysicsResult(id) }
@@ -427,6 +446,14 @@ public final class SpriteRenderer: SKScene {
     }
 
     // MARK: Running actions (used by Animator)
+
+    func hasFixedInterpolationNativeConflict(_ node: SKNode, includingEntityChildren: Bool) -> Bool {
+        if node.physicsBody != nil || node.hasActions() { return true }
+        return node.children.contains { child in
+            if !includingEntityChildren && entityIDs[ObjectIdentifier(child)] != nil { return false }
+            return hasFixedInterpolationNativeConflict(child, includingEntityChildren: includingEntityChildren)
+        }
+    }
 
     private static let animationKeys: [AnimationChannel: String] = [
         .position: "transform.position", .rotation: "transform.rotation",
@@ -515,6 +542,7 @@ public final class SpriteRenderer: SKScene {
             t.translation = [Float(node.position.x), Float(node.position.y)]
             t.rotation = Float(node.zRotation)
             t.scale = [Float(node.xScale), Float(node.yScale)]
+            t.zPosition = Float(node.zPosition)
             return t
         }
     )
@@ -633,6 +661,7 @@ extension SpriteRenderer: WorldObserver {
     }
 
     public func worldSimulationDidChange(_ world: World) {
+        restoreFixedTransformPresentation()
         restoreRenderVisibility()
         let priming = debugStepPrimed && pendingDebugStep && world.isPaused && world.root.isEnabledInHierarchy
         let paused = (!world.isDebugStepping && !priming && (world.isPaused || world.timeScale == 0)) || !world.root.isEnabledInHierarchy
@@ -646,6 +675,7 @@ extension SpriteRenderer: WorldObserver {
     }
 
     public func world(_ world: World, activationDidChange entity: Entity) {
+        restoreFixedTransformPresentation()
         restoreRenderVisibility()
         validateManipulations()
         guard let node = nodes[entity.id] else { return }
@@ -664,6 +694,7 @@ extension SpriteRenderer: WorldObserver {
     /// A pool release is a new use of the entity, not an ordinary pause. Cancel
     /// old actions without delivering their completion into a later lease.
     func resetPooledPresentation(_ root: Entity, preparing: Bool = true) {
+        restoreFixedTransformPresentation()
         root.visit { entity in
             constraintEvaluations[entity.id] = nil
             guard let node = nodes[entity.id] else { return }
@@ -700,6 +731,7 @@ extension SpriteRenderer: WorldObserver {
     public func worldActiveCamera(_ world: World) -> Entity? { activeCamera }
 
     public func world(_ world: World, didAdd entity: Entity) {
+        restoreFixedTransformPresentation()
         restoreRenderVisibility()
         validateManipulations()
         guard nodes[entity.id] == nil else { return }
@@ -729,6 +761,7 @@ extension SpriteRenderer: WorldObserver {
     }
 
     public func world(_ world: World, willRemove entity: Entity) {
+        restoreFixedTransformPresentation()
         restoreRenderVisibility()
         removeBackgroundTiles(for: entity.id)
         backgroundEntities.remove(entity.id)
@@ -766,6 +799,12 @@ extension SpriteRenderer: WorldObserver {
         didChange componentType: any Component.Type,
         transaction: ActionTransaction?
     ) {
+        if componentType == Transform.self || componentType == TransformInterpolationComponent.self
+            || componentType == PhysicsBodyComponent.self || componentType == CameraComponent.self
+            || componentType == CharacterControllerComponent.self || componentType == TransformConstraintComponent.self
+            || componentType == PlaybackStorage.self {
+            restoreFixedTransformPresentation()
+        }
         restoreRenderVisibility()
         let key = ObjectIdentifier(componentType)
         if componentType == ParallaxComponent.self || componentType == RepeatingBackgroundComponent.self {

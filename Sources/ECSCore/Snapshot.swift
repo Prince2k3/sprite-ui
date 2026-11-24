@@ -45,6 +45,7 @@ public enum ComponentRegistry {
     private static let entries: Mutex<Entries> = {
         var entries = Entries()
         entries.add(Entry(Transform.self, name: defaultName(Transform.self)))
+        entries.add(Entry(TransformInterpolationComponent.self, name: defaultName(TransformInterpolationComponent.self)))
         entries.add(Entry(InputTargetComponent.self, name: defaultName(InputTargetComponent.self)))
         return Mutex(entries)
     }()
@@ -278,6 +279,7 @@ extension World {
     /// attachment. The result maps each saved ID to its restored entity.
     @discardableResult
     public func restore(_ snapshot: WorldSnapshot) -> [Entity.ID: Entity] {
+        resetFixedStepClock()
         for entity in entities { removeEntity(entity) }
         var restored: [Entity.ID: Entity] = [:]
         var taken: Set<Entity.ID> = [root.id]

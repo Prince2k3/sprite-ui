@@ -1,9 +1,12 @@
 import Foundation
 
-/// The simulation runs before backend physics; presentation runs after physics.
-/// Headless `World.update` runs both phases in this order.
+/// Opt-in fixed ticks precede per-frame simulation and backend physics;
+/// presentation runs afterward. Headless `World.update` preserves this order
+/// without stepping a native physics backend.
 public enum SystemPhase: Int, CaseIterable, Sendable, Comparable {
-    case simulation, presentation
+    case fixedSimulation = -1
+    case simulation = 0
+    case presentation = 1
     public static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 }
 
@@ -86,6 +89,18 @@ public struct UpdateContext {
     public let deltaTime: TimeInterval
     public let unscaledDeltaTime: TimeInterval
     public let phase: SystemPhase
+    public let fixedTick: UInt64?
+    public let interpolationAlpha: Double
+
+    public init(world: World, deltaTime: TimeInterval, unscaledDeltaTime: TimeInterval,
+                phase: SystemPhase, fixedTick: UInt64? = nil, interpolationAlpha: Double = 0) {
+        self.world = world
+        self.deltaTime = deltaTime
+        self.unscaledDeltaTime = unscaledDeltaTime
+        self.phase = phase
+        self.fixedTick = fixedTick
+        self.interpolationAlpha = interpolationAlpha
+    }
 
     public func entities(matching query: EntityQuery) -> [Entity] { world.performQuery(query) }
 }
@@ -114,8 +129,8 @@ enum SystemSchedule {
             }
         }
         // Phase edges make ordering independent of installation order too.
-        for first in types where first.phase == .simulation {
-            for second in types where second.phase == .presentation {
+        for first in types {
+            for second in types where first.phase < second.phase {
                 let a = ObjectIdentifier(first), b = ObjectIdentifier(second)
                 if edges[a, default: []].insert(b).inserted { indegrees[b, default: 0] += 1 }
             }

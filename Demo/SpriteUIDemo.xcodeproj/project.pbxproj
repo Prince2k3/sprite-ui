@@ -20,6 +20,7 @@
 		399C340E1F4BCA3BBE9C92E0 /* CollisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */; };
 		3F4792AE09AFD6FC9F1AAC69 /* PlayerInputDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8E4C60DDB3E121D89253AB /* PlayerInputDemoView.swift */; };
 		439215201EA704C5DD96FFDF /* ManipulationDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F132032237EA3F1BA27CA86 /* ManipulationDemoView.swift */; };
+		4480B98749CACB532C5EDFAB /* FixedStepDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48D59140F86FFD9C2335ED7B /* FixedStepDemoView.swift */; };
 		48003CA6F0303ECCC1BF5F6E /* Level.sks in Resources */ = {isa = PBXBuildFile; fileRef = 02AEA6150EF96D3BD54FB217 /* Level.sks */; };
 		4B56EED400299D758A88822E /* CharacterDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF8BBC73CE04F21EF2DDBAC /* CharacterDemoView.swift */; };
 		4DF5A9D126A647164D9F97B0 /* SceneDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D200C57D852A152275BB8377 /* SceneDemoView.swift */; };
@@ -71,6 +72,7 @@
 		336679CC6AC0F80F32FB81A4 /* playback-demo.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "playback-demo.wav"; sourceTree = "<group>"; };
 		363FD31E7C468C0C2080419D /* SteeringDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteeringDemoView.swift; sourceTree = "<group>"; };
 		3E7FA495E00535524F68A83E /* swiftui-ecs */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "swiftui-ecs"; path = ..; sourceTree = SOURCE_ROOT; };
+		48D59140F86FFD9C2335ED7B /* FixedStepDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixedStepDemoView.swift; sourceTree = "<group>"; };
 		4D30BDFC3761C26C2FA9249D /* CollisionDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollisionDemoView.swift; sourceTree = "<group>"; };
 		4D552B0900BBD668FE6A20F9 /* Scanlines.fsh */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.glsl; path = Scanlines.fsh; sourceTree = "<group>"; };
 		4D6F537FD724A2F0E44CE0F5 /* ResourcesDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResourcesDemoView.swift; sourceTree = "<group>"; };
@@ -165,6 +167,7 @@
 				5607D6BC2D7F91BB3CB698D9 /* DemoView.swift */,
 				FC7AFE09A2843F05C7FD51C2 /* Drawing.sks */,
 				EB431AE2F5E9B40A2FFA8486 /* Dungeon.sks */,
+				48D59140F86FFD9C2335ED7B /* FixedStepDemoView.swift */,
 				52B9F0361E950C696BAE6FFB /* HingeInputDemoView.swift */,
 				60458B4819985FB661F0F10A /* JointDemoView.swift */,
 				02AEA6150EF96D3BD54FB217 /* Level.sks */,
@@ -294,6 +297,7 @@
 				F5AF3D9FCF521AFE474F32DF /* DebugDemoView.swift in Sources */,
 				D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */,
 				5426761EF954EE8084C185FA /* DemoView.swift in Sources */,
+				4480B98749CACB532C5EDFAB /* FixedStepDemoView.swift in Sources */,
 				D656A83FAF6BD0798CB1C62D /* HingeInputDemoView.swift in Sources */,
 				676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */,
 				1E154204E7097B2E5160696F /* LevelTransitionDemoView.swift in Sources */,
