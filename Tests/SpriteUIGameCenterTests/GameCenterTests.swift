@@ -1,7 +1,7 @@
 import ECSCore
 import Foundation
 import GameKit
-@testable import GameUI
+@testable import SpriteUIGameCenter
 import Testing
 
 @Suite struct GameCenterRequestTests {

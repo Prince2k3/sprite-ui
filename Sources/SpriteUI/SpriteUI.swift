@@ -1,5 +1,3 @@
-@_exported import ECSCore
-@_exported import SpriteBackend
-@_exported import GameUI
-@_exported import Gameplay
-@_exported import GameplayECS
+// Convenience SDK: engine plus optional Game Center integration.
+@_exported import SpriteUICore
+@_exported import SpriteUIGameCenter

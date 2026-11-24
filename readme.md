@@ -36,7 +36,7 @@ targets: [
 ]
 ```
 
-Adjust the path to your checkout. Import `SpriteUI` to use the complete library. Smaller library products expose `ECSCore` and `Gameplay` separately; `DemoBotsGame` contains the example game's implementation. [[Package.swift]] defines the products, and [[Sources/SpriteUI/SpriteUI.swift]] re-exports the SDK modules.
+Adjust the path to your checkout. Import `SpriteUI` to use the complete library. Choose `SpriteUICore` for the complete engine without Game Center, and add `SpriteUIGameCenter` when wanted. `ECSCore` and `Gameplay` remain independent products; `DemoBotsGame` contains the example game's implementation. [[Package.swift]] defines the products, and [[Sources/SpriteUI/SpriteUI.swift]] re-exports the SDK modules.
 
 ## Quick start
 
@@ -91,7 +91,9 @@ Create entities and install systems in `GameView`'s setup closure. Use its `upda
 
 | Module | Responsibility |
 | --- | --- |
-| `SpriteUI` | Umbrella import for the complete SDK and bridges between gameplay and rendering |
+| `SpriteUI` | Convenience aggregate for SpriteUICore and SpriteUIGameCenter |
+| `SpriteUICore` | Full engine and cross-layer bridges without a Game Center target dependency |
+| `SpriteUIGameCenter` | Optional Apple services and UI; depends only on ECSCore and Gameplay |
 | `ECSCore` | Entities, components, transforms, events, scheduling, and snapshots |
 | `Gameplay` | Standalone algorithms and value types |
 | `GameplayECS` | Components and systems that adapt gameplay algorithms to entities |
@@ -102,7 +104,7 @@ The module boundaries let pure gameplay algorithms run independently of renderin
 
 ## Documentation and tutorials
 
-The DocC catalog lives in [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md]]. It includes a getting-started guide, conceptual articles, the public API reference, and seventeen hands-on tutorials covering your first scene, systems and targeted input, collision-aware agents, player input actions, direct entity manipulation, local-player device ownership and feedback, shared-world viewports, camera-specific render layers, repeating parallax landscapes, persistent-player level transitions, adaptive game surfaces, optional hinge input, bounded read-only presentation, fixed-step simulation with interpolation and buffered input, input recording/replay with diagnostic checksums, host-authoritative network sessions with optional Game Center, and basic achievement, score, and saved-turn services with optional native screens.
+The DocC catalog lives in [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md]]. It includes a getting-started guide, conceptual articles, the public API reference, and eighteen hands-on tutorials covering your first scene, systems and targeted input, collision-aware agents, player input actions, direct entity manipulation, local-player device ownership and feedback, shared-world viewports, camera-specific render layers, repeating parallax landscapes, persistent-player level transitions, adaptive game surfaces, optional hinge input, bounded read-only presentation, fixed-step simulation with interpolation and buffered input, input recording/replay with diagnostic checksums, host-authoritative network sessions with optional Game Center, basic achievement, score, and saved-turn services with optional native screens, and local quests and seasonal leagues.
 
 The tutorial sequence includes complete Swift code for every stage and expected-result illustrations:
 
@@ -136,7 +138,7 @@ The tutorial sequence includes complete Swift code for every stage and expected-
 
 The complete sequence now has **eighteen tutorials and 53 standalone stages**.
 
-The twenty-one guides cover getting started, entity and scene lifecycle, systems and input, fixed-step simulation and interpolation, input recording and replay, input actions and controllers, player input sessions and feedback, direct manipulation, gameplay and movement, rendering and resources, viewports and split screen, render layers and camera visibility, parallax and repeating backgrounds, scene transitions and level management, adaptive game surfaces, hinge input and effects, bounded rendering and read-only presentation, basic Game Center services, quests and leagues, Game Center sessions and replication, and saving and debugging. The guides contain **67 Swift examples**. [[Sources/SpriteUI/SpriteUI.docc/Articles/input-actions-and-controllers.md]] explains context priority, cancellation and dead zones, shared controller ownership, and persisted rebinding.
+The twenty-two guides cover package product selection, getting started, entity and scene lifecycle, systems and input, fixed-step simulation and interpolation, input recording and replay, input actions and controllers, player input sessions and feedback, direct manipulation, gameplay and movement, rendering and resources, viewports and split screen, render layers and camera visibility, parallax and repeating backgrounds, scene transitions and level management, adaptive game surfaces, hinge input and effects, bounded rendering and read-only presentation, basic Game Center services, quests and leagues, Game Center sessions and replication, and saving and debugging. The guides contain **69 Swift examples**. [[Sources/SpriteUI/SpriteUI.docc/Articles/input-actions-and-controllers.md]] explains context priority, cancellation and dead zones, shared controller ownership, and persisted rebinding.
 
 [[Sources/SpriteUI/SpriteUI.docc/Articles/game-center-sessions-and-replication.md]] covers explicit `NetworkReplicationSchema` allowlists independent of saved-world registration, network UUID references distinct from local IDs, host-validated commands, and complete selected-state snapshots. Register only inert value data; keep native physics, cameras, entity-ID references, resources, and runtime services local. Each replicated parent must also be synchronized or be the world root; independent local client cameras survive session teardown. Baselines come only from the configured host after complete validation, with generation/session/join IDs rejecting retired work. Structural changes, including transform presence, are reliable; unchanged coordinates may be unreliable only when the full packet fits 1,000 bytes. Reliable packets are capped at 48,000 bytes. This targets bounded small matches without automatic host migration, prediction, rollback, or native-physics determinism.
 
@@ -224,7 +226,7 @@ The catalog uses native [DocC markup](https://www.swift.org/documentation/docc/)
 
 Edit articles under `Sources/SpriteUI/SpriteUI.docc/Articles/`, tutorials under `Tutorials/`, and their staged code and illustrations under `Resources/`. Every code stage is a complete view or scene implementation that can replace the preceding stage. Run `Tools/build-documentation.sh check` before committing documentation changes. The script checks links and tutorial structure, every standalone tutorial stage, and every Swift guide example (combining explicitly marked fragments with their preceding example); its diagnostic report is `.build/documentation/diagnostics.json`.
 
-The top-level `Tools/` folder contains documentation tooling and the read-only local Game Center setup checker. Its `templates/` subfolder contains iOS/macOS entitlement templates; `tests/` contains setup-checker tests. The existing documentation checker automatically discovers staged Swift resources and Swift guide examples, so new samples need no hard-coded compilation counts in the tool. The `.docc` directory is documentation source for the SpriteUI target; it is not an app resource bundle. Existing source modules and example layouts remain in place.
+The top-level `Tools/` folder contains documentation tooling and the read-only local Game Center setup checker. Its `templates/` subfolder contains iOS/macOS entitlement templates; `tests/` contains setup-checker tests. The existing documentation checker automatically discovers staged Swift resources and Swift guide examples, so new samples need no hard-coded compilation counts in the tool. The `.docc` directory is documentation source for the SpriteUI target; it is not an app resource bundle. Example layouts remain in place; product source relocation is documented below.
 
 ## Example apps
 
@@ -254,4 +256,10 @@ Package tests use Swift Testing. Run `Tools/build-documentation.sh check` when c
 
 `GameCenterServices.progression` explicitly maps player-owned quest progress to configured achievements and active-season points to a configured leaderboard. It never authenticates automatically or treats a partial leaderboard page as a league roster. Recurring leaderboard schedules must match the application season. Custom shared league authority and wallet transactions belong to the consuming game/server. [[Sources/SpriteUI/SpriteUI.docc/Tutorials/building-quests-and-leagues.tutorial]] provides a complete local exercise.
 
-`Sources/Gameplay/Progression/` holds the new quest, league, and common validation values; the existing GameplayECS and GameUI modules contain their entity and Game Center adapters.
+`Sources/Gameplay/Progression/` holds the new quest, league, and common validation values; GameplayECS contains the entity adapter and SpriteUIGameCenter contains the optional Apple reporting adapter.
+
+## Product boundaries
+
+[[Sources/SpriteUI/SpriteUI.docc/Articles/package-products-and-dependencies.md]] describes six library products. `import SpriteUI` still includes everything. Select the `SpriteUICore` product and import it for a complete engine without the Game Center target; add the `SpriteUIGameCenter` product explicitly when needed. `Gameplay` already provides pure algorithms and progression rules as its own target/product, with no rendering or ECS dependencies. It remains in this package so it shares the release version.
+
+Source layout: Apple-service code and its tests moved from `Sources/GameUI/GameCenter*.swift` and `Tests/GameUITests/GameCenter*.swift` to `Sources/SpriteUIGameCenter/` and `Tests/SpriteUIGameCenterTests/`. The noise-image, tile-map-grid, and replay-world bridges moved from `Sources/SpriteUI/` to `Sources/SpriteUICore/`. The SpriteUI target retains the DocC catalog and re-exports both aggregates. Direct GameUI consumers must import SpriteUIGameCenter to use the moved service symbols. [[Package.swift]] defines the dependency graph; [[Tools/documentation.py]] includes both new modules when checking the single reference archive.

@@ -1,6 +1,6 @@
 import ECSCore
 import Foundation
-@testable import GameUI
+@testable import SpriteUIGameCenter
 import Testing
 
 @MainActor @Suite struct GameCenterProgressServicesTests {

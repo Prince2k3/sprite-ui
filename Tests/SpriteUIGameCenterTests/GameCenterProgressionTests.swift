@@ -1,7 +1,7 @@
 import ECSCore
 import Foundation
 import Gameplay
-@testable import GameUI
+@testable import SpriteUIGameCenter
 import Testing
 
 private let progressionNow = Date(timeIntervalSince1970: 2_000)

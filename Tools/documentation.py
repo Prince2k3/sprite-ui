@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "Sources/SpriteUI/SpriteUI.docc"
 WORK = ROOT / ".build/documentation"
-MODULES = {"ECSCore", "Gameplay", "GameplayECS", "SpriteBackend", "GameUI", "SpriteUI"}
+MODULES = {"ECSCore", "Gameplay", "GameplayECS", "SpriteBackend", "GameUI", "SpriteUICore", "SpriteUIGameCenter", "SpriteUI"}
 
 
 def run(command, log=None):

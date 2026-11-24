@@ -13,6 +13,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | You want to… | Start here |
 | --- | --- |
 | Install the package and display a scene | <doc:getting-started> |
+| Choose engine-only, Game Center, or standalone gameplay products | <doc:package-products-and-dependencies> |
 | Organize hierarchies, activation, shared state, and events | <doc:entity-and-scene-lifecycle> |
 | Run frame logic and handle targeted gestures | <doc:systems-and-input> |
 | Run fixed custom ticks, interpolate kinematic art, and buffer input | <doc:fixed-step-simulation-and-interpolation> |
@@ -36,7 +37,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 
 ### Understand the package layers
 
-Use `import SpriteUI` for the complete SDK. The umbrella re-exports the package's five implementation modules, and this archive presents their public APIs together under SpriteUI.
+Use `import SpriteUI` for the complete SDK. The umbrella re-exports `SpriteUICore` and `SpriteUIGameCenter`, and this archive presents their public APIs together under SpriteUI. Choose <doc:package-products-and-dependencies> for a smaller dependency graph.
 
 | Layer | Responsibility | Representative APIs |
 | --- | --- | --- |
@@ -44,8 +45,10 @@ Use `import SpriteUI` for the complete SDK. The umbrella re-exports the package'
 | Gameplay | Value-oriented algorithms independent of a world or renderer | ``SpriteUI/Agent2D``, ``SpriteUI/Graph``, ``SpriteUI/NavigationMesh`` |
 | GameplayECS | Components and systems that connect gameplay algorithms to entities | ``SpriteUI/SteeringComponent``, ``SpriteUI/PathFollowSystem`` |
 | SpriteBackend | Rendering, resources, playback, collision, physics, and diagnostics | ``SpriteUI/SpriteRenderer``, ``SpriteUI/ResourceLibrary`` |
-| GameUI | SwiftUI scene hosting, gestures, attachments, and Game Center integration | ``SpriteUI/GameView``, ``SpriteUI/GameAttachment`` |
-| SpriteUI | One import for the SDK, plus noise-image and tile-map integration | ``SpriteUI/SpriteImage``, ``SpriteUI/TileMapComponent`` |
+| GameUI | SwiftUI scene hosting, gestures, and attachments | ``SpriteUI/GameView``, ``SpriteUI/GameAttachment`` |
+| SpriteUICore | Engine aggregate, noise-image, tile-map, and replay integration; no Game Center target | ``SpriteUI/SpriteImage``, ``SpriteUI/TileMapComponent`` |
+| SpriteUIGameCenter | Optional Game Center services, native UI, and progression reporting | ``SpriteUI/GameCenterServices``, ``SpriteUI/GameCenterProgression`` |
+| SpriteUI | Convenience aggregate for the engine and Game Center | ``SpriteUI/World``, ``SpriteUI/GameCenterServices`` |
 
 Entities, worlds, systems, and scene interaction belong on the main actor. Pure gameplay values can be computed separately where their API permits, then applied to a world on the main actor. Keep app state, per-entity data, and frame simulation in their respective owners; the guides show how those owners meet.
 
@@ -54,6 +57,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 ### Library guides
 
 - <doc:getting-started>
+- <doc:package-products-and-dependencies>
 - <doc:entity-and-scene-lifecycle>
 - <doc:systems-and-input>
 - <doc:fixed-step-simulation-and-interpolation>
