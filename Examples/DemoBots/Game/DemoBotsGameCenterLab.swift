@@ -24,6 +24,22 @@ enum DemoBotsGameCenterIDs {
     var isNative: Bool { !services.isPreview }
     var supportsActivities: Bool { services.isPreview || GameCenterActivities.isSupported }
     var canReport: Bool { !busy && (services.isPreview || services.isAuthenticated) }
+    var bundledConfigurationSummary: String {
+        let bundle = Bundle.main
+        let url = bundle.url(forResource: "gameCenterResources", withExtension: "json", subdirectory: "DemoBotsLocal.gamekit")
+        return Self.bundledConfigurationSummary(data: url.flatMap { try? Data(contentsOf: $0) },
+            version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            build: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
+    }
+    static func bundledConfigurationSummary(data: Data?, version: String?, build: String?) -> String {
+        guard let data, let document = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let resources = document["resources"] as? [String: Any],
+              let challenges = resources["challenges"] as? [[String: Any]] else {
+            return "No readable local GameKit bundle in this app."
+        }
+        let durations = challenges.first { $0["vendorIdentifier"] as? String == DemoBotsGameCenterIDs.challenge }?["allowedDurations"] as? [String]
+        return "Bundled challenges: \(challenges.count) · duration options: \(durations?.count.description ?? "missing") · app \(version ?? "missing") (\(build ?? "missing"))"
+    }
     var challengeCatalogSummary: String {
         Self.challengeCatalogSummary(services.challenges.definitions)
     }
@@ -53,8 +69,12 @@ enum DemoBotsGameCenterIDs {
     func load() { run { [self] in
         _ = try await services.achievements.load()
         _ = try await services.leaderboards.entries(for: DemoBotsGameCenterIDs.leaderboard)
-        if supportsActivities { _ = try await services.activities.load(); _ = try await services.challenges.load() }
-        return "Loaded test progress and definitions."
+        var activityCount = 0, challengeCount = 0
+        if supportsActivities {
+            activityCount = try await services.activities.load().count
+            challengeCount = try await services.challenges.load().count
+        }
+        return "Loaded test progress: \(activityCount) activities · \(challengeCount) challenges returned."
     } }
     func reportProgress(_ value: Double) { run { [self] in
         try await services.achievements.report(progress: value, for: DemoBotsGameCenterIDs.achievement)

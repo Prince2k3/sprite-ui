@@ -60,7 +60,12 @@
         "referenceName": "Repair Challenge",
         "repeatable": true,
         "challengeType": "LEADERBOARD",
-        "vendorIdentifier": "dev.spriteui.demobots.repair_challenge"
+        "vendorIdentifier": "dev.spriteui.demobots.repair_challenge",
+        "allowedDurations": [
+          "ONE_DAY",
+          "THREE_DAYS",
+          "ONE_WEEK"
+        ]
       }
     ],
     "achievementLocalizations": {

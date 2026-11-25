@@ -47,6 +47,16 @@ class DemoBotsGameCenterSetupTests(unittest.TestCase):
         self.update(lambda resources: resources['gameActivities'][1].update(minimumPlayersCount=1, playStyle='synchronous'))
         self.assertIn('player counts', ' '.join(checker.check(self.root)))
 
+    def test_native_challenge_duration_field_is_required(self):
+        self.update(lambda resources: resources['challenges'][0].pop('allowedDurations', None))
+        self.assertIn('allowedDurations', ' '.join(checker.check(self.root)))
+
+    def test_native_challenge_durations_reject_invalid_or_duplicate_values(self):
+        for values in ([], ['oneDay', 'threeDays', 'oneWeek'], ['ONE_DAY'] * 3, 'ONE_DAY'):
+            with self.subTest(values=values):
+                self.update(lambda resources: resources['challenges'][0].update(allowedDurations=values))
+                self.assertIn('allowedDurations', ' '.join(checker.check(self.root)))
+
     def test_missing_art_or_escape_path_is_rejected(self):
         image = self.root / 'App/DemoBotsLocal.gamekit/repair.png'; image.unlink()
         self.assertIn('missing local image', ' '.join(checker.check(self.root)))

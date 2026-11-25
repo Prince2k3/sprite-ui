@@ -19,6 +19,7 @@ import SwiftUI
                 Toggle("Use native GameKit", isOn: $native).disabled(lab.busy)
                 Text(native ? "Calls reach GameKit. Use the Local Game Center scheme for isolated Xcode testing; a normal scheme uses configured Apple services." : "Offline preview. No Apple account or network connection is required.").font(.footnote).foregroundStyle(.secondary)
                 if native {
+                    Text(lab.bundledConfigurationSummary).font(.caption).accessibilityIdentifier("game-center-lab-bundled-configuration")
                     Text("In Xcode: Run → Options → GameKit Configuration → Enable Debug Mode. Then Debug → GameKit → Manage Game Progress on a supported physical device. Simulator previews do not verify this path.").font(.caption)
                     Text(lab.services.localPlayer?.displayName ?? "Not signed in")
                     Button("Sign in to Game Center") { lab.services.present(.signIn) }.disabled(lab.busy)

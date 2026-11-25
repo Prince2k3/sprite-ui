@@ -1,4 +1,5 @@
 import SpriteUI
+import Foundation
 @testable import DemoBotsGame
 import Testing
 
@@ -13,6 +14,14 @@ import Testing
         #expect(DemoBotsGameCenterLab.challengeCatalogSummary([missingBoard]).contains("without an associated leaderboard"))
         let linked = GameCenterChallengeDefinition(id: DemoBotsGameCenterIDs.challenge, title: "Repair Challenge", leaderboardID: DemoBotsGameCenterIDs.leaderboard, isRepeatable: true)
         #expect(DemoBotsGameCenterLab.challengeCatalogSummary([linked]).contains(DemoBotsGameCenterIDs.leaderboard))
+    }
+    @Test func bundledConfigurationReportsActualPayloadAndAppVersion() {
+        let data = Data("""
+        {"resources":{"challenges":[{"vendorIdentifier":"dev.spriteui.demobots.repair_challenge","allowedDurations":["ONE_DAY","THREE_DAYS","ONE_WEEK"]}]}}
+        """.utf8)
+        let text = DemoBotsGameCenterLab.bundledConfigurationSummary(data: data, version: "1.0", build: "2")
+        #expect(text.contains("Bundled challenges: 1") && text.contains("duration options: 3") && text.contains("app 1.0 (2)"))
+        #expect(DemoBotsGameCenterLab.bundledConfigurationSummary(data: nil, version: nil, build: nil).contains("No readable"))
     }
     @Test func constructionDoesNotSignInLoadStartOrReport() {
         for native in [false, true] {

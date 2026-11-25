@@ -34,6 +34,12 @@ def check(root=ROOT):
             errors.append('Repair Challenge must reference Repair Score')
         if resources['challenges'][0]['challengeType'] != 'LEADERBOARD':
             errors.append('Challenge type must be LEADERBOARD')
+        durations = resources['challenges'][0].get('allowedDurations')
+        if (not isinstance(durations, list) or len(durations) != 3
+                or not all(isinstance(value, str) for value in durations)
+                or set(durations) != {'ONE_DAY', 'THREE_DAYS', 'ONE_WEEK'}):
+            errors.append('Repair Challenge allowedDurations must contain ONE_DAY, THREE_DAYS, ONE_WEEK '
+                          'for native local-testing compatibility; missing fields can empty the native catalog')
         for kind, names in [('gameActivityDefaultImages', ['activity', 'coop']), ('challengeDefaultImages', ['challenge'])]:
             for name in names:
                 relative = resources[kind][ids[name]]['url']

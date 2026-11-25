@@ -127,6 +127,13 @@ def check_bundle(bundle, *, entitlements_file=None, expected_bundle_id=None,
             error("bundle_identifier_mismatch", f"Info.plist bundle identifier {bundle_id!r} does not match "
                   f"expected {expected_bundle_id!r}. Check the target and build configuration.")
 
+    for key, setting in (("CFBundleVersion", "CURRENT_PROJECT_VERSION"),
+                         ("CFBundleShortVersionString", "MARKETING_VERSION")):
+        value = info.get(key)
+        if not isinstance(value, str) or not value.strip() or "$" in value or any(c.isspace() for c in value):
+            error("bundle_version", f"Built Info.plist {key} must be a resolved nonempty version string. "
+                  f"Set {setting}, reference it in Info.plist, then rebuild; GameKit uses the built app version.")
+
     try:
         if entitlements_file is not None:
             supplied = Path(entitlements_file).expanduser()

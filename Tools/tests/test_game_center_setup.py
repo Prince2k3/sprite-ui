@@ -34,6 +34,8 @@ class SetupTests(unittest.TestCase):
 
     def write_info(self, value):
         self.info.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(value, dict):
+            value = {'CFBundleVersion': '1', 'CFBundleShortVersionString': '1.0', **value}
         self.info.write_bytes(plistlib.dumps(value))
 
     def check(self, entitlements=None, **kwargs):
@@ -84,6 +86,18 @@ class SetupTests(unittest.TestCase):
         self.assertTrue(self.check(expected_bundle_id="com.example.game")["local_checks_passed"])
         self.assertIn("bundle_identifier_mismatch",
                       self.codes(self.check(expected_bundle_id="com.other.game")))
+
+    def test_built_app_requires_resolved_version_and_build_numbers(self):
+        for key in ('CFBundleVersion', 'CFBundleShortVersionString'):
+            for value in (None, '', ' ', 1, True, '$(CURRENT_PROJECT_VERSION)'):
+                with self.subTest(key=key, value=value):
+                    data = {'CFBundleIdentifier': 'com.example.game', 'CFBundleVersion': '1', 'CFBundleShortVersionString': '1.0'}
+                    if value is None:
+                        data.pop(key)
+                    else:
+                        data[key] = value
+                    self.info.write_bytes(plistlib.dumps(data))
+                    self.assertIn('bundle_version', self.codes(self.check()))
 
     def test_game_center_must_be_boolean_true(self):
         for value in (None, False, 1, "true", [], {}):
