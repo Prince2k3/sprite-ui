@@ -8,17 +8,22 @@ public struct DemoBotsView: View {
     @State private var controls: DemoBotsInput
     @State private var showsHelp = false
     @State private var showsCoop = false
+    @State private var showsGameCenterLab = false
     @State private var showsDisplaySettings = false
     @State private var display = DemoBotsDisplaySettings()
     @State private var surfaceGeometry: GameSurfaceGeometry?
+    private let nativeGameCenterTesting: Bool
     private let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
     @State private var sceneDebug: SceneDebugController
     @Environment(\.scenePhase) private var scenePhase
 
     /// Synthetic reservations are an override for previews; production hosts
     /// leave this nil and use the geometry reported by GameView.
-    public init(surfaceRegions: [GameSurfaceGeometry.ReservedRegion]? = nil) {
+    public init(surfaceRegions: [GameSurfaceGeometry.ReservedRegion]? = nil,
+                presentsGameCenterLab: Bool = false, usesNativeGameCenterForTesting: Bool = false) {
         self.surfaceRegions = surfaceRegions
+        nativeGameCenterTesting = usesNativeGameCenterForTesting
+        _showsGameCenterLab = State(initialValue: presentsGameCenterLab)
         let game = DemoBotsSession()
         let debug = SceneDebugController(options: [.collisionShapes, .selection, .statistics, .inspector, .simulationControls])
         _game = State(initialValue: game)
@@ -87,9 +92,9 @@ public struct DemoBotsView: View {
         }
         .ignoresSafeArea()
         .preferredColorScheme(.dark)
-        .gameInput(controls.hub, isActive: scenePhase == .active && !showsHelp && !showsDisplaySettings && !showsCoop)
+        .gameInput(controls.hub, isActive: scenePhase == .active && !showsHelp && !showsDisplaySettings && !showsCoop && !showsGameCenterLab)
         .onChange(of: scenePhase) { _, phase in if phase != .active { controls.suspend() } }
-        .onChange(of: scenePhase == .active && !showsHelp && !showsDisplaySettings && !showsCoop, initial: true) { _, active in
+        .onChange(of: scenePhase == .active && !showsHelp && !showsDisplaySettings && !showsCoop && !showsGameCenterLab, initial: true) { _, active in
             controls.setInputActive(active)
         }
         .onChange(of: controls.feedbackState) { _, _ in
@@ -100,6 +105,7 @@ public struct DemoBotsView: View {
             if attached, game.isInspecting { sceneDebug.select(game.player) }
         }
         .onDisappear { controls.setInputActive(false); controls.suspend() }
+        .sheet(isPresented: $showsGameCenterLab) { DemoBotsGameCenterView(useNativeServices: nativeGameCenterTesting).frame(minWidth: 320, minHeight: 550) }
         .sheet(isPresented: $showsCoop) { DemoBotsCoopView().frame(minWidth: 320, minHeight: 550) }
         .accessibilityHidden(showsHelp || showsDisplaySettings)
         .overlay(alignment: .topLeading) {
@@ -157,6 +163,10 @@ public struct DemoBotsView: View {
                         .accessibilityIdentifier("checkpoint-resume")
                 }
                 checkpointFeedback
+                #if DEBUG
+                Button("Game Center Test Lab", systemImage: "trophy") { controls.suspend(); showsGameCenterLab = true }
+                    .buttonStyle(.bordered).tint(.mint).accessibilityIdentifier("game-center-lab-open")
+                #endif
                 Button("Co-op Debug Arena", systemImage: "person.2.fill") { controls.suspend(); showsCoop = true }
                     .buttonStyle(.bordered).tint(.cyan).accessibilityIdentifier("coop-open")
                 Button("How to play", systemImage: "gamecontroller") { showsHelp = true }

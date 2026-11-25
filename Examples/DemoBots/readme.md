@@ -2,7 +2,7 @@
 title: DemoBots with SpriteUI
 tags: [spriteui, demobots, example]
 created: 2026-11-22
-updated: 2026-11-23
+updated: 2026-11-24
 status: active
 type: permanent
 ---
@@ -109,3 +109,34 @@ The three level layouts, patrol configurations, logo, scenery, and robot animati
 The example adopts SDK features where they serve this game. Tile maps do not replace the authored sprite/polygon levels; physics joints and dynamic-body simulation do not replace character controllers. Painted art/shadows are retained without adding lighting or scene-wide filters, and masks are unnecessary for the passive status labels.
 
 This recreation includes the core game, all three levels, 16-direction robot art, touch/keyboard/gamepad controls, AI, timer, pause/retry/progression, and effects. It does not port ReplayKit, on-demand resource downloads, the original shader effects, or every original animation. AI weights and charge-recovery tuning are adapted to SpriteUI. Collision outlines use the imported obstacle rectangles rather than recovering arbitrary SpriteKit body geometry. SpriteUI's package tests intentionally run without the app asset catalog; SpriteKit can log missing visual resources during those headless tests.
+
+
+## Game Center test lab
+
+In a Debug build, choose **Game Center Test Lab** from the campaign home menu. The default preview needs no account. Load test data, report 25% or unlock First Repair, submit 100 then 50 points to verify the best-score policy, start/finish Repair Test, simulate and explicitly accept an activity entry, or submit a new challenge attempt. None of these actions report campaign progress. Reopen the lab after an external achievement reset to clear its monotonic cache.
+
+[[Game/DemoBotsGameCenterLab.swift]] owns explicit operations and cancellation. [[Game/DemoBotsGameCenterView.swift]] hosts one retained service facade; switching modes shuts down the old instance. Entering the lab cancels campaign input. Native sign-in, loading, and reports require explicit buttons, and unsupported activity/challenge controls remain disabled on older systems.
+
+The project includes [[App/DemoBotsLocal.gamekit/gameCenterResources.json]] with these identifiers:
+
+| Resource | Identifier |
+| --- | --- |
+| First Repair achievement | `dev.spriteui.demobots.first_repair` |
+| Repair Score leaderboard | `dev.spriteui.demobots.repair_score` |
+| Single-player Repair Test activity | `dev.spriteui.demobots.repair_test` |
+| Two-player co-op activity | `dev.spriteui.demobots.coop` |
+| Repeatable Repair Challenge, linked to Repair Score | `dev.spriteui.demobots.repair_challenge` |
+
+The English definitions and small procedural 3840×2160 opaque placeholder art are local samples. Review real metadata, artwork, app records, and compatibility before any manual push to App Store Connect. The project never performs that push automatically.
+
+Choose **DemoBots Local Game Center** or **DemoBotsMac Local Game Center** in Xcode to open the lab with native GameKit selected and Run → Options → GameKit Configuration → Enable Debug Mode enabled. Sign in explicitly as required. On a supported physical device, use Debug → GameKit → Manage Game Progress to inspect/reset progress and exercise Repair Test activity entry points. Preview mode remains available through the toggle. A simulator can check the preview UI; it cannot establish Game Progress Manager or signed two-account results.
+
+The ordinary **DemoBots** and **DemoBotsMac** schemes leave GameKit Debug Mode off and launch the campaign. Release targets exclude `DemoBotsLocal.gamekit`; debug launch overrides and the campaign's lab button are compiled out of the app entry points. The package's reusable test view does not launch itself. [[project.yml]] invokes [[Tools/configure-game-center-schemes.py]] after XcodeGen so regeneration preserves the explicit scheme flag.
+
+From the repository root, check IDs, links, art, and scheme isolation with:
+
+```sh
+python3 Examples/DemoBots/Tools/check-game-center-testing.py
+```
+
+Apple's [local Game Center configuration guide](https://developer.apple.com/documentation/gamekit/initializing-and-configuring-game-center) describes the physical-device workflow. Local native execution and signed two-account tests remain pending; the fixture and successful builds do not claim otherwise.

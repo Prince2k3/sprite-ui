@@ -34,6 +34,16 @@ The DemoBots XcodeGen project supplies `App/DemoBots-iOS.entitlements` for devic
 
 Select a real development team, matching bundle identifiers and profiles, and enable the corresponding capabilities in Xcode and the developer portal. The example does not select a team. Its Mac target keeps signing disabled by default for local builds; explicitly enable signing when preparing the signed validation build. Configure the `dev.spriteui.demobots.coop` two-player activity and intended version/platform compatibility in App Store Connect. An entitlement file alone cannot perform those steps.
 
+## Use the DemoBots local GameKit setup
+
+DemoBots includes a Debug-only Game Center Test Lab alongside the campaign and co-op arena. The default preview exercises achievement progress, best-score submission, explicit activity lifecycle/entry acceptance, and separate challenge attempts without accounts. Opening or switching modes never authenticates or reports campaign progress. Closing cancels outstanding operations and releases the service facade.
+
+The example's `App/DemoBotsLocal.gamekit` defines First Repair, Repair Score, Repair Test, the two-player co-op activity, and Repair Challenge linked to Repair Score. IDs are shared with the test model. Placeholder images are opaque RGB at the dimensions required by Xcode's activity/challenge editor. The local bundle is excluded from Release app resources.
+
+Choose the shared DemoBots Local Game Center or DemoBotsMac Local Game Center scheme for Apple's local tools. These schemes enable GameKit Debug Mode and open the test lab with native GameKit selected. Sign in and choose each operation explicitly. The normal schemes keep this flag off. XcodeGen's post-generation helper preserves the distinction. Use Debug → GameKit → Manage Game Progress with a supported physical device to inspect/reset progress and exercise Repair Test entry points; consult Apple's [configuration guide](https://developer.apple.com/documentation/gamekit/initializing-and-configuring-game-center).
+
+Run `python3 Examples/DemoBots/Tools/check-game-center-testing.py` to verify the sample IDs, challenge relationship, party counts, local artwork, Release exclusions, and shared scheme flags. Reopen the lab after resetting an achievement externally because the service wrapper deliberately retains monotonic known progress. The reusable SDK API is unchanged; this configuration belongs to the consuming app. Actual Game Progress Manager execution and signed two-account delivery remain pending.
+
 ## Keep the native gate pending until observed
 
 This checkout's native two-account testing remains **pending**, at the user's request. Every generated local report keeps `native_testing.status` as pending and `release_ready` as false. There is no flag that promotes local fixtures into native evidence.

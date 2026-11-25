@@ -89,7 +89,7 @@ private struct CoopRulesSystem: System {
     private var approved: NetworkRecoveryDescriptor?
     private let rules = KinematicMovement2D(maximumSpeed: 150, bounds: .init(center: .zero, size: [660, 440]))
     private let hitRules = NetworkInteractionRules2D(rayRange: 300, interactionRange: 70)
-    private static let route = "dev.spriteui.demobots.coop"
+    private static let route = DemoBotsGameCenterIDs.coop
     private static let compatibility = "demobots-coop-v1"
     private var allServices: [GameCenterServices] { [services] + (partner.map { [$0] } ?? []) }
     private var hostServices: GameCenterServices? { allServices.first { service in guard let id = service.localPlayer?.id else { return false }; return id == service.party.hostPeerID } }

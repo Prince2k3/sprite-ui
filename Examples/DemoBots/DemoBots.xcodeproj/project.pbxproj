@@ -10,8 +10,10 @@
 		127D43CA0BF62E1F8328E108 /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9BCBFDC675BAC509593CD207 /* GameController.framework */; };
 		2A9EB1954D0526094340CE89 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 45E22D51841AB80048187CE8 /* Assets.xcassets */; };
 		3C930620318BA7ABBBC520EA /* DemoBotsGame in Frameworks */ = {isa = PBXBuildFile; productRef = F3AADF1B327037FC55A424A7 /* DemoBotsGame */; };
+		4DFC9A7DA1286FD2706E830B /* DemoBotsLocal.gamekit in Resources */ = {isa = PBXBuildFile; fileRef = 93E43004C0491D909B90148F /* DemoBotsLocal.gamekit */; };
 		561E9881229D42B9D481572B /* DemoBotsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3747B5CFEA9418F9E43E7480 /* DemoBotsApp.swift */; };
 		761B0378FA4C7409C8734252 /* DemoBotsGame in Frameworks */ = {isa = PBXBuildFile; productRef = F51F2369DABCE0800D5CACB3 /* DemoBotsGame */; };
+		83EA9C87DDDDC9BABF90CBB0 /* DemoBotsLocal.gamekit in Resources */ = {isa = PBXBuildFile; fileRef = 93E43004C0491D909B90148F /* DemoBotsLocal.gamekit */; };
 		B776693E6A748AC19F867042 /* DemoBotsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3747B5CFEA9418F9E43E7480 /* DemoBotsApp.swift */; };
 		D29B47B775772270CCA175FC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 45E22D51841AB80048187CE8 /* Assets.xcassets */; };
 		F8014FC1467995E63CF108E6 /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9BCBFDC675BAC509593CD207 /* GameController.framework */; };
@@ -24,6 +26,7 @@
 		45E22D51841AB80048187CE8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		467F39557D03167F03500D30 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8455B183324712E1BDBDCF5E /* DemoBots-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "DemoBots-macOS.entitlements"; sourceTree = "<group>"; };
+		93E43004C0491D909B90148F /* DemoBotsLocal.gamekit */ = {isa = PBXFileReference; path = DemoBotsLocal.gamekit; sourceTree = "<group>"; };
 		9BCBFDC675BAC509593CD207 /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
 		C45928E55A73476026429041 /* DemoBotsMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DemoBotsMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E45195D53D4CDB6E9A7BC27C /* DemoBots-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "DemoBots-iOS.entitlements"; sourceTree = "<group>"; };
@@ -85,6 +88,7 @@
 				E45195D53D4CDB6E9A7BC27C /* DemoBots-iOS.entitlements */,
 				8455B183324712E1BDBDCF5E /* DemoBots-macOS.entitlements */,
 				3747B5CFEA9418F9E43E7480 /* DemoBotsApp.swift */,
+				93E43004C0491D909B90148F /* DemoBotsLocal.gamekit */,
 				467F39557D03167F03500D30 /* Info.plist */,
 			);
 			path = App;
@@ -179,6 +183,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D29B47B775772270CCA175FC /* Assets.xcassets in Resources */,
+				83EA9C87DDDDC9BABF90CBB0 /* DemoBotsLocal.gamekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -187,6 +192,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2A9EB1954D0526094340CE89 /* Assets.xcassets in Resources */,
+				4DFC9A7DA1286FD2706E830B /* DemoBotsLocal.gamekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -316,6 +322,7 @@
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGN_ENTITLEMENTS = "App/DemoBots-macOS.entitlements";
 				COMBINE_HIDPI_IMAGES = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = DemoBotsLocal.gamekit;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -397,6 +404,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "App/DemoBots-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				EXCLUDED_SOURCE_FILE_NAMES = DemoBotsLocal.gamekit;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

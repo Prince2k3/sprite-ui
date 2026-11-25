@@ -1,0 +1,142 @@
+{
+  "meta": {
+    "version": "2024-11-15"
+  },
+  "resources": {
+    "achievements": [
+      {
+        "activityProperties": {},
+        "archived": false,
+        "points": 10,
+        "referenceName": "First Repair",
+        "repeatable": false,
+        "showBeforeEarned": true,
+        "vendorIdentifier": "dev.spriteui.demobots.first_repair"
+      }
+    ],
+    "leaderboards": [
+      {
+        "activityProperties": {},
+        "archived": false,
+        "defaultFormatter": "INTEGER",
+        "referenceName": "Repair Score",
+        "scoreRangeEnd": null,
+        "scoreRangeStart": null,
+        "scoreSortType": "DESC",
+        "submissionType": "BEST_SCORE",
+        "vendorIdentifier": "dev.spriteui.demobots.repair_score",
+        "visibility": "SHOW_FOR_ALL"
+      }
+    ],
+    "gameActivities": [
+      {
+        "archived": false,
+        "maximumPlayersCount": 1,
+        "minimumPlayersCount": 1,
+        "playStyle": "SYNCHRONOUS",
+        "properties": {
+          "mode": "repair-test"
+        },
+        "referenceName": "Repair Test",
+        "supportsPartyCode": false,
+        "vendorIdentifier": "dev.spriteui.demobots.repair_test"
+      },
+      {
+        "archived": false,
+        "maximumPlayersCount": 2,
+        "minimumPlayersCount": 2,
+        "playStyle": "SYNCHRONOUS",
+        "properties": {
+          "mode": "coop"
+        },
+        "referenceName": "DemoBots Co-op",
+        "supportsPartyCode": true,
+        "vendorIdentifier": "dev.spriteui.demobots.coop"
+      }
+    ],
+    "challenges": [
+      {
+        "archived": false,
+        "referenceName": "Repair Challenge",
+        "repeatable": true,
+        "challengeType": "LEADERBOARD",
+        "vendorIdentifier": "dev.spriteui.demobots.repair_challenge"
+      }
+    ],
+    "achievementLocalizations": {
+      "dev.spriteui.demobots.first_repair": [
+        {
+          "localID": "dev.spriteui.demobots.first_repair-en",
+          "locale": "en-US",
+          "name": "First Repair",
+          "beforeEarnedDescription": "Complete your first test repair.",
+          "afterEarnedDescription": "First test repair completed."
+        }
+      ]
+    },
+    "leaderboardLocalizations": {
+      "dev.spriteui.demobots.repair_score": [
+        {
+          "localID": "dev.spriteui.demobots.repair_score-en",
+          "locale": "en-US",
+          "name": "Repair Score",
+          "formatterSuffix": " points",
+          "formatterSuffixSingular": " point",
+          "description": "Sample repair scores for local testing."
+        }
+      ]
+    },
+    "gameActivityLocalizations": {
+      "dev.spriteui.demobots.repair_test": [
+        {
+          "localID": "dev.spriteui.demobots.repair_test-en",
+          "locale": "en-US",
+          "name": "Repair Test",
+          "description": "Exercise a local test activity."
+        }
+      ],
+      "dev.spriteui.demobots.coop": [
+        {
+          "localID": "dev.spriteui.demobots.coop-en",
+          "locale": "en-US",
+          "name": "DemoBots Co-op",
+          "description": "Repair four bots together."
+        }
+      ]
+    },
+    "challengeLocalizations": {
+      "dev.spriteui.demobots.repair_challenge": [
+        {
+          "localID": "dev.spriteui.demobots.repair_challenge-en",
+          "locale": "en-US",
+          "name": "Repair Challenge",
+          "description": "Submit a completed repair test score."
+        }
+      ]
+    },
+    "challengeLeaderboardRelationships": {
+      "dev.spriteui.demobots.repair_challenge": [
+        {
+          "localID": "dev.spriteui.demobots.repair_challenge-board",
+          "leaderboardLocalID": "dev.spriteui.demobots.repair_score"
+        }
+      ]
+    },
+    "gameActivityDefaultImages": {
+      "dev.spriteui.demobots.repair_test": {
+        "localID": "dev.spriteui.demobots.repair_test-image",
+        "url": "repair.png"
+      },
+      "dev.spriteui.demobots.coop": {
+        "localID": "dev.spriteui.demobots.coop-image",
+        "url": "repair.png"
+      }
+    },
+    "challengeDefaultImages": {
+      "dev.spriteui.demobots.repair_challenge": {
+        "localID": "dev.spriteui.demobots.repair_challenge-image",
+        "url": "repair.png"
+      }
+    }
+  }
+}

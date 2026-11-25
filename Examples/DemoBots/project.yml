@@ -1,6 +1,7 @@
 name: DemoBots
 options:
   bundleIdPrefix: dev.spriteui
+  postGenCommand: python3 Tools/configure-game-center-schemes.py
   deploymentTarget:
     iOS: "18.0"
     macOS: "15.0"
@@ -11,7 +12,12 @@ targets:
   DemoBots:
     type: application
     platform: iOS
-    sources: [App]
+    sources:
+      - path: App
+        excludes: [DemoBotsLocal.gamekit]
+      - path: App/DemoBotsLocal.gamekit
+        type: file
+        buildPhase: resources
     info:
       path: App/Info.plist
       properties:
@@ -34,10 +40,18 @@ targets:
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": App/DemoBots-iOS.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Release:
+          EXCLUDED_SOURCE_FILE_NAMES: DemoBotsLocal.gamekit
   DemoBotsMac:
     type: application
     platform: macOS
-    sources: [App]
+    sources:
+      - path: App
+        excludes: [DemoBotsLocal.gamekit]
+      - path: App/DemoBotsLocal.gamekit
+        type: file
+        buildPhase: resources
     info:
       path: App/Info.plist
       properties:
@@ -57,3 +71,36 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGN_ENTITLEMENTS: App/DemoBots-macOS.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Release:
+          EXCLUDED_SOURCE_FILE_NAMES: DemoBotsLocal.gamekit
+
+schemes:
+  DemoBots:
+    build:
+      targets:
+        DemoBots: all
+    run:
+      config: Debug
+  DemoBotsMac:
+    build:
+      targets:
+        DemoBotsMac: all
+    run:
+      config: Debug
+  DemoBots Local Game Center:
+    build:
+      targets:
+        DemoBots: all
+    run:
+      config: Debug
+      environmentVariables:
+        DEMOBOTS_GAME_CENTER_TESTING: "1"
+  DemoBotsMac Local Game Center:
+    build:
+      targets:
+        DemoBotsMac: all
+    run:
+      config: Debug
+      environmentVariables:
+        DEMOBOTS_GAME_CENTER_TESTING: "1"
