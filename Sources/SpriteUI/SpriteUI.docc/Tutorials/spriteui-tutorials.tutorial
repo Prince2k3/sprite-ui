@@ -163,6 +163,11 @@
             @Image(source: "spriteui-interest.svg", alt: "One host selects separate scopes and byte credits for two clients.")
             @TutorialReference(tutorial: "doc:controlling-replication-traffic")
         }
+        @Chapter(name: "Play cooperative DemoBots") {
+            Integrate independent party worlds, prediction, historical beams, scoped replication, a shared win, and approved checkpoint recovery.
+            @Image(source: "spriteui-coop.svg", alt: "Two independent worlds share a repair round and require a fresh baseline after recovery.")
+            @TutorialReference(tutorial: "doc:playing-a-cooperative-demobots-round")
+        }
         @Chapter(name: "Recover a multiplayer session") {
             Keep a bounded host checkpoint, request a fresh match explicitly, and wait for every returning client to apply its new baseline.
             @Image(source: "spriteui-recovery.svg", alt: "An approved checkpoint passes through fresh-party matching and client resynchronization before play resumes.")

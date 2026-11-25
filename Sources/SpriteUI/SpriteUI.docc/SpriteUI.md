@@ -22,6 +22,7 @@ Start with <doc:getting-started> for a small scene that needs no assets. Then ch
 | Map on-screen controls, keyboard, pointer, and gamepads to actions | <doc:input-actions-and-controllers> |
 | Assign devices to players, adapt prompts, and request controller feedback | <doc:player-input-sessions-and-feedback> |
 | Start with local achievements, scores, and typed saved turns, then opt into native screens | <doc:game-center-services> |
+| Play an integrated two-player DemoBots repair round | <doc:demobots-cooperative-multiplayer> |
 | Select player scopes and bound entity replication traffic | <doc:replication-interest-and-bandwidth> |
 | Validate shots and interactions against bounded historical views | <doc:multiplayer-interactions-and-lag-compensation> |
 | Predict owned kinematic movement and reconcile host corrections | <doc:multiplayer-prediction-and-reconciliation> |
@@ -79,6 +80,7 @@ Entities, worlds, systems, and scene interaction belong on the main actor. Pure 
 - <doc:multiplayer-prediction-and-reconciliation>
 - <doc:multiplayer-interactions-and-lag-compensation>
 - <doc:replication-interest-and-bandwidth>
+- <doc:demobots-cooperative-multiplayer>
 - <doc:quests-and-leagues>
 - <doc:player-profiles-and-cloud-saves>
 - <doc:game-center-sessions-and-replication>

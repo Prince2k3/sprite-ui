@@ -7,6 +7,7 @@ public struct DemoBotsView: View {
     @State private var game: DemoBotsSession
     @State private var controls: DemoBotsInput
     @State private var showsHelp = false
+    @State private var showsCoop = false
     @State private var showsDisplaySettings = false
     @State private var display = DemoBotsDisplaySettings()
     @State private var surfaceGeometry: GameSurfaceGeometry?
@@ -86,9 +87,9 @@ public struct DemoBotsView: View {
         }
         .ignoresSafeArea()
         .preferredColorScheme(.dark)
-        .gameInput(controls.hub, isActive: scenePhase == .active && !showsHelp && !showsDisplaySettings)
+        .gameInput(controls.hub, isActive: scenePhase == .active && !showsHelp && !showsDisplaySettings && !showsCoop)
         .onChange(of: scenePhase) { _, phase in if phase != .active { controls.suspend() } }
-        .onChange(of: scenePhase == .active && !showsHelp && !showsDisplaySettings, initial: true) { _, active in
+        .onChange(of: scenePhase == .active && !showsHelp && !showsDisplaySettings && !showsCoop, initial: true) { _, active in
             controls.setInputActive(active)
         }
         .onChange(of: controls.feedbackState) { _, _ in
@@ -99,6 +100,7 @@ public struct DemoBotsView: View {
             if attached, game.isInspecting { sceneDebug.select(game.player) }
         }
         .onDisappear { controls.setInputActive(false); controls.suspend() }
+        .sheet(isPresented: $showsCoop) { DemoBotsCoopView().frame(minWidth: 320, minHeight: 550) }
         .accessibilityHidden(showsHelp || showsDisplaySettings)
         .overlay(alignment: .topLeading) {
             if showsDisplaySettings, let surfaceGeometry {
@@ -155,6 +157,8 @@ public struct DemoBotsView: View {
                         .accessibilityIdentifier("checkpoint-resume")
                 }
                 checkpointFeedback
+                Button("Co-op Debug Arena", systemImage: "person.2.fill") { controls.suspend(); showsCoop = true }
+                    .buttonStyle(.bordered).tint(.cyan).accessibilityIdentifier("coop-open")
                 Button("How to play", systemImage: "gamecontroller") { showsHelp = true }
                     .font(.subheadline).foregroundStyle(.white.opacity(0.8)).buttonStyle(.plain)
                 displaySettingsButton
@@ -436,7 +440,7 @@ private struct BotPrimaryButton: ButtonStyle {
     }
 }
 
-private struct BotThumbstick: View {
+struct BotThumbstick: View {
     let label: String
     let symbol: String
     let tint: Color

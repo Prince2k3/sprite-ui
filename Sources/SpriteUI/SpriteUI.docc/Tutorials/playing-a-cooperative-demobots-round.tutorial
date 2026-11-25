@@ -1,0 +1,38 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Playing a cooperative DemoBots round") {
+        Put party handoff, prediction, historical beams, scoped replication, shared scoring, and explicit recovery together in one playable round.
+        @Image(source: "spriteui-coop.svg", alt: "Two separate network worlds share one authoritative repair round while local presentation remains separate.")
+    }
+    @Section(title: "Start a repair crew") {
+        @ContentAndMedia {
+            Add the DemoBotsGame product from the SpriteUI package to an iOS 18 or macOS 15 SwiftUI app whose entry point presents ContentView. Replace that view with this complete stage. The fallback art needs no assets, accounts, entitlements, or additional files. The bundled DemoBots app uses its existing artwork through the same co-op screen.
+        }
+        @Steps {
+            @Step {
+                Start local co-op explicitly. Wait for playing. The local human is the client and the optional teammate runs on an independent host world. Move with the touch stick, WASD/arrows, or gamepad left stick. Fire with Debug Beam, Space, or gamepad south. Each corrupted bot requires two confirmed hits.
+                @Code(name: "ContentView.swift", file: "spriteui-coop-01.swift") {
+                    @Image(source: "spriteui-coop.svg", alt: "Expected schematic: client intent is predicted locally; host-confirmed beams update one shared score.")
+                }
+            }
+            @Step {
+                Disable teammate firing to inspect your own score. Move closer to the cluster, then fire assisted beams. A nearby eligible target is selected; with no target in range, the beam falls back to facing. Rapid presses get final cooldown refusals rather than extra cures. Cure all four bots before time expires to reach won and a shared score of 400.
+            }
+            @Step {
+                In a new round, save a recovery point after a hit. Advance the round further, then interrupt while movement or a shot is pending. Rejoin saved round explicitly. The fresh party must apply its baseline before playing. The earlier corruption/score/time returns, but old held movement and pending beam effects do not run again. The campaign checkpoint remains separate.
+            }
+            @Step {
+                Fold and unfold Duo while playing: the arena resizes and touch input cancels without replacing the network worlds. Background, then return. The round remains interrupted; foregrounding does not reconnect or resume held controls. Leave co-op to return to the campaign home menu.
+            }
+        }
+    }
+    @Section(title: "Keep live testing explicit") {
+        @ContentAndMedia {
+            Live Game Center mode requires a signed app, two test accounts, OS 26+, and a configured two-player party activity. Sign-in, matching, invitation acceptance, readiness, launch, and recovery approval are explicit. The account-free teammate is not a second native account.
+        }
+        @Steps {
+            @Step {
+                Read <doc:demobots-cooperative-multiplayer> for layer ownership, input cleanup, schema bounds, byte budgets, and the signed-device validation gap. Do not count the local tutorial as successful live matchmaking or native rejoining.
+            }
+        }
+    }
+}
