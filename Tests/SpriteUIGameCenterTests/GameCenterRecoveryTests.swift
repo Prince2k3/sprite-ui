@@ -107,7 +107,7 @@ private let recoveryB = NetworkPeer(id: .init(rawValue: "b"), displayName: "Bob"
         let pair = try RecoveryPair(); defer { pair.close() }; try await pair.start()
         let checkpoint = try pair.a.party.recoveryCheckpoint(); pair.interrupt(); try await pair.match(); try pair.prepare(checkpoint)
         pair.a.party.synchronizationTimeoutOverride = 0.01
-        try pair.readyAndLaunch(); try await Task.sleep(for: .milliseconds(30))
+        try pair.readyAndLaunch(); pair.fixture.advance(by: 0.03)
         #expect(pair.a.party.state == .failed && pair.a.party.lastError == .timedOut)
         #expect(pair.a.party.interruption?.reason == .timedOut && pair.a.networkSession == nil)
     }
@@ -115,7 +115,11 @@ private let recoveryB = NetworkPeer(id: .init(rawValue: "b"), displayName: "Bob"
         let pair = try RecoveryPair(); defer { pair.close() }
         _ = try await pair.a.activities.load(); _ = try await pair.a.activities.start(definitionID: "arena", partyCode: "1234-5678")
         pair.a.party.matchingTimeoutOverride = 0.01
-        await #expect(throws: GameCenterServiceError.timedOut) { try await pair.a.party.findMatch() }
+        let attempt = Task { @MainActor in try await pair.a.party.findMatch() }
+        for _ in 0..<100 { await Task.yield(); if pair.a.party.state == .matching { break } }
+        try #require(pair.a.party.state == .matching)
+        pair.fixture.advance(by: 0.03)
+        await #expect(throws: GameCenterServiceError.timedOut) { try await attempt.value }
         #expect(pair.a.party.state == .failed && pair.a.party.lastError == .timedOut)
         #expect(pair.a.activities.activity?.state == .active)
         pair.a.party.leave(); #expect(pair.a.party.state == .idle && pair.a.party.interruption == nil)

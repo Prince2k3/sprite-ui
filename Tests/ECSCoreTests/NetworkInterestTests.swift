@@ -126,4 +126,32 @@ private let interestB = NetworkPeer(id: .init(rawValue: "bob"), displayName: "Bo
         #expect(rig.ht.states.filter { $0.0.kind == .poses }.allSatisfy { $0.1.count <= 512 })
         #expect(rig.a.state == .connected && rig.aw.entities.count == 2)
     }
+    @Test func scopeChurnWithJitterAndLossStaysBoundedAndSettlesToTheLatestWorld() throws {
+        let actors = (0..<12).map { interestEntity("actor-\($0)") }; var zone = 0
+        let rig = try InterestRig(entities: actors, policy: .init { entity, peer in
+            let index = Int(entity.name.split(separator: "-").last!)!
+            return index % 3 == (peer.id == interestA.id ? zone : (zone + 1) % 3) ? .visible() : .hidden
+        }, budget: .init(bytesPerSecond: 10_000, burstBytes: 8_000, refreshInterval: 0.2))
+        defer { rig.close() }
+        rig.hub.unreliableLossRate = 0.65
+        for frame in 0..<600 {
+            if frame % 60 == 0 { zone = (zone + 1) % 3 }
+            rig.hub.latency = frame % 17 < 8 ? 0.03 : 0.13
+            for (index, actor) in actors.enumerated() { actor.position = [Float(frame), Float(index)] }
+            rig.tick(dt: 1.0 / 60)
+            #expect(rig.hub.pendingMessageCount < 1024 && rig.hub.pendingByteCount < 4 * 1024 * 1024)
+            #expect(rig.aw.entities.count <= 4 && rig.bw.entities.count <= 4)
+        }
+        rig.hub.latency = 0; rig.hub.unreliableLossRate = 0; rig.tick(120, dt: 1.0 / 60)
+        #expect(rig.host.state == .connected && rig.a.state == .connected && rig.b.state == .connected)
+        for (client, expectedZone) in [(rig.a, zone), (rig.b, (zone + 1) % 3)] {
+            for (index, actor) in actors.enumerated() {
+                let replica = client.entity(withNetworkID: actor.components[SynchronizationComponent.self]!.id)
+                if index % 3 == expectedZone { #expect(replica?.position == actor.position) }
+                else { #expect(replica == nil) }
+            }
+        }
+        rig.close(); #expect(rig.hub.pendingMessageCount == 0 && rig.hub.pendingByteCount == 0)
+    }
+
 }

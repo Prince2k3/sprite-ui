@@ -50,6 +50,10 @@ import SwiftUI
                 if !native {
                     Toggle("Teammate moves", isOn: $game.previewPartnerMoves)
                     Toggle("Teammate fires", isOn: $game.previewPartnerFires)
+                    HStack { Text("Delay: \(Int(game.previewLatency * 1000)) ms one way"); Slider(value: $game.previewLatency, in: 0...0.3) }
+                    HStack { Text("Unreliable loss: \(Int(game.previewLossRate * 100))%"); Slider(value: $game.previewLossRate, in: 0...0.8) }
+                    Toggle("Vary packet delay", isOn: $game.previewJitter)
+                    Text("Local queue: \(game.previewPendingPackets) packets · \(game.previewPendingBytes) B. Reliable lobby, recovery, and receipts do not drop.").font(.caption2.monospaced())
                 }
                 HStack {
                     Button("Save recovery point") { game.saveRecoveryPoint() }.disabled(!game.canControl || native && game.services.networkSession?.isHost != true)

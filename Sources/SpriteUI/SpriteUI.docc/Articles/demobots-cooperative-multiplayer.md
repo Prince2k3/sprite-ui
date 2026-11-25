@@ -18,7 +18,7 @@ struct ContentView: View {
 }
 ```
 
-Start local co-op runs two independent GameCenterServices preview coordinators over GameCenterPartyPreview. It uses the actual activity readiness/handoff and replica-baseline machinery, not a single shared world masquerading as two players. The local human is the client; an optional scripted teammate owns the host world. Turn teammate movement/firing off to inspect your own contributions. A 120-second round ends after curing four corrupted bots or running out of time. Each bot needs two confirmed hits. Score is absolute shared round state, not a replayed reward.
+Start local co-op runs two independent GameCenterServices preview coordinators over GameCenterPartyPreview. It uses the actual activity readiness/handoff and replica-baseline machinery, not a single shared world masquerading as two players. The local human is the client; an optional scripted teammate owns the host world. Turn teammate movement/firing off to inspect your own contributions. Delay, Unreliable loss, and Vary packet delay exercise adverse local delivery; reliable readiness/recovery and final receipts do not drop. The displayed queue remains bounded. Preparation advances the fixture clock until the required readiness/offer arrives instead of assuming zero delay. Preview matchmaking/handoff/recovery deadlines use that same explicit clock; native services retain wall-clock deadlines. A 120-second round ends after curing four corrupted bots or running out of time. Each bot needs two confirmed hits. Score is absolute shared round state, not a replayed reward.
 
 This first co-op arena has an open floor and rectangular center bounds. It deliberately does not claim predictive movement through the campaign's irregular collision walls or deterministic native physics. The campaign's levels, checkpoints, and game logic remain separate and retain their existing behavior.
 
@@ -78,4 +78,6 @@ Use live Game Center is an explicit mode switch that stops the previous local fi
 
 Native setup, cold activity routing, matching, disconnect/rejoin, account changes, and actual network delivery must be verified with two signed test accounts/devices. The user chose to leave that work pending for this checkout. Local fixtures, setup templates, successful builds, and unit tests do not establish live Game Center behavior. See <doc:game-center-services>, <doc:activity-party-matchmaking-and-handoff>, and <doc:multiplayer-recovery-and-rejoining>.
 
-The local automated round covers complete handoff, prediction convergence, host cooldowns, a shared win, approved checkpoint restoration, cancelled preparation, and input neutralization. Follow <doc:playing-a-cooperative-demobots-round> to exercise the same flows in the simulator before signed testing.
+See <doc:multiplayer-validation-and-release-checks> for the repeatable local gate, signing templates, and pending native matrix.
+
+The local automated round covers delayed/lossy handoff and recovery, complete handoff, prediction convergence, host cooldowns, a shared win, approved checkpoint restoration, cancelled preparation, and input neutralization. Follow <doc:playing-a-cooperative-demobots-round> to exercise the same flows in the simulator before signed testing.

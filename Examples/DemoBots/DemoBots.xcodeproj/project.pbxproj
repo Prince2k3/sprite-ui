@@ -23,8 +23,10 @@
 		3747B5CFEA9418F9E43E7480 /* DemoBotsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoBotsApp.swift; sourceTree = "<group>"; };
 		45E22D51841AB80048187CE8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		467F39557D03167F03500D30 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		8455B183324712E1BDBDCF5E /* DemoBots-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "DemoBots-macOS.entitlements"; sourceTree = "<group>"; };
 		9BCBFDC675BAC509593CD207 /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
 		C45928E55A73476026429041 /* DemoBotsMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DemoBotsMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E45195D53D4CDB6E9A7BC27C /* DemoBots-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "DemoBots-iOS.entitlements"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,6 +82,8 @@
 			isa = PBXGroup;
 			children = (
 				45E22D51841AB80048187CE8 /* Assets.xcassets */,
+				E45195D53D4CDB6E9A7BC27C /* DemoBots-iOS.entitlements */,
+				8455B183324712E1BDBDCF5E /* DemoBots-macOS.entitlements */,
 				3747B5CFEA9418F9E43E7480 /* DemoBotsApp.swift */,
 				467F39557D03167F03500D30 /* Info.plist */,
 			);
@@ -268,6 +272,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "App/DemoBots-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
@@ -290,6 +295,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_ENTITLEMENTS = "App/DemoBots-macOS.entitlements";
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
@@ -308,6 +314,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_ENTITLEMENTS = "App/DemoBots-macOS.entitlements";
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
@@ -388,6 +395,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "App/DemoBots-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;

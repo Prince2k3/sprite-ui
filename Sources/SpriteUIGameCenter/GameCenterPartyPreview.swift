@@ -6,7 +6,21 @@ import Foundation
 @MainActor public final class GameCenterPartyPreview {
     /// The exact initial roster, including every local preview identity.
     public let players: [NetworkPeer]
-    private let network = InMemoryNetwork(maximumPeers: 8)
+    private let network: InMemoryNetwork
+    /// One-way delay for future packets. Negative/nonfinite values become zero.
+    public var latency: TimeInterval {
+        get { network.latency }
+        set { network.latency = newValue }
+    }
+    /// Seeded loss for unreliable packets only, clamped to 0...1. Reliable lobby traffic never drops.
+    public var unreliableLossRate: Double {
+        get { network.unreliableLossRate }
+        set { network.unreliableLossRate = newValue }
+    }
+    /// Packets awaiting delivery, bounded by the in-memory network's queue limit.
+    public var pendingMessageCount: Int { network.pendingMessageCount }
+    /// Payload bytes awaiting delivery, bounded by the in-memory network's byte limit.
+    public var pendingByteCount: Int { network.pendingByteCount }
     private struct Entry {
         let token: UUID
         let transport: InMemoryNetworkTransport
@@ -14,15 +28,38 @@ import Foundation
     }
     private var entries: [NetworkPeerID: Entry] = [:]
     private var route: String?
+    private struct Alarm { let deadline: TimeInterval; let order: UInt64; let action: @MainActor () -> Void }
+    private var nextAlarm: UInt64 = 0
+    private var isAdvancing = false
+    private var alarms: [UUID: Alarm] = [:]
 
     /// Creates a fixture for two through eight unique, valid identities.
-    public init(players: [NetworkPeer]) throws {
+    public init(players: [NetworkPeer], latency: TimeInterval = 0, unreliableLossRate: Double = 0, seed: UInt64 = 0) throws {
         guard (2...8).contains(players.count), Set(players.map(\.id)).count == players.count else { throw GameCenterServiceError.invalidData }
         for player in players { try validateGameCenterIdentifier(player.id.rawValue) }
         self.players = players.sorted { $0.id < $1.id }
+        network = InMemoryNetwork(latency: latency, unreliableLossRate: unreliableLossRate, seed: seed, maximumPeers: 8)
     }
-    /// Delivers pending lobby and replication packets. Even zero-latency messages need an advance.
-    public func advance(by seconds: TimeInterval = 0) { network.advance(by: seconds) }
+    /// Delivers packets and advances preview-only matchmaking/handoff deadlines on the same controlled clock.
+    /// Even zero-latency messages need an advance. Invalid advances do not deliver packets or fire timers.
+    public func advance(by seconds: TimeInterval = 0) {
+        guard !isAdvancing, seconds.isFinite, seconds >= 0, (network.currentTime + seconds).isFinite else { return }
+        isAdvancing = true
+        defer { isAdvancing = false }
+        network.advance(by: seconds)
+        let due = alarms.filter { $0.value.deadline <= network.currentTime }.sorted {
+            if $0.value.deadline != $1.value.deadline { return $0.value.deadline < $1.value.deadline }
+            return $0.value.order < $1.value.order
+        }
+        for (id, _) in due { alarms.removeValue(forKey: id)?.action() }
+    }
+    // Only party coordinators schedule timers; callers cannot enqueue arbitrary fixture work.
+    func schedule(after delay: TimeInterval, action: @escaping @MainActor () -> Void) -> @MainActor () -> Void {
+        let id = UUID()
+        nextAlarm &+= 1
+        alarms[id] = .init(deadline: network.currentTime + max(0, delay), order: nextAlarm, action: action)
+        return { [weak self] in self?.alarms[id] = nil }
+    }
 
     func match(activity: GameCenterActivity, player: NetworkPeer) async throws -> GameCenterPartyMatch {
         try Task.checkCancellation()

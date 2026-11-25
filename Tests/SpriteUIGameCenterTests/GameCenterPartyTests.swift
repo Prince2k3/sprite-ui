@@ -184,8 +184,23 @@ private let partyBob = NetworkPeer(id: .init(rawValue: "b"), displayName: "Bob")
         pair.a.party.handoffTimeout = 0.01
         try pair.a.party.startSession()
         try await Task.sleep(for: .milliseconds(30))
+        #expect(pair.a.party.state == .starting)
+        pair.preview.advance(by: 0.03)
         #expect(pair.a.party.state == .failed && pair.a.networkSession == nil)
     }
+    @Test func previewTimersAreOrderedCancelableAndRejectInvalidOrNestedAdvances() throws {
+        let preview = try GameCenterPartyPreview(players: [partyAlice, partyBob])
+        var fired: [Int] = []
+        let cancel = preview.schedule(after: 1) { fired.append(0) }; cancel()
+        _ = preview.schedule(after: 1) { fired.append(1); preview.advance(by: 10) }
+        _ = preview.schedule(after: 1) { fired.append(2) }
+        _ = preview.schedule(after: 2) { fired.append(3) }
+        preview.advance(by: .nan); preview.advance(by: -1); preview.advance(by: .infinity)
+        #expect(fired.isEmpty)
+        preview.advance(by: 1); #expect(fired == [1, 2])
+        preview.advance(by: 1); #expect(fired == [1, 2, 3])
+    }
+
 }
 
 @MainActor @Suite(.serialized) struct GameCenterPartyBoundaryTests {

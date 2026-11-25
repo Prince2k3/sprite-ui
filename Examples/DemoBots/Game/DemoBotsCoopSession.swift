@@ -44,6 +44,17 @@ private struct CoopRulesSystem: System {
     public var partyCode = "1234-5678"
     public var previewPartnerMoves = true
     public var previewPartnerFires = false
+    /// One-way delay in the local fixture; native Game Center delivery is unaffected.
+    public var previewLatency: TimeInterval = 0
+    /// Loss affects unreliable poses and movement only, never reliable handoff or final receipts.
+    public var previewLossRate = 0.0
+    /// Deterministically varies local packet delay from half to one-and-a-half times the base delay.
+    public var previewJitter = false
+    /// Pending packets observed during the most recent local-fixture advance.
+    public private(set) var previewPendingPackets = 0
+    /// Pending payload bytes observed during the most recent local-fixture advance.
+    public private(set) var previewPendingBytes = 0
+    private var previewClock = 0.0
     public var statistics: [NetworkPeerReplicationStatistics] { hostSession?.replicationStatistics ?? services.networkSession?.replicationStatistics ?? [] }
     public var canControl: Bool {
         guard phase == "playing", !finished, !busy else { return false }
@@ -116,7 +127,7 @@ private struct CoopRulesSystem: System {
         run { [self] in
             clearRuntime(); allServices.forEach { $0.party.leave() }
             if isPreview {
-                let fixture = try GameCenterPartyPreview(players: allServices.compactMap(\.localPlayer)); self.fixture = fixture
+                let fixture = try GameCenterPartyPreview(players: allServices.compactMap(\.localPlayer), latency: previewLatency, unreliableLossRate: previewLossRate, seed: 42); self.fixture = fixture; previewClock = 0
                 for service in allServices { try service.party.configurePreview(fixture) }
             } else { guard services.isAuthenticated else { throw GameCenterServiceError.notAuthenticated } }
             for service in allServices {
@@ -129,7 +140,7 @@ private struct CoopRulesSystem: System {
             localWorld = World(); partnerWorld = isPreview ? World() : nil
             try prepareWorlds(recovery: nil)
             message = isPreview ? "Local party prepared. Waiting for the baseline and fresh action epochs." : "Prepared. Wait for the other player; the host starts when both are ready."
-            if isPreview { try readyAndStart() }
+            if isPreview { try await readyAndStart() }
         }
     }
     /// Explicitly accepts a queued configured co-op invitation; never replaces an active round automatically.
@@ -208,15 +219,30 @@ private struct CoopRulesSystem: System {
             if let owner = player.components[SynchronizationComponent.self]?.owner { try interest?.setObserver(at: player.position, for: owner) }
         }
     }
-    private func readyAndStart() throws {
-        for _ in 0..<10 { fixture?.advance() }
+    private func readyAndStart() async throws {
         guard let hostServices else { throw GameCenterServiceError.notFound }
+        try await pumpPreview { hostServices.party.canStart }
         try hostServices.party.startSession()
+    }
+    // Preparation progresses a controlled clock instead of assuming zero-latency packet delivery.
+    private func pumpPreview(until ready: () -> Bool) async throws {
+        for _ in 0..<900 {
+            try Task.checkCancellation()
+            if ready() { return }
+            advance(deltaTime: 1.0 / 60)
+            await Task.yield()
+        }
+        throw GameCenterServiceError.timedOut
     }
     /// Advances each headless world exactly once; the display's GameView advances its separate local presentation world.
     public func advance(deltaTime: TimeInterval) {
         guard deltaTime.isFinite, deltaTime >= 0, deltaTime <= 0.25 else { return }
+        previewClock += deltaTime
+        let baseDelay = previewLatency.isFinite ? min(0.5, max(0, previewLatency)) : 0
+        fixture?.latency = baseDelay * (previewJitter ? 1 + 0.5 * sin(previewClock * 7) : 1)
+        fixture?.unreliableLossRate = previewLossRate
         fixture?.advance(by: deltaTime)
+        previewPendingPackets = fixture?.pendingMessageCount ?? 0; previewPendingBytes = fixture?.pendingByteCount ?? 0
         if let partnerWorld { partnerWorld.update(deltaTime: deltaTime) }; localWorld.update(deltaTime: deltaTime)
         guard !busy else { return }
         do {
@@ -386,17 +412,19 @@ private struct CoopRulesSystem: System {
             } else { saved = nil }
             try await matchBoth()
             if let saved, let hostServices { try hostServices.party.offerRecovery(saved); checkpoint = saved }
-            for _ in 0..<10 { fixture?.advance() }
+            if isPreview { try await pumpPreview { self.services.party.recoveryOffer != nil } }
             guard let descriptor = services.party.recoveryOffer else { message = "Fresh party matched. Accept the host's recovery offer when it arrives."; return }
-            try prepareRecovery(descriptor)
+            try await prepareRecovery(descriptor)
         }
     }
     /// Native clients explicitly accept the current offered descriptor after validating the game's compatibility ID.
     public func acceptRecoveryOffer() {
-        do { guard let descriptor = services.party.recoveryOffer else { throw NetworkRecoveryError.invalidCheckpoint }; try prepareRecovery(descriptor) }
-        catch { message = error.localizedDescription }
+        run { [self] in
+            guard let descriptor = services.party.recoveryOffer else { throw NetworkRecoveryError.invalidCheckpoint }
+            try await prepareRecovery(descriptor)
+        }
     }
-    private func prepareRecovery(_ descriptor: NetworkRecoveryDescriptor) throws {
+    private func prepareRecovery(_ descriptor: NetworkRecoveryDescriptor) async throws {
         guard descriptor.compatibilityID == Self.compatibility else { throw NetworkRecoveryError.incompatibleCheckpoint }
         if let checkpoint {
             let payload = try JSONDecoder().decode(CoopRecovery.self, from: checkpoint.applicationState)
@@ -405,7 +433,7 @@ private struct CoopRulesSystem: System {
         }
         clearRuntime(); localWorld = World(); partnerWorld = isPreview ? World() : nil; finished = false
         try prepareWorlds(recovery: descriptor)
-        if isPreview { try readyAndStart() }
+        if isPreview { try await readyAndStart() }
         message = "Approved round prepared. Wait for every returning baseline before input resumes."
     }
     private func stopControllers() {
@@ -415,7 +443,7 @@ private struct CoopRulesSystem: System {
     }
     private func clearRuntime() { stopControllers(); interest?.removeAllObservers(); interest = nil; visual = nil; held = .zero; facing = [1, 0]; hostBeamCooldown = 0; partnerBeamCooldown = 0 }
     /// Returns to the co-op menu and releases coordinators. It never changes the separate campaign save.
-    public func leave() { operation?.cancel(); operation = nil; generation &+= 1; busy = false; clearRuntime(); services.shutdown(); partner?.shutdown(); fixture = nil; phase = "menu"; message = "Co-op stopped. Start explicitly." }
+    public func leave() { operation?.cancel(); operation = nil; generation &+= 1; busy = false; clearRuntime(); services.shutdown(); partner?.shutdown(); fixture = nil; previewPendingPackets = 0; previewPendingBytes = 0; phase = "menu"; message = "Co-op stopped. Start explicitly." }
     private func run(_ work: @escaping @MainActor () async throws -> Void) {
         guard !busy else { return }; busy = true; generation &+= 1; let token = generation
         operation = Task { @MainActor [weak self] in
@@ -439,9 +467,11 @@ private struct CoopRulesSystem: System {
                 let visual = Entity(name: entity.name, components: sprite); displayWorld.addEntity(visual); displayed[id] = visual
             }
             let isLocal = entity.components[SynchronizationComponent.self]?.owner == services.localPlayer?.id
-            displayed[id]?.position = isLocal ? (visual?.position ?? entity.position) : entity.position
-            if usesArtwork, let frame { displayed[id]?.components[SpriteComponent.self]?.imageName = frame }
-            else { displayed[id]?.components[SpriteComponent.self]?.color = color }
+            let position = isLocal ? (visual?.position ?? entity.position) : entity.position
+            if displayed[id]?.position != position { displayed[id]?.position = position }
+            if usesArtwork, let frame {
+                if displayed[id]?.components[SpriteComponent.self]?.imageName != frame { displayed[id]?.components[SpriteComponent.self]?.imageName = frame }
+            } else if displayed[id]?.components[SpriteComponent.self]?.color != color { displayed[id]?.components[SpriteComponent.self]?.color = color }
         }
     }
 }

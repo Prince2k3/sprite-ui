@@ -88,7 +88,7 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     @ObservationIgnored var matchingTimeoutOverride: TimeInterval?
     @ObservationIgnored var synchronizationTimeoutOverride: TimeInterval?
     @ObservationIgnored private var watcher: EventSubscription?
-    @ObservationIgnored private var watchdog: Task<Void, Never>?
+    @ObservationIgnored private var watchdog: GameCenterPartyTimer?
     @ObservationIgnored var handoffTimeout: TimeInterval = 15
     private var phase = GameCenterPartyState.idle
     private var roster: [GameCenterPartyMember] = []
@@ -116,8 +116,7 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
         owner = operation; token = attempt; failedAttempt = nil; activity = handle.snapshot; lastError = nil
         phase = rejoining ? .rejoining : .matching
         let timeout = matchingTimeoutOverride ?? recoveryConfiguration.matchmakingTimeout
-        let matchingTimer = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: .seconds(timeout)) } catch { return }
+        let matchingTimer = makeTimer(after: timeout) { [weak self] in
             guard let self, self.token == attempt, self.phase == .matching || self.phase == .rejoining else { return }
             self.fail(GameCenterServiceError.timedOut)
         }
@@ -338,8 +337,7 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
         guard selectedRecovery != nil else { phase = .playing; interruption = nil; return }
         phase = .resynchronizing
         let expected = token, delay = synchronizationTimeoutOverride ?? recoveryConfiguration.resynchronizationTimeout
-        watchdog = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+        watchdog = makeTimer(after: delay) { [weak self] in
             guard let self, self.token == expected, self.phase == .resynchronizing else { return }
             self.fail(GameCenterServiceError.timedOut)
         }
@@ -360,11 +358,18 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     }
     private func startWatchdog() {
         let expected = token, delay = handoffTimeout
-        watchdog = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+        watchdog = makeTimer(after: delay) { [weak self] in
             guard let self, self.token == expected, self.phase == .starting else { return }
             self.fail(GameCenterServiceError.timedOut)
         }
+    }
+    private func makeTimer(after delay: TimeInterval, action: @escaping @MainActor () -> Void) -> GameCenterPartyTimer {
+        if context.isPreview, let preview { return .init(cancel: preview.schedule(after: delay, action: action)) }
+        let task = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            action()
+        }
+        return .init(cancel: { task.cancel() })
     }
     private func synchronize() {
         guard let owner else { return }
@@ -395,4 +400,12 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
         revision = 0; remoteRevisions = [:]; launchID = nil; acknowledgments = []
         recoveryOffer = nil; offeredCheckpoint = nil; selectedRecovery = nil; synchronizedPeers = []; sentSynchronization = false
     }
+}
+
+// Native timers use elapsed wall time. Account-free fixtures use their explicit simulation clock.
+@MainActor private final class GameCenterPartyTimer {
+    private var cancelAction: (@MainActor () -> Void)?
+    init(cancel: @escaping @MainActor () -> Void) { cancelAction = cancel }
+    func cancel() { let action = cancelAction; cancelAction = nil; action?() }
+    isolated deinit { cancelAction?() }
 }

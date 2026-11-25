@@ -21,6 +21,9 @@
                 In a new round, save a recovery point after a hit. Advance the round further, then interrupt while movement or a shot is pending. Rejoin saved round explicitly. The fresh party must apply its baseline before playing. The earlier corruption/score/time returns, but old held movement and pending beam effects do not run again. The campaign checkpoint remains separate.
             }
             @Step {
+                Set Delay near 60 ms, Unreliable loss near 55%, and enable Vary packet delay. Start or rejoin a local round, move, stop, and fire. Wait for final receipts, inspect the bounded queue, and confirm both shared progress and recovery still settle. Reliable messages do not drop; native delivery still needs separate signed tests.
+            }
+            @Step {
                 Fold and unfold Duo while playing: the arena resizes and touch input cancels without replacing the network worlds. Background, then return. The round remains interrupted; foregrounding does not reconnect or resume held controls. Leave co-op to return to the campaign home menu.
             }
         }

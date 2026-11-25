@@ -95,4 +95,43 @@ import Testing
         #expect(game.confirmedBeams == count + 1)
         controls.suspend()
     }
+    @Test func delayedLossyPartyConvergesAndRecoveryStartsWithFreshInput() async throws {
+        let game = DemoBotsCoopSession(usesArtwork: false)
+        game.previewPartnerMoves = false; game.previewLatency = 0.06; game.previewLossRate = 0.55; game.previewJitter = true
+        game.start(); defer { game.leave() }
+        for _ in 0..<1500 { await coopPump(game, 1); if game.canControl { break } }
+        try #require(game.canControl, Comment(rawValue: game.message))
+        #expect(game.services.party.state == .playing && game.partner?.party.state == .playing)
+        game.move([1, 0]); await coopPump(game, 90); game.move(.zero)
+        await coopPump(game, 180)
+        let owner = game.services.localPlayer!.id
+        let hostActor = try #require(game.partnerWorld?.entities.first { $0.components[SynchronizationComponent.self]?.owner == owner })
+        let replica = try #require(game.localWorld.entities.first { $0.components[SynchronizationComponent.self]?.owner == owner })
+        #expect(hostActor.position.x > -130 && abs(hostActor.position.x - replica.position.x) < 0.1)
+        game.fire(); await coopPump(game, 150)
+        #expect(game.confirmedBeams == 1 && game.pendingActions == 0)
+        let damaged = game.partnerWorld!.entities.compactMap { $0.components[CoopActor.self] }.filter { $0.kind == .bot && $0.corruption == 50 }
+        #expect(damaged.count == 1)
+        game.saveRecoveryPoint(); try #require(game.hasRecoveryPoint)
+        let position = hostActor.position, oldWorld = game.localWorld
+        game.move([1, 0]); game.fire(); game.interrupt(); await coopPump(game, 60)
+        #expect(!game.canControl && game.pendingActions == 0)
+        game.rejoinSavedRound()
+        for _ in 0..<1500 { await coopPump(game, 1); if game.canControl { break } }
+        try #require(game.canControl, Comment(rawValue: game.message))
+        #expect(game.localWorld !== oldWorld && game.score == 0 && game.cured == 0)
+        let restored = try #require(game.partnerWorld?.entities.first { $0.components[SynchronizationComponent.self]?.owner == owner })
+        await coopPump(game, 240)
+        #expect(restored.position == position && game.pendingActions == 0 && game.confirmedBeams == 1)
+        #expect(game.previewPendingPackets < 1024 && game.previewPendingBytes < 4 * 1024 * 1024)
+        game.leave(); #expect(game.previewPendingPackets == 0 && game.previewPendingBytes == 0)
+    }
+    @Test func leavingDelayedPreparationDoesNotReviveControllersOrPendingPackets() async {
+        let game = DemoBotsCoopSession(usesArtwork: false); game.previewLatency = 0.3; game.start()
+        for _ in 0..<20 { await coopPump(game, 1) }
+        game.leave(); await coopPump(game, 240)
+        #expect(game.phase == "menu" && !game.busy && !game.canControl && game.pendingActions == 0)
+        #expect(game.services.networkSession == nil && game.partner?.networkSession == nil && game.previewPendingPackets == 0)
+    }
+
 }
