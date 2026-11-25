@@ -1,14 +1,14 @@
-# Activity parties and session handoff
+# Bring an activity party into a game
 
-Match an activity's party, prepare independent worlds, and commit an explicit transition into entity replication.
+Two friends have entered the same party code. One has loaded the arena; the other is still downloading it. Starting now would put them in different games. A party lets them meet first, prepare their own worlds, and begin together.
 
-## Retain the party with your services
+## Keep the lobby alive while screens change
 
-``SpriteUI/GameCenterServices`` owns ``SpriteUI/GameCenterParty`` as `.party`. Use the optional SpriteUIGameCenter product, or the complete SpriteUI product. Native activity matching requires iOS/macOS 26+, authentication, and a configured activity that supports party codes and a valid peer-to-peer player range. Account-free fixtures work on the package's iOS 18/macOS 15 baseline.
+Treat ``SpriteUI/GameCenterServices`` like shared SwiftUI app state. Retain it above both the lobby and the game, with one `.gameCenter(services)` modifier on that stable parent. Moving the modifier with a temporary screen can shut the services down when that screen disappears.
 
-Construction, view appearance, and installing `.gameCenter(services)` never authenticate, match, ready a player, or attach a world automatically. Keep one facade and one modifier on a stable application parent that survives the switch from lobby to gameplay. ``SpriteUI/GameCenterPartyView`` provides optional explicit controls; it does not prepare content or choose which game view to show.
+The party is available as `services.party`. ``SpriteUI/GameCenterPartyView`` can show its controls, while your app chooses which game view to present. Configure known activity routes before sign-in so an incoming invitation has somewhere to wait.
 
-Configure activity routes before sign-in. Create or accept a known activity only after checking definition ID, routing properties, progression, and content readiness. An incoming activity stays queued until the game accepts it. The following complete factory configures routing without native work. Present `.signIn` from an application action before using live services.
+This factory registers the arena route. It leaves sign-in to a later player action.
 
 ```swift
 import SpriteUIGameCenter
@@ -21,13 +21,9 @@ func makeArenaServices() throws -> GameCenterServices {
 }
 ```
 
-## Match the activity, not a separate generic request
+## Find the friends who share this activity
 
-For a new party, explicitly load definitions and start an activity using its definition ID. `activities.start(definitionID:partyCode:properties:)` can create or join an application-entered valid code; omitting a custom code allows a supporting native definition to supply one. For an invitation, validate the queued request and call `activities.accept(request:)`. Then explicitly await `party.findMatch()` on each participant.
-
-The live adapter uses the **same GKGameActivity instance** to make its request and find its match. This preserves the native party code, definition player counts, and other matchmaking information. It shares the existing multiplayer coordinator's full-roster waiting, cancellation generations, delegate handoff, transport, and deterministic host election. It does not hash a code into an unrelated `playerGroup`. See Apple's [activity matchmaking API](https://developer.apple.com/documentation/gamekit/gkgameactivity/findmatch(completionhandler:)).
-
-This complete helper starts a configured activity and matches it. It never replaces the caller's world. For an accepted incoming activity, call only `party.findMatch()`; do not create a second activity.
+Load the activity definitions, start the arena activity, then ask its party to find a match. A supplied code joins the matching activity party; omitting a code lets a supporting native definition provide one.
 
 ```swift
 import SpriteUIGameCenter
@@ -41,17 +37,19 @@ func joinArenaParty(using services: GameCenterServices, code: String) async thro
 }
 ```
 
-A complete party contains two through eight players, including the local player. The fixed roster elects the lexically smallest authenticated peer ID as host, matching SpriteUI's ordinary real-time policy. Pending players cannot form a partial host election. A required departure ends the party; there is no late roster growth, automatic retry, reconnection, or host migration.
+For an invitation, check the queued request's level, progression requirements, and content before calling `activities.accept(request:)`. Then call only `party.findMatch()`: starting another activity would abandon the invitation's context.
 
-The party reserves its activity until `leave()`. Ordinary facade matchmaking/session attachment cannot overlap it. While reserved, activity finish/discard and replacement are rejected. Result staging remains available; leaving itself neither reports nor discards staged scores. Native matching does not start sign-in. Sign-in cancellation and multiplayer restrictions remain explicit failures.
+Live matching uses the same `GKGameActivity` that holds the code and player counts. This keeps the party together through Apple's [activity matchmaking API](https://developer.apple.com/documentation/gamekit/gkgameactivity/findmatch(completionhandler:)). It is a different entry path from generic matchmaking.
 
-## Prepare first, then advertise readiness
+The complete roster contains two through eight players. SpriteUI chooses the smallest authenticated peer ID in sorted order as host, after everyone has arrived. That host will own the shared game state.
 
-Retain each prepared ``SpriteUI/World`` in the application. `party.prepare(in:compatibilityID:schema:configuration:)` stores a **weak** world reference and the selected replication schema without starting a session or changing the presented game. It resets the local ready flag. The compatibility ID must cover the game's level/content version and network protocol; SpriteUI does not derive a schema fingerprint or verify downloaded assets. Register matching wire names and formats on all peers.
+## Load the arena before saying ready
 
-Call `setReady(true)` only after local preparation and validation succeed. Ready state and compatibility IDs are shared with the fixed roster. The host's `canStart` stays false if anyone is unready, has another compatibility ID, or its prepared world was released. A player can withdraw readiness or prepare a replacement while still in the lobby. Readiness is cooperation between authenticated peers, not an anti-cheat authority.
+Each player creates and retains a separate ``SpriteUI/World``. Preparing it tells the party which world and replication schema to use later; it neither starts simulation nor changes the screen. The party holds the world weakly, so your app must keep it alive.
 
-These complete helpers keep preparation, readiness, and the host action separate. The application retains the world and controls its own loading error and retry UI.
+Use a compatibility ID that identifies both the level/content version and the network protocol. A matching string does not check downloaded assets for you. Load and validate them before setting readiness.
+
+These three helpers follow the player's choices: prepare the arena, say ready, and let the host start.
 
 ```swift
 import ECSCore
@@ -75,19 +73,21 @@ func startReadyArena(using services: GameCenterServices) throws {
 }
 ```
 
-The prepared world must be free for its new NetworkSession. An occupied world fails without stopping its existing session. If content loading is asynchronous, cancel that application-owned task when leaving and recheck the activity/party identity after each await before calling prepare; a completed old loader must not prepare a newer lobby. Host entities opt into replication through SynchronizationComponent; client-local cameras and artwork remain local. A schema default includes inert transforms, not SpriteComponent visuals, physics, or runtime services. See <doc:game-center-sessions-and-replication> for validation, host command authority, and content setup.
+The schema must use the same names and formats on every player. Host entities opt into replication with `SynchronizationComponent`; cameras and other local presentation stay local. The default schema sends transforms, so prepare artwork and gameplay services separately. See <doc:game-center-sessions-and-replication> for choosing shared state.
 
-## Commit the handoff
+A player can withdraw readiness or prepare a replacement while in the lobby. `canStart` remains false until everyone is ready with matching compatibility IDs and a retained prepared world. If loading uses an asynchronous task, cancel it on leave and recheck the party identity after each wait so an old load cannot prepare a newer lobby.
 
-Only the local host can request `startSession()` after all matching ready flags arrive. Its phase becomes `.starting`. Clients attach their prepared worlds and acknowledge the launch; the host sends a play commit only after every member acknowledges. Each phase is observable through ``SpriteUI/GameCenterPartyState``. `services.party.networkSession` and `services.networkSession` expose the attached session; **wait for `.playing` before switching game presentation or running authoritative gameplay rules**.
+## Change screens after everyone attaches
 
-A party-owned channel keeps lobby control separate from NetworkSession's callback and bounds early replication traffic during handoff. Control packets are limited to 4,096 encoded bytes; early replication is limited to 64 packets and 196,608 bytes. Sender identity comes from the transport, not packet fields. Definition, code, and complete roster must match; only the elected host may launch/commit. Late cancelled matches are disconnected, while duplicate completions cannot disconnect an already-owned native match. A 15-second handoff timeout prevents indefinite partial attachment.
+The host calls `startSession()`. The party enters `.starting`, clients attach their prepared worlds, and each acknowledges the launch. Only after all acknowledgments does the host commit play.
 
-NetworkSession installs its usual world system. Presenting/advancing the prepared world then advances replication. A headless world needs explicit `world.update` or the existing session-update policy. Do not double-update a session already driven by its world. Keep application simulation paused or offscreen until playing; attaching replication is not itself a presentation swap. Lobby changes and matching never mutate the old world.
+Wait for `.playing` before presenting gameplay or running the host's game rules. An attached `networkSession` alone is too early. During handoff, keep networking advancing: a running world's installed system handles this, while a headless or paused world needs the app's chosen update path. Update each session only once per frame.
 
-## Practice with two explicit identities
+## Try the lobby with two local players
 
-``SpriteUI/GameCenterPartyPreview`` is a shared, in-process fixed-roster byte fixture. Both facades must receive the same retained fixture and start/accept activities with the same definition and code. It does not access Apple, invent an opponent, or connect across processes. Advance its clock to deliver messages; even zero-latency packets wait for an advance. Use this complete helper with caller-retained worlds, then prepare, ready, and start through the APIs above.
+``SpriteUI/GameCenterPartyPreview`` lets two independent services exchange messages in one process. Both must share the retained fixture, activity definition, and code. Advancing its clock delivers messages, including those with zero delay.
+
+This helper creates Alice and Bob and matches them. Keep both worlds in the app, then use the preparation and readiness steps above.
 
 ```swift
 import ECSCore
@@ -113,14 +113,12 @@ func makePracticeParty() async throws -> (GameCenterServices, GameCenterServices
 }
 ```
 
-The showcase's Party matchmaking lab and <doc:joining-an-activity-party> retain both worlds, pump the fixture, and show a host actor replicated into the client world. They also let Bob advertise a different level version to block start and preserve an independent campaign counter through folding and handoff.
+The showcase's Party matchmaking lab lets Bob choose a different level version so you can see why start is blocked. It also shows a host actor arriving in the separate client world after handoff.
 
-## Leave, fail, and verify deliberately
+## Limits and leaving
 
-`party.leave()` cancels pending matchmaking, stops its replication, clears the lobby and weak world, releases the activity reservation, and disconnects the party transport. It retains the activity's staged results for the game's explicit finish/discard policy. `services.disconnect()` also leaves a party; `shutdown()` retires all services. Account changes, an externally ended activity, a stopped/failed session, invalid lobby control, and a required peer departure retire the party. Cancellation is not score rollback or remote delivery confirmation.
+Native activity parties require iOS/macOS 26+, authentication, and a configured party-capable activity with a valid player range. The local fixture works on iOS 18/macOS 15. Signed two-account verification remains pending; fixture results do not establish native invitations or delivery.
 
-Local host entities remain after NetworkSession teardown; client replicas are removed. The app owns restoring gameplay presentation, disabling simulation, releasing prepared content, and choosing whether to restart. A preview clock or native callback can complete later, but retired generations cannot replace a newer party. Do not automatically retry native matchmaking or attempts.
+The roster stays fixed. A required departure ends the party; there is no automatic retry, reconnection, or host migration. A reserved activity cannot be replaced, finished, or discarded until `leave()`, and ordinary matchmaking/session attachment cannot overlap the party. Handoff has a 15-second timeout. Lobby control packets allow 4,096 encoded bytes; early replication allows 64 packets and 196,608 bytes.
 
-Native verification remains separate: configure signed resources and two accounts; test sharing/entering one party code, cold/warm invitation routing, full-roster waiting, matching compatibility, cancelling and retrying, readiness withdrawal, the host commit, remote replication, disconnect, account change, and lower-OS availability. Account-free fixture success does not establish native invites, network quality, entitlement configuration, or cross-device delivery.
-
-For explicit checkpoint recovery, background interruption, fresh same-roster matches, and client-baseline acknowledgment, continue with <doc:multiplayer-recovery-and-rejoining>. Recovery remains application-approved and does not enable host migration.
+`leave()` stops party replication, disconnects, and releases preparation. It preserves staged scores for your finish/discard choice. Host entities remain; client replicas are removed. Your app stops simulation and chooses the next screen. For resuming a saved round with the original players, read <doc:multiplayer-recovery-and-rejoining>.

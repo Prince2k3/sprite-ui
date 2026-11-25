@@ -1,84 +1,102 @@
-@Tutorial(time: 25) {
-    @Intro(title: "Steering and collision-aware movement") {
-        Use ``AgentGoal`` to accelerate an ``Agent2D``, then let ``CharacterControllerComponent`` resolve its movement against a wall. Inspect the direct route and finally follow an ``AgentPath`` around the obstruction.
+@Tutorial(time: 20) {
+    @Intro(title: "4. Guide a character around a wall") {
+        A character may know where it wants to go and still need help getting there. First steer toward a destination, then add a wall, inspect the blockage, and supply a route around it.
 
-        @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
+        This lesson uses an automatically moving character so you can focus on the difference between choosing movement and checking collisions.
+
+        @Image(source: "spriteui-steering-04-preview.svg", alt: "A preview of the scene you will build in this lesson.")
     }
 
-    @Section(title: "Compute a steering force each frame") {
+    @Section(title: "Choose a direction toward the destination") {
         @ContentAndMedia {
-            Complete <doc:moving-with-systems-and-input> first. Each step supplies a complete replacement `ContentView.swift` with an explicitly main-actor scene, system, and ContentView. Use one stage at a time in the existing iOS 18 or macOS 15 host app; keep the app entry point's `ContentView()` unchanged. No physics body or external asset is required.
+            An ``Agent2D`` describes position, velocity, and movement limits. An ``AgentGoal`` calculates a steering force. The arrival goal slows the character as it gets near the destination instead of keeping its full speed.
 
-            Steering describes desired motion. A goal returns a force; the agent integrates that force with speed and force limits. This tutorial uses the pure value APIs in a custom system so there is one clear owner of position changes.
-
-            @Image(source: "spriteui-steering-collision.svg", alt: "A direct route crosses a wall; an alternate route passes above it.")
+            The sample's system applies that force, advances the agent, and places the visible player at the resulting position.
         }
 
         @Steps {
             @Step {
-                Replace the contents of `ContentView.swift` with the first stage. Its motion component stores an agent and a destination. Before each integration, copy the entity's current scene position into the agent, compute `AgentGoal.arrive`, then call the agent's `apply` method with the simulation delta time.
+                Run stage one. The cyan square moves toward the green marker and slows near it. Find the arrival goal, the agent update, and the position assignment in the system.
 
-                Commit the predicted position to the root entity. The agent's maximum speed is 70 points per second; its force limit controls acceleration. A 45-point slowing radius reduces speed near the destination. Run the app: the cyan player approaches the green marker and settles near it. Restart route resets both position and agent velocity.
+                Restart route puts both the player and its velocity back at the start.
 
                 @Code(name: "ContentView.swift", file: "spriteui-steering-01.swift") {
-                    @Image(source: "spriteui-steering-01-preview.svg", alt: "Diagram: Arrival steers toward the destination.")
+                    @Image(source: "spriteui-steering-01-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                Change the slowing radius and watch when the player begins to slow down. Steering controls the desired motion; there is no wall yet to stop it.
             }
         }
     }
 
-    @Section(title: "Resolve requested displacement against a wall") {
+    @Section(title: "Check whether the character can move there") {
         @ContentAndMedia {
-            A character controller sweeps a convex shape through the scene, recovers initial overlaps, and stops or slides at colliders. Its movement method uses scene space by default. Collision response requires both objects' filters to allow each other; these samples use the default filters.
+            A steering goal does not prevent movement through walls. Add a ``CharacterControllerComponent`` to represent the player's physical outline and a ``CollisionComponent`` to represent the wall.
 
-            Keep this system as the only writer of character movement: don't simultaneously install a steering system that directly commits another position, or attach a dynamic physics body. The controller radius is 14; the square sprite is only its visual representation. A failed move resets velocity and records the error; unresolved overlap also stops velocity.
+            Instead of assigning the desired position directly, ask `moveCharacter(by:)` to move the character. It checks the requested displacement and stops or slides where the character meets a collider.
         }
 
         @Steps {
             @Step {
-                Replace the contents of `ContentView.swift` with this stage. Add a circular character controller to the player and an orange wall with a rectangular CollisionComponent. The wall needs no physics body. Replace the direct position assignment with `moveCharacter(by:)`, passing the predicted displacement. After the move, replace the agent's predicted pose with the entity's accepted scene pose. Remove inward velocity along contact normals so blocked velocity does not accumulate.
+                Use stage two. The player reaches the orange wall and cannot pass through it. Find the call to `moveCharacter(by:)`, then the code that copies the accepted position back to the agent.
 
-                Run the app. The character reaches the left side of the wall and can slide along it, but the direct arrival goal cannot carry it through the wall. Collision response provides a movement constraint; reaching a destination behind an obstacle also needs a route.
+                This system owns the character's movement. It does not also attach a dynamic physics body that would try to move the same entity.
 
                 @Code(name: "ContentView.swift", file: "spriteui-steering-02.swift", previousFile: "spriteui-steering-01.swift") {
-                    @Image(source: "spriteui-steering-02-preview.svg", alt: "Diagram: The controller stops and slides at the wall.")
+                    @Image(source: "spriteui-steering-02-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                The destination has not changed, yet the player cannot reach it. That is expected: a collision check can refuse a blocked move, but it cannot invent a route around the wall.
             }
         }
     }
 
-    @Section(title: "Inspect the direct route with a scene query") {
+    @Section(title: "Ask what is in the way") {
         @ContentAndMedia {
-            Scene collision queries read current model transforms and work without a renderer. A ray checks a line, while a shape sweep accounts for the character's width. Targeted gestures instead use displayed transforms. Use each coordinate source for its intended job.
+            A raycast checks a line through the scene and reports the colliders it meets. It is useful for questions such as whether a wall blocks the direct line to a target.
+
+            The sample excludes the player from its own query. The destination is only a visual marker, so the wall is the object the query reports.
         }
 
         @Steps {
             @Step {
-                Replace the contents of `ContentView.swift` with this stage. Add an Inspect direct line to destination button. Its scene method obtains the player's current world and raycasts toward the destination, excluding the player's exact entity ID so the cast doesn't immediately hit its own controller shape.
+                Use stage three and press Inspect direct line to destination. Read the result before the character reaches the wall and again after it stops.
 
-                Inspect before or after the player reaches the wall. The label reports Direct line meets wall. The green marker has no collider, so it doesn't count as an obstruction. A clear ray alone does not prove there is enough clearance for the whole character; the controller still performs shape-aware movement. If movement throws, this same inspector displays its recorded error.
+                A ray has no width. Even if it misses a wall, your whole character may not fit. Keep the character controller responsible for the actual movement.
 
                 @Code(name: "ContentView.swift", file: "spriteui-steering-03.swift", previousFile: "spriteui-steering-02.swift") {
-                    @Image(source: "spriteui-steering-03-preview.svg", alt: "Diagram: A raycast reports the wall on the direct route.")
+                    @Image(source: "spriteui-steering-03-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                Compare the question asked by the raycast with the question asked by the controller. One checks a line to the target. The other checks whether a shape can complete this frame's move.
             }
         }
     }
 
-    @Section(title: "Follow an explicit route around the wall") {
+    @Section(title: "Give the character a route") {
         @ContentAndMedia {
-            An open AgentPath supplies the route. The follower steers toward points ahead on it and arrives at its final point. Waypoints in this example leave room above the wall for a circular character; path radius is the follower's route tolerance, not a replacement collision shape.
+            An ``AgentPath`` is a list of points to follow. This path goes above the fixed wall before turning toward the destination. The follow goal chooses motion along that route, while the controller still checks each move.
+
+            For changing levels, a pathfinding graph can calculate those points. Here you supply them yourself so the roles remain easy to see.
         }
 
         @Steps {
             @Step {
-                Replace the contents of `ContentView.swift` with this stage. Store an open path through four points: the starting point, two points at y = 120 above the wall, and the destination. Replace the arrival force with `AgentGoal.follow` using a short look-ahead of 0.12 seconds. Keep the same controller movement and accepted-pose reconciliation.
+                Use the final stage. The player travels above the wall and down toward the destination. Compare its path points with the wall's position.
 
-                Run the app. The character travels up the left side, passes above the wall, and descends toward the green destination. Restart and inspect early in the route: the direct ray can remain blocked while the indirect path is usable. The route is authored for this fixed wall; adapting to changing obstacles requires a separate route-planning policy. The controller remains the final constraint on every requested move.
+                The route allows room for the character's radius. The path's own radius describes how closely to follow the route; it does not replace the collision shape.
 
                 @Code(name: "ContentView.swift", file: "spriteui-steering-04.swift", previousFile: "spriteui-steering-03.swift") {
-                    @Image(source: "spriteui-steering-04-preview.svg", alt: "Diagram: A path carries the character above the wall.")
+                    @Image(source: "spriteui-steering-04-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                Restart and inspect the direct line early in the trip. It can still be blocked while the route around the wall works.
+
+                You now have three separate tools: a goal chooses movement, a route supplies intermediate destinations, and a controller checks collisions. Continue with <doc:switching-levels-with-persistent-players> to organize a larger game.
             }
         }
     }

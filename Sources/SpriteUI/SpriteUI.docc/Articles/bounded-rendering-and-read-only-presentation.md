@@ -1,26 +1,14 @@
-# Bounded rendering and read-only presentation
+# Adjust drawing quality and show a second copy of the game
 
-Control render-target quality and publish completed game frames without adding another simulation or input host.
+A game might need a lower-resolution battery-saving mode and a small spectator preview beside its main view. Changing quality should keep the match in progress. The preview should show the match rather than start another simulation.
 
-## Opt into one retained Metal host
+Use ``SpriteUI/GameRenderConfiguration`` to request drawing quality and ``SpriteUI/GamePresentationSource`` to share finished game pixels. A ``SpriteUI/GamePresentationView`` displays those pixels without taking input or running a world.
 
-``SpriteUI/GameView`` accepts `rendering: GameRenderConfiguration? = nil`, `renderMonitor: GameRenderMonitor? = nil`, and `presentation: GamePresentationSource? = nil` after `viewports:` and before the remaining host options, in both initializers. Supplying any of these options selects Metal. That selection lasts for the host's lifetime: changing quality or later passing nil never switches clock drivers. Existing `GameView` calls with all three nil and no viewports keep the legacy SKView path. A nonnil `viewports` array also selects Metal; an empty array uses an automatic full-canvas viewport.
+## Lower resolution without moving controls
 
-Keep the `GameView` identity stable when updating quality. The main-world backend has one observer; do not attach two `GameView` hosts to the same `World`. Use ``SpriteUI/GamePresentationView`` for additional views of an existing frame. Follow <doc:bounding-rendering-and-sharing-presentation> for three standalone stages.
+Resolution scale changes how many pixels draw the game, not the logical size of its scene. Cameras, touch coordinates, safe areas, and attachment anchors stay in points. SwiftUI attachments retain native resolution.
 
-## Bound the render plan
-
-``SpriteUI/GameRenderConfiguration`` is `Hashable`, `Codable`, and `Sendable`. Its initializer accepts:
-
-| Argument | Default | Meaning |
-| --- | --- | --- |
-| `resolutionScale` | `1` | Requested fraction of native drawable resolution, clamped to `0.1...1` |
-| `preferredFramesPerSecond` | `60` | Requested cadence, clamped to `15...240`; the engine caps stale frame deltas at 1/15 second |
-| `maximumRenderPixels` | `16_777_216` | Aggregate pixel budget, clamped to `64...268_435_456`, for the canvas, all pane targets, and three presentation buffers when publishing |
-| `maximumTextureDimension` | `8192` | Per-target dimension limit, clamped to `1...16384` |
-| `adaptsToSystemPressure` | `false` | Opt into native thermal and low-power caps |
-
-The planner can reduce effective resolution below the requested scale to fit its pixel and dimension limits. Budget the canvas plus every pane target, including overlapping panes, and the source's three-buffer pool. This is a bounded render-plan reservation, not a limit on global GPU memory or a measurement of actual allocations. SpriteKit/Metal SDK caches, drawable storage, other resources, and in-flight buffers can add memory beyond the plan. Nonfinite resolution scales normalize to 1, and decoding applies the same validation as the initializer. Resolution does not resize the scene's logical points, cameras, input coordinates, safe areas, reserved regions, or attachment anchors. SwiftUI attachments stay at native resolution and are excluded from published game pixels.
+This view requests 75% resolution and 30 frames per second. It also limits the render targets and allows lower settings under system pressure.
 
 ```swift
 import SpriteUI
@@ -43,9 +31,17 @@ struct BoundedArena: View {
 }
 ```
 
-## Resolve pressure deterministically
+`resolutionScale` defaults to 1 and accepts 0.1 through 1. `preferredFramesPerSecond` defaults to 60 and requests 15 through 240; the device determines the achieved rate. A lower drawing rate does not configure fixed simulation; see <doc:fixed-step-simulation-and-interpolation> for that.
 
-``SpriteUI/GameRenderEnvironment`` takes `thermalState` (`.nominal`, `.fair`, `.serious`, or `.critical`, default `.nominal`) and `isLowPowerModeEnabled` (default false). `configuration.resolved(in:)` makes the policy independently inspectable. With adaptation enabled, serious pressure caps scale at 0.75 and FPS at 30; critical caps scale at 0.5 and FPS at 20. Low-power mode caps FPS at 30. Combined caps take the stricter value and never raise the requested scale or frame rate. Nominal and fair add no pressure cap. With adaptation disabled, pressure does not alter the request.
+`maximumRenderPixels` budgets the canvas, every pane target, and three presentation buffers when publishing. `maximumTextureDimension` limits each target's width and height. The planner can reduce resolution below the requested scale to fit both limits. Larger or overlapping viewports still consume target pixels.
+
+Keep the `GameView` identity stable when changing settings. Rendering options select a Metal host for its lifetime, so quality changes keep the world and its clock. A plain view with no viewport, rendering, monitor, or presentation options keeps the SKView path.
+
+## Let a warm device ask for less work
+
+Set `adaptsToSystemPressure` to true to use the host's thermal and low-power information. Serious thermal pressure caps scale at 0.75 and cadence at 30 FPS; critical pressure caps them at 0.5 and 20 FPS. Low-power mode caps cadence at 30 FPS. Combined limits use the stricter request and never raise your chosen settings.
+
+You can inspect that policy without heating a device. This helper asks how the configuration resolves under serious pressure.
 
 ```swift
 import SpriteUI
@@ -61,32 +57,19 @@ func seriousPressureExample() -> GameRenderConfiguration {
 }
 ```
 
-A constructed environment is a policy fixture. The live host queries native system pressure; it does not infer Duo hardware, folding posture, thermal state, or low-power mode from model names or fixed screen dimensions.
+The live host reads system pressure. A constructed ``SpriteUI/GameRenderEnvironment`` is useful for trying the policy; it is not a measurement of a device.
 
-## Observe only the statistics you need
+## Inspect the quality being used
 
-Retain an observable ``SpriteUI/GameRenderMonitor`` and pass it as `renderMonitor:`. Its read-only `latest: GameRenderStatistics?` is nil until statistics are available. Passing nil avoids SwiftUI statistics updates. `monitor.isEnabled = false` retains the latest snapshot while stopping new recordings; `monitor.clear()` discards it. `showsStatistics` remains the separate native overlay option.
+Retain a ``SpriteUI/GameRenderMonitor`` and pass it to `renderMonitor:` when a settings screen needs statistics. Its `latest` value starts nil. `effectiveResolutionScale` and `drawableSize` show the result after limits; `logicalSize` remains the point size of the game.
 
-| `GameRenderStatistics` field | Meaning |
-| --- | --- |
-| `logicalSize` | Canvas size in points (`CGSize`) |
-| `drawableSize` | Planned drawable size in pixels (`CGSize`) |
-| `renderedViewportCount` | Viewports actually rendered |
-| `renderPixels` | Aggregate pixels reserved by the bounded render plan |
-| `estimatedRenderTargetBytes` | `4 * renderPixels`, an RGBA target reservation estimate, not actual global GPU allocation |
-| `effectiveResolutionScale` | Scale after pressure, dimension, and budget limits |
-| `preferredFramesPerSecond` | Effective requested cadence, not measured achieved FPS |
-| `frameNumber` | Primary rendering frame number |
-| `presentationFrameCount` | Published presentation-frame count |
-| `droppedPresentationFrames` | Mirror publications skipped when no safe buffer can be reused |
+`renderPixels` reports the planned target pixels, and `estimatedRenderTargetBytes` estimates their RGBA storage. `preferredFramesPerSecond` is the effective request rather than a measured frame rate. `renderedViewportCount`, frame numbers, and publication counts describe drawing work; use `WorldEvents.Update` deltas to inspect simulation time.
 
-Use actual `WorldEvents.Update` deltas to inspect simulation time. Frame numbers, publication counts, and individual mirror redraws measure different work; none proves a separate world tick.
+Pass nil when no screen needs monitor updates. Disabling a monitor retains its last snapshot; `clear()` removes it.
 
-## Publish one existing pane or the full canvas
+## Display finished frames in another view
 
-Retain an observable ``SpriteUI/GamePresentationSource``. `GamePresentationSource(viewportID: "left")` selects an existing pane by stable ID; `GamePresentationSource()` selects the composed full canvas. `viewportID` is an immutable choice. A source does not create a new camera or render a missing pane. Its read-only `isAvailable`, `pixelSize`, and `frameNumber` describe completed game pixels, independent of any external-display role.
-
-One primary host owns the source's publisher lease. Multiple `GamePresentationView(source:)` consumers can share that source. A second host cannot take its publishing ownership while leased. The source uses a bounded pool of three private GPU buffers and publishes completed frames only. A buffer leased by unfinished GPU work is never overwritten or reused; if none is safe, publishing drops a mirror frame instead of blocking or advancing the world. The monitor exposes those drops.
+Retain a presentation source and pass it to the main game view. Other views can then show that source. This example puts a smaller copy below the live game.
 
 ```swift
 import SpriteUI
@@ -111,11 +94,15 @@ struct LocalPresentation: View {
 }
 ```
 
-`GamePresentationView` is a noninteractive, aspect-fit, read-only GPU presentation. It creates no `GameHost`, `SKScene`, world, physics session, or simulation clock, and routes no game input. Local mirrors work on iOS 18 and macOS 15. Hiding, detaching, or suspending the primary clears source availability; a mirror cannot keep simulation alive. Resume restarts the primary clock without background-time physics catch-up. There is no automatic secondary macOS window; an app may place a local presentation in its own window.
+`GamePresentationSource()` shares the composed canvas. Use `GamePresentationSource(viewportID: "left")` to share an existing pane instead. The choice is fixed for that source; it does not create a camera or draw a missing pane. `isAvailable`, `pixelSize`, and `frameNumber` describe its completed pixels.
 
-## Request an external display only where available
+A presentation view fits those pixels within its frame, keeps their aspect ratio, and accepts no game input. Several consumers can share one source. Attach only one primary game host to the world; additional game hosts are not a substitute for mirrors.
 
-On iOS 27 or later, `.gameExternalDisplay(source, isEnabled: true, onAvailabilityChange:)` wraps `SwiftUI.ExternalNonInteractiveAccessory(isEnabled: .constant(isEnabled))`. The default `isEnabled` is true. The callback is `@MainActor (Bool) -> Void` and reports actual OS accessory availability. It is separate from `source.isAvailable`: a completed game frame does not prove an external role exists, and an available external role does not prove the primary has a completed frame.
+The source uses three GPU buffers. A buffer still in use is not overwritten. If none can be reused safely, the host skips a publication instead of blocking or advancing simulation. The monitor's `droppedPresentationFrames` reports these skips.
+
+## Offer an optional external display
+
+On supported iOS versions, `.gameExternalDisplay` requests the operating system's noninteractive external-display role. The example below keeps a local preview and reports whether the OS offers that role.
 
 ```swift
 import SpriteUI
@@ -155,37 +142,18 @@ struct OptionalExternalPresentation: View {
 }
 ```
 
-This helper requests the general noninteractive external-display role. It does not grant Duo's outer camera-display role. `CameraCaptureAccessory` on Duo requires the full inner display and an active camera, and belongs only in camera apps. SpriteUI creates no camera capability and requests no camera permission for game presentation. Surface reservations and hinge input remain separate; see <doc:adaptive-game-surfaces> and <doc:hinge-input-and-effects>.
+Treat external availability and source availability separately. A finished local frame does not mean an external role is available, and an available role still needs a completed source frame. Your game should continue locally when the role is unavailable.
 
-## DemoBots display settings
+## Limits to keep in mind
 
-DemoBots exposes **Display & performance** from home and pause with these requests:
+The pixel budget limits the render plan, not all GPU memory. SDK caches, drawable storage, other resources, and in-flight work can add memory beyond the estimate. Frame rate is a request, and the renderer caps stale frame deltas at 1/15 second.
 
-| Preset | Resolution scale | Preferred FPS | Render-plan pixel budget |
-| --- | --- | --- | --- |
-| Balanced | 1 | 60 | 16 MP |
-| Battery Saver | 0.75 | 30 | 8 MP |
-| High Refresh | 1 | 120 | 16 MP |
+Published frames contain game pixels, excluding SwiftUI attachments, HUDs, and menus. A mirror cannot keep a hidden or suspended primary running; source availability clears when the primary stops. Local presentation supports iOS 18 and macOS 15, and does not automatically create another macOS window.
 
-Every preset enables `adaptsToSystemPressure`; OS pressure may lower the request, and target-plan limits may further reduce resolution. FPS remains preferred cadence, not measured achieved FPS, and the budget is not a global memory limit. Opening the panel immediately disables the existing `PlayerInputSession`, cancelling held gameplay input and gating late virtual-control samples. Closing it returns to the same home or paused phase with the existing world pause state untouched.
+The external helper requires iOS 27 and requests the general noninteractive accessory role. It does not grant Duo's outer camera-display role, which requires the full inner display and an active camera in a camera app. Game presentation requests no camera capability or permission. Use <doc:adaptive-game-surfaces> for layout and <doc:hinge-input-and-effects> for optional hinge input.
 
-The optional local `GamePresentationView` displays only the existing `main` pane, excluding the SwiftUI HUD, menus, and native attachments. It is read-only and adds no simulation or input route. DemoBots attaches its source to the primary while the local preview panel is visible or external presentation is enabled, passing nil otherwise; toggling these settings keeps the same world and clock. The optional iOS 27 native noninteractive accessory distinguishes **source available** (completed pixels) from **role available** (OS accessory availability), with no Duo outer-camera entitlement.
-
-## Native verification checklist
-
-The SVGs are schematic expected results. Record simulator/device, OS, observed values, and result for each check; source review and policy fixtures do not verify hardware behavior. DemoBots was verified on the Duo simulator running iOS 27.2 in open, Book, Tabletop, closed outer-display, and reopened layouts. Preset changes and preview toggles preserved the paused match; checkpoint recovery after folding kept the saved bot count and remaining time and awaited Resume. The source was available while the external role remained unavailable. Synthetic preparation/transition/cancellation tests verify retained entities, assignments, and neutral gating. Native held-touch and measured-clock stress, connected external output, and physical-hardware verification remain manual checks; no physical-hardware session is claimed here.
-
-- In the Duo simulator (and repeat on hardware before release), start open, exercise Book and Tabletop postures, outer-display transitions, and rotation, then return to open. Hold DemoBots movement and fire through folds; check that effective layout changes release stale controls until fresh input, retaining the match and input session. Observe reported point geometry and source availability without inferring a general outer-display role. In a game app, do not activate a camera to force that role.
-- In DemoBots, save a checkpoint and pause. Open **Display & performance**, cycle Balanced → Battery Saver → High Refresh → Balanced, then close it. Check retained world/player/camera IDs, input session, phase, and world pause state. Fold, restore the checkpoint, and check restored state and remaining time; play must wait for Resume.
-- Change quality and FPS while touching or manipulating an entity. Check point-space targeting, camera framing, and native-resolution attachments; quality changes must preserve the retained Metal clock driver.
-- Add, remove, and resize local mirror consumers. Compare actual world-update deltas, simulation elapsed time, and physics contact progression at the same primary cadence. Mirror count must not multiply the world clock or route input.
-- Toggle DemoBots local preview and external presentation independently. Check that only the `main` game pixels appear, with no HUD, menus, or native attachments. With both disabled, check that the primary receives nil for its source while retaining the world and clock.
-- Hide or suspend the primary and verify that source availability clears. Resume and verify that elapsed time and physics do not catch up for the hidden interval. Check that quality and camera identity survive.
-- Exercise pane and full-canvas sources, missing-pane unavailability, exclusive publisher ownership, pressure caps, tight budgets, and repeated resize. Observe bounded plan statistics and safe dropped mirror frames without treating them as measured global GPU allocation.
-- Enable the optional iOS 27 external accessory with no available role and check its unavailable status and continued local play independently of source availability. When the OS offers the role, check enable/disable, disconnect/reconnect, and aspect fit. If no external role is available, explicitly record **external-display presentation unverified**; a working local mirror is not external-display evidence.
+Continue with [the complete example](https://github.com/Prince2k3/sprite-ui/blob/main/Sources/SpriteUI/SpriteUI.docc/Resources/spriteui-rendering-03.swift) to build quality controls and a shared preview. For another camera angle rather than a copy of finished pixels, use <doc:viewports-and-split-screen>.
 
 ## See also
 
-- <doc:bounding-rendering-and-sharing-presentation>
-- <doc:viewports-and-split-screen>
 - <doc:rendering-and-resources>

@@ -1,14 +1,14 @@
-# Replication interest and bandwidth
+# Send each player the world they need
 
-Choose each player's replicated scope and bound entity traffic while retaining host authority, reliable membership, and loss repair.
+An arena has actors in several rooms, but a player can see only one room at a time. Sending every actor's position to every player wastes traffic. Choose which entities each player receives, then decide how quickly to spend bytes updating them.
 
-## Keep existing behavior until opting in
+These are two separate choices: replication interest selects the entities; a replication budget schedules their updates.
 
-A NetworkSession still uses complete selected-state frames by default. ``SpriteUI/NetworkReplicationPolicy`` opts into per-recipient relevance; ``SpriteUI/NetworkReplicationBudget`` additionally opts into token-budgeted membership frames and smaller prioritized pose packets. Both are fixed for the session lifetime and can be forwarded through ordinary Game Center setup, party preparation, and recovery preparation. Use matching SDK/application versions on every participant when enabling budgeted pose packets.
+## Start by choosing the visible set
 
-A host's policy returns hidden, visible with priority, or required for a canonical entity and authenticated recipient. The host forcibly retains that player's owned actors and the synchronized ancestors of every selected entity. A child never arrives without its required hierarchy. Membership entry, exit, reparenting, names, activation, ownership, selections, transform presence, and non-transform changes use a reliable full scoped frame. Removing a replica does not remove the authoritative entity. Client-local entities outside replica subtrees survive scope changes.
+Default sessions publish complete selected state. Add a ``SpriteUI/NetworkReplicationPolicy`` when different recipients need different entities. It returns hidden, visible with a priority, or required for each entity and authenticated player.
 
-This complete helper selects one named area while retaining global state and owned actors. It starts only an already-connected caller-supplied transport; it does not authenticate or find a match. The caller retains the returned session and world.
+This host always includes `round-score` and selects other entities by a player-specific name prefix. It also sets a 12,000-byte-per-second entity budget. The transport is already connected; retain the returned session and world.
 
 ```swift
 import SpriteUI
@@ -26,15 +26,15 @@ func makeScopedHost(world: World, transport: any NetworkTransport) throws -> Net
 }
 ```
 
-Relevance is not an authorization boundary. Owned actors and required ancestors deliberately override hiding. A visible parent may carry selected component data; do not place secret state there. This first policy selects whole entities, not a different component schema per player. Validate all portable selected host state before sending. A selective host captures at most 512 synchronized entities; each recipient is independently limited by maximumEntities, default 128. Unscoped sessions retain their existing host-wide entity cap.
+The session always includes a player's owned actors and any synchronized ancestors needed by selected children. That keeps a child from arriving without its parent. When an actor leaves a player's set, only that client's replica is removed; the host actor remains.
 
-## Use distance, groups, and hysteresis
+Membership changes, parenting, names, ownership, component selection, and non-transform values travel in a reliable full frame for that player. Keep client-local entities outside replica subtrees so a scope exit does not remove their descendants too.
 
-``SpriteUI/NetworkSpatialInterest`` lives in GameplayECS and holds a weak world reference. Retain it beside its session. Explicitly set a scene-space observer point from the host's canonical player/camera policy. ``SpriteUI/NetworkInterestComponent`` supplies optional groups, always-relevant hints, and pose priority. Empty groups are ungrouped; otherwise the entity must share an allowed observer group. Group eligibility is checked before always-relevant hints. Owned/ancestor forcing still applies in the core.
+## Follow the player's position without flicker
 
-The entry radius and larger exit radius avoid repeated spawn/despawn at a boundary. The adapter supports at most 32 observers, 32 bounded group IDs each, and bounded membership memory. Departing peers are removed; call removeAllObservers on application teardown/recovery. Missing observers or a released adapter hide optional actors. Keep required owned/ancestor state free of secrets.
+Most games can choose nearby entities by distance. ``SpriteUI/NetworkSpatialInterest`` uses a host-supplied observer point and optional groups. Retain it beside the session and update that point as the host-owned player moves.
 
-This complete helper returns both retained owners. Update the observer point as the host-owned player moves; do not accept unvalidated client camera coordinates as authority.
+Here, entities enter within 500 units. The extra 60-unit exit margin keeps them present while the player moves back and forth near the edge. This difference between entry and exit distance is called hysteresis.
 
 ```swift
 import SpriteUI
@@ -52,21 +52,25 @@ func makeSpatialHost(world: World, transport: any NetworkTransport,
 }
 ```
 
-## Bound replication, not the entire connection
+Use the host's validated player or camera policy for the observer position. An unvalidated client camera coordinate should not decide what the host publishes. `NetworkInterestComponent` can provide groups, always-relevant hints, and pose priorities. Group eligibility is checked before an always-relevant hint; owned actors and required ancestors are still forced into the set.
 
-A budget uses separate per-recipient credits. Construction bounds sustained rate to 512...1,000,000 bytes/second, burst to 512...48,000 bytes, pose packets to 512...1,000 bytes including the envelope, packets per publication to 1...8, and refresh/age priority to 0.05...5 seconds. Defaults are 12,000 B/s, a 48,000 B burst, 1,000 B pose packets, four packets per publication, and a 0.5-second refresh threshold. Credits refill from the session's bounded update delta; synchronize does not manufacture more time or credits.
+Remove departing observers and clear them on teardown or recovery. If an observer is missing or the weakly referenced adapter is released, optional actors become hidden.
 
-Initial membership and structural changes consume credits and take precedence over poses. If credits are temporarily insufficient, publication is deferred. If a full frame exceeds the burst or maximumPacketBytes, the session fails explicitly; it is not split into an incomplete hierarchy. The same applies if one encoded pose cannot fit the chosen pose-packet limit. Configure a burst large enough for the largest expected full scoped frame. A low sustained rate can delay baseline readiness or scope exit; surface diagnostics and own the game's timeout policy.
+## Spend bytes on structure before movement
 
-Control and application messages remain outside this **entity replication** token bucket so acknowledgments, validated commands, interaction receipts, and session control are not silently dropped to save pose bandwidth. They retain their own packet/queue bounds and application-owned admission rates. The token budget is not a cap on total Game Center traffic. Read all diagnostic lanes before estimating total bandwidth.
+``SpriteUI/NetworkReplicationBudget`` gives each recipient separate credits. Credits refill as the session advances. A full membership frame gets priority over pose updates because the client must know which actors exist before moving them.
 
-## Repair loss without deleting scope
+A temporary lack of credits defers publication. A frame larger than the configured burst or packet limit fails instead of being split into an incomplete hierarchy. Choose a burst large enough for your largest expected full frame. Too low a sustained rate can delay the starting baseline or removal of an actor from scope.
 
-Budgeted pose packets identify the exact reliable membership-frame sequence they depend on. A client ignores poses for an unapplied/retired membership frame and rejects stale session/join identities or packet sequences. It decodes and validates the complete pose packet before changing any model. These packets update existing selected Transform values only; they cannot spawn, delete, reparent, transfer ownership, or patch arbitrary components.
+Changed poses compete by priority and age, so continuous high-priority motion does not permanently starve older due actors. Stationary actors also get refreshed: losing the last movement packet should not leave a bot stuck at its previous position. Under an insufficient budget, the refresh threshold cannot promise a delivery deadline.
 
-Changed transforms are prioritized. Critical/high priorities lead while older due actors gain precedence to avoid cheap continuous updates starving others. Stable identity breaks ties. Periodic refreshes include stationary final poses too: losing the last movement packet must not leave an actor permanently at an old position. Refresh is an age-priority threshold, not a guaranteed deadline under an insufficient budget. Deferred counters expose that condition. Remote interpolation remains read-only; canonical queries and snapshots use the latest validated model.
+Pose packets identify the reliable membership frame they belong to. They only update existing selected transforms; they cannot create, remove, or reparent actors. A client ignores packets based on an old or unapplied membership frame and validates a whole packet before changing its model.
 
-``SpriteUI/NetworkPeerReplicationStatistics`` exposes relevant/available entity counts, entity bytes/packets sent, application/control bytes, received bytes, remaining credits, deferred publications, and pending pose count. Counters include encoded envelopes and saturate. They reset at session start; peer departure releases peer caches. The following complete SwiftUI diagnostic uses one retained session.
+## Watch what each player costs
+
+The budget covers entity replication, not all connection traffic. Commands, acknowledgments, lobby control, and interaction receipts have separate limits and do not spend pose credits. Compare both lanes when estimating traffic.
+
+This view shows the player's entity count, entity and application bytes, and deferred poses from one retained session.
 
 ```swift
 import SpriteUI
@@ -87,11 +91,11 @@ struct ReplicationTrafficView: View {
 }
 ```
 
-## Keep movement, interactions, and recovery consistent
+If deferrals keep growing, either reduce the visible set or increase the budget. Counters include encoded envelopes and reset when the session starts. Remote smoothing still affects presentation only; queries and snapshots use the latest validated model.
 
-Owned actors remain replicated so their prediction controllers retain a canonical source. Interaction hit views now include only identities in the owner's last published membership frame, rather than revealing hit proxies for hidden actors. Historical actions still reference the exact earlier issued sample and use the existing host range, age, and current body-lifetime checks. Relevance does not transfer authority or make a client's replica suitable as a recovery checkpoint.
+## Carry the policy into a party
 
-Recovery checkpoints retain the host's complete selected world, independent of per-player relevance. They still must fit archive and full-state packet limits. Recreate observer locations, runtime adapters, epochs, and policy during recovery preparation; never persist their weak references or token credits. Game Center party control and initial baseline acknowledgment keep their existing lifecycle. The following complete helper passes a caller-retained policy into an already-matched party's prepared world. Ready and Start remain separate explicit actions.
+Set policy and budget when starting the session; they remain fixed for that session's lifetime. Party and recovery preparation can pass them through. This helper prepares an already-matched party world while leaving Ready and Start as separate player actions.
 
 ```swift
 import SpriteUI
@@ -104,4 +108,14 @@ func prepareBudgetedParty(services: GameCenterServices, world: World,
 }
 ```
 
-The Game Services showcase's Relevance & traffic lab and <doc:controlling-replication-traffic> use one host and two independent client worlds. Move observer points, change group eligibility, lower the rate before reconnecting, and drop unreliable poses. Watch scope, credits, and deferrals separately for each player. The preview performs no account or native matchmaking work. Signed two-account Game Center verification remains a separate release requirement.
+Owned actors remain available for movement controllers. Interaction views include only identities in the player's last published membership. Recovery checkpoints, however, retain the host's complete selected world, not just one client's view. Recreate observers and policy during recovery rather than saving weak references or byte credits.
+
+The showcase's Relevance & traffic lab uses one host and two client worlds. Move observer points, change groups, lower the rate before reconnecting, and drop unreliable poses to see why each player's traffic differs.
+
+## Limits and native validation
+
+Interest is a publication policy, not a security boundary. Owned actors and ancestors override hiding, and a visible entity sends its selected component data. Keep secrets out of that data. Selective capture supports up to 512 synchronized host entities, with a default of 128 per recipient. Spatial interest supports 32 observers and up to 32 group IDs per observer.
+
+Budget defaults are 12,000 bytes per second, a 48,000-byte burst, 1,000-byte pose packets, four pose packets per publication, and a 0.5-second refresh threshold. Supported rates are 512 through 1,000,000 bytes per second; bursts are 512 through 48,000 bytes. There is no automatic snapshot chunking or asset streaming. Recovery archives and full-state frames must still fit their limits.
+
+All participants need compatible SDK and application versions for budgeted packets. Signed two-account Game Center verification remains a separate pending release requirement; local traffic experiments do not establish live delivery. Continue with <doc:multiplayer-validation-and-release-checks> when preparing a release.

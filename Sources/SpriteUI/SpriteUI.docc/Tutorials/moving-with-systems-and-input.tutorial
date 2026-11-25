@@ -1,70 +1,79 @@
 @Tutorial(time: 20) {
-    @Intro(title: "Moving with systems and input") {
-        Move the player using a typed ``Component`` and ``System``, establish an explicit system schedule, and reverse direction with an entity-targeted tap.
+    @Intro(title: "2. Make the player move") {
+        A player needs more than an appearance. In this lesson, give it velocity and write the rule that turns velocity into movement. Then let a tap reverse its direction.
 
-        @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
+        This builds on <doc:creating-your-first-scene>. Use the complete code stages to update `ContentView.swift`.
+
+        @Image(source: "spriteui-movement-03-preview.svg", alt: "A preview of the scene you will build in this lesson.")
     }
 
-    @Section(title: "Give motion data a typed system") {
+    @Section(title: "Store speed in a component") {
         @ContentAndMedia {
-            Complete <doc:creating-your-first-scene> first. As before, each supplied file stands alone: replace the contents of `ContentView.swift` in the host app with the current stage. Keep `ContentView()` in your app entry point unchanged and use only one stage at a time. The observable scene remains retained in `@State`, and its entity work remains on the main actor.
+            A component is a small piece of data. `MovementMotion` stores velocity: how many points the player should travel each second.
 
-            A component stores velocity in points per second. A system selects entities using ``EntityQuery`` and advances their positions with the frame's scaled ``UpdateContext/deltaTime``. GameView's renderer drives these frames; the SwiftUI update closure does not serve as the animation clock.
-
-            The `@MainActor` system converts the context's elapsed seconds to Float, multiplies velocity by elapsed time, and updates position. This first version clamps x at 100 so the player stays visible. The scene installs the system in its own world with the throwing `systems.add` API and reports a scheduling failure in the interface.
-
-            @Image(source: "spriteui-systems-input.svg", alt: "A moving player carries velocity data and responds to a tap.")
+            A system contains a rule. `MovementSystem` asks the world for entities with that component, then moves each one. The same rule would work for one player or a whole group of moving objects.
         }
 
         @Steps {
             @Step {
-                Replace the contents of `ContentView.swift` with this complete stage. Define the value component `MovementMotion`, query for entities that have it, and read each entity's component using its concrete Swift type.
+                Run stage one. The player travels from x = -100 to x = 100 and stops. Find the query for `MovementMotion`, then the line that adds `motion.velocity * dt` to `entity.position`.
 
-                Run the app. The player starts at x = -100, travels right at 80 points per second, and stops at x = 100. It should reach the limit in about 2.5 simulation seconds.
+                `deltaTime` is the time since the previous update, in seconds. Multiplying speed by time gives the distance to move this frame. This keeps movement measured in points per second rather than points per redraw.
 
                 @Code(name: "ContentView.swift", file: "spriteui-movement-01.swift") {
-                    @Image(source: "spriteui-movement-01-preview.svg", alt: "Diagram: Velocity advances each frame.")
+                    @Image(source: "spriteui-movement-01-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                Change the velocity from 80 to 40 points per second. The trip should take about twice as long. The sprite component still controls appearance; the motion component now controls speed.
             }
         }
     }
 
-    @Section(title: "Order movement before boundary response") {
+    @Section(title: "Give another system a different job") {
         @ContentAndMedia {
-            ``SystemDependency`` orders installed systems. A dependency does not install another system for you. Both systems here use the default simulation phase; the bounds system declares that it runs after the movement system. All simulation systems precede the presentation phase.
+            Separate moving from deciding what happens at the edge. `MovementBoundsSystem` checks the new position, places the player back inside the limits, and reverses velocity.
 
-            The resulting schedule runs movement and then bounds each frame, regardless of insertion order. Invalid cycles or phase constraints throw instead of silently replacing the schedule.
+            The order matters: move first, then check the boundary. Declaring `.after(MovementSystem.self)` states that relationship even if you add the systems in a different order.
         }
 
         @Steps {
             @Step {
-                Replace the contents of `ContentView.swift` with this stage. Remove the clamp from translation and introduce a bounds system. It clamps overshoot at either x limit, reverses the velocity, and stores the changed component back on the entity. Install bounds before movement to show that the dependency determines execution order. Both installations remain explicit.
+                Use stage two. The player now patrols between the two limits. Read the bounds system's `dependencies`, then find where setup adds both systems to the world.
 
-                Run the app. The player patrols continuously between x = -100 and x = 100. This is a game rule for a patrol area; the next tutorial adds geometric wall collision.
+                When a system edits a copy of a component, it writes the changed value back with `components.set(motion)`.
 
                 @Code(name: "ContentView.swift", file: "spriteui-movement-02.swift", previousFile: "spriteui-movement-01.swift") {
-                    @Image(source: "spriteui-movement-02-preview.svg", alt: "Diagram: Ordered systems keep the player between limits.")
+                    @Image(source: "spriteui-movement-02-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                Change the left and right limits in the bounds system. The player should turn at the new positions without any change to `MovementSystem`. You have two reusable rules instead of one rule that does everything.
             }
         }
     }
 
-    @Section(title: "Target input and bridge pause state") {
+    @Section(title: "Let the player respond to a tap") {
         @ContentAndMedia {
-            ``InputTargetComponent`` opts the player into targeted input. An explicit ``CollisionComponent`` supplies a 44-point interaction rectangle around its 36-point sprite. The gesture resolves the nearest matching ancestor with the motion component and delivers its captured entity to a main-actor callback.
+            Targeted input tells you which entity the user touched. `InputTargetComponent` makes the player eligible, and its collision rectangle supplies a hit area slightly larger than the visible square.
 
-            The SwiftUI update closure reads observable `isMoving` and enables or disables only the movement system. Bounds still runs, and buttons and targeted taps remain usable. This is a movement toggle; a full simulation pause uses the world's separate pause setting.
+            The tap callback changes the motion component. On the next frame, the movement system uses that new velocity. The button below the scene separately enables or disables that system.
         }
 
         @Steps {
             @Step {
-                Replace the contents of `ContentView.swift` with this stage. Attach `SpatialTapGesture().targetedToEntity(where:)` directly to the single GameView and add `onEnded` after targeting. Read and write the captured entity's motion component in that callback. Don't save the gesture value or use a global last-touched entity. Run the app, tap or click the cyan player, and try Pause movement and Resume movement.
+                Use the final stage. Tap the moving square to reverse it. Tap empty space and check that the counter does not change. Then try Pause movement and Resume movement.
 
-                Tapping the player reverses it and increases the tap count; tapping empty scene space does neither. The explicit collider defines the slightly larger hit area. Targeted input uses displayed transforms, including any camera or presentation animation. Pause movement stops translation; Resume movement restores it. Continue with <doc:steering-and-collision-aware-movement>.
+                Follow the change from the gesture's `value.entity` to its motion component. The gesture chooses the entity; the system continues to own its ongoing movement.
 
                 @Code(name: "ContentView.swift", file: "spriteui-movement-03.swift", previousFile: "spriteui-movement-02.swift") {
-                    @Image(source: "spriteui-movement-03-preview.svg", alt: "Diagram: Tap the player to reverse; pause stops motion.")
+                    @Image(source: "spriteui-movement-03-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                Pause movement and tap the stationary player. Its tap count can still change because disabling one system is different from pausing the whole world.
+
+                You now know the main loop: components hold data, systems apply rules, and input changes data. Continue with <doc:controlling-a-player-with-input-actions> for held controls.
             }
         }
     }

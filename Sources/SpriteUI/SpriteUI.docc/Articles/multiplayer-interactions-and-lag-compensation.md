@@ -1,16 +1,16 @@
-# Multiplayer interactions and lag compensation
+# Confirm shots against the scene a player used
 
-Resolve shots and nearby interactions against a recent host-issued view, then confirm or refuse each action once.
+A player aims at a moving bot and fires. By the time the action reaches the host, the bot has moved. Testing only its current position can turn a reasonable shot into a miss.
 
-## Use an exact host-issued view
+Instead, the host gives the player a recent scene sample to aim from and keeps a copy. The action refers to that exact sample. The host can check the shot against it without moving live entities or rewinding SpriteKit physics.
 
-Movement prediction makes local motion immediate. Interactions add a different contract: an action identifies the exact scene sample the player used to aim. The host retains an inert copy, checks its age and ownership, and queries that copy without moving live entities or rewinding SpriteKit physics.
+## Give the player a scene reference
 
-``SpriteUI/NetworkInteractionAuthority`` and ``SpriteUI/NetworkInteractionClient`` live in ECSCore. They provide bounded history, host-issued references, sequenced intent, cooldowns, cached receipts, and pending feedback bookkeeping. Gameplay provides ``SpriteUI/HistoricalCollisionScene2D`` and affine hit proxies using the existing CollisionGeometry queries. ``SpriteUI/NetworkInteractionController2D`` in GameplayECS connects them to an existing NetworkSession. No Game Center dependency is added to the engine or pure geometry targets.
+``SpriteUI/NetworkInteractionAuthority`` records value snapshots and issues references. ``SpriteUI/NetworkInteractionClient`` includes a received reference when requesting an action. The reference identifies the actor, ownership epoch, and exact host sample.
 
-This is exact-sample compensation, not clock synchronization or arbitrary timestamp rewind. An action returns a ``SpriteUI/NetworkInteractionViewReference`` actually issued to that owner, containing the network actor, fresh host epoch, random reference ID, and sample tick. A client cannot invent a muzzle position, damage amount, range, or hit result. It may choose an issued sample within the host's allowed window; that bounded trust is an explicit gameplay policy, not anti-cheat server authority.
+The client supplies intent, such as a direction or nearby target. It cannot invent a muzzle position, range, damage, or hit result. The host also limits how old an issued sample may be. This approach is called lag compensation here: it uses a particular host-issued view, rather than a client timestamp or synchronized clock.
 
-The following complete value-only exercise queries the state that was issued, even after the host records a newer state. Validation and query callbacks must be pure and use value-semantic data. Apply effects only after resolve commits a new accepted receipt.
+In this value-only example, the client received state 10. Although the host later records 90, the action is evaluated against 10 and returns 12.
 
 ```swift
 import SpriteUI
@@ -31,15 +31,15 @@ func queryAnIssuedSample() throws -> Int {
 }
 ```
 
-## Select hit proxies deliberately
+Validation and query closures must be pure and use value-semantic data. Apply gameplay effects only after resolution commits a new accepted receipt, so a repeated request cannot repeat the effect.
 
-Attach ``SpriteUI/NetworkInteractionBodyComponent`` only to synchronized entities whose query geometry may be disclosed to this player. The adapter includes active marked synchronized identities in the owner's last published membership. Configure <doc:replication-interest-and-bandwidth> for per-player scopes; this is not per-component secret-data authorization. The component is an explicit hit proxy independent of native CollisionComponent/PhysicsBodyComponent. Its offset and full ancestor affine transform become historical scene geometry. Source position comes from this host-recorded proxy origin.
+## Describe what a shot can hit
 
-A scene supports at most 64 unique proxies, 16 vertices per shape, local geometry up to 10,000 units, finite positions within ±1,000,000, and bounded nonsingular bases. Queries support circles, rectangles, convex polygons, and edges. ``SpriteUI/HistoricalCollisionBody2D`` records target, blocker, and proximity eligibility flags. Nearest rays include blockers and use stable identity ordering for exact-distance ties. Proximity checks center distance and historical line of sight; a target along the line can block interaction with a different target.
+Add ``SpriteUI/NetworkInteractionBodyComponent`` to synchronized actors, targets, and blockers. It is query geometry independent of native physics. The adapter records the shape, offset, and ancestor transforms in a ``SpriteUI/HistoricalCollisionScene2D``. The actor's recorded proxy origin supplies the shot source.
 
-The body's incarnation distinguishes respawns. Cloning creates a fresh incarnation. Replace the marker with a new instance on respawn or a semantic shape/lifetime replacement. Do not recycle an old incarnation for a new target. Before granting a hit/interaction, the adapter also checks that the current host target is active, still synchronized under that network identity, has the same incarnation, and remains eligible. Health, teams, inventory, game phase, current-range requirements, and other game rules belong in the host's pure validateAction callback. Damage and rewards belong outside it, after acceptance.
+Only active marked identities in the player's last published replication membership enter that view. Configure <doc:replication-interest-and-bandwidth> to choose which actors are published. Do not put secret data into a visible entity: scope selects whole entities, not individual private components.
 
-This complete host helper is called after the application has started a connected session, attached the remotely owned actor, and attached eligible target/blocker markers. Keep the returned controller for the match lifetime. It uses the presentation phase after networking so capture sees simulation/backend results; it does not require a fixed clock or change the existing movement controller.
+This helper gives the player an eight-unit source circle, an 800-unit ray range, and a 60-unit interaction range. It allows samples up to half a second old and charges a quarter-second cooldown.
 
 ```swift
 import SpriteUI
@@ -54,13 +54,13 @@ func attachInteractionAuthority(world: World, session: NetworkSession,
 }
 ```
 
-## Predict feedback and wait for confirmation
+Attach the target and blocker markers before using the controller, and retain it for the match. Historical rays respect blockers; proximity queries check center distance and line of sight. Exact-distance ties use stable identity order.
 
-Create the client controller only after the owned canonical replica baseline exists. Retain it alongside the session and wait until status is running. Its latestView is a host-issued collision sample. Display and aim from that exact view when claiming compensation. Ordinary replicated model poses and interpolated/predicted visuals can represent different times; aiming from those while sending an unrelated view reference does not guarantee the shot the player saw.
+A bot that respawns is a new target lifetime even if it keeps its network ID. Replace its body marker with a fresh instance so an old shot cannot hit the new bot. Before acceptance, the adapter checks that the current target is active, still synchronized, has the same body incarnation, and is eligible. Use the host's pure `validateAction` callback for health, teams, inventory, round state, and any requirement that range still hold now.
 
-Client `perform(_:)` sends either a finite unit ray direction or a network target ID for proximity interaction. The host owns both range limits. Successful send reserves one pending action and publishes Predicted once for transient feedback only. No speculative damage or reward is inferred. A final Resolved event completes that action once, whether accepted, missed, blocked, or refused.
+## Show a beam before promising a hit
 
-This complete helper attaches a client to an existing baseline. The app retains the returned controller, chooses an explicit input action, computes its aim from latestView, and calls perform when ready.
+After the client receives its replica baseline, attach its controller and retain it alongside the session.
 
 ```swift
 import SpriteUI
@@ -74,7 +74,11 @@ func attachInteractionFeedback(world: World, session: NetworkSession,
 }
 ```
 
-The following complete listener separates temporary effects from host gameplay. Its keys include the stream epoch and action index, so different actors or new incarnations do not share feedback IDs. Retain subscriptions and cancel them with the match. A host hit counter illustrates the effect boundary; a real game must validate current state and apply its own damage, inventory, and durable reward policy.
+Wait until it is running, then aim from `latestView` and call `perform(_:)` with a finite unit ray direction or a proximity target ID. The host owns the ranges. A predicted or smoothed actor can depict a different time from `latestView`; using that pose with an unrelated view reference cannot guarantee the shot matches what the player saw.
+
+A successful send publishes `Predicted` for temporary feedback, such as a beam line. It does not grant damage or points. `Resolved` completes the action with an accepted, missed, blocked, or refused result.
+
+This listener keeps temporary effects on the client and increments a demonstration hit count only for new accepted host hits. Its key combines stream and sequence so different actors and new epochs do not share feedback IDs. Retain the listener and cancel its subscriptions when the match ends.
 
 ```swift
 import SpriteUI
@@ -104,20 +108,22 @@ final class InteractionFeedback {
 }
 ```
 
-## Bound time, work, and retries
+A real game applies its damage and reward policy after host acceptance. Final client receipts can play confirmed audio or particles once. Movement replay never runs those effects.
 
-``SpriteUI/NetworkInteractionConfiguration`` defaults to a 0.5-second maximum rewind, 0.2-second cooldown, 128 retained snapshots/views/results, and 16 pending local actions. Construction bounds rewind to 0.05...2 seconds, cooldown to 0...10 seconds, capacity to 2...256, and pending actions to 1...64. Host history uses monotonically increasing application-owned host time, never client timestamps. The adapter advances its clock from unscaled presentation deltas. Pausing stops automatic updates; no background time is replayed. Stop/rebuild on lifecycle interruption rather than retaining old view tokens across a suspended session.
+## Resolve duplicates and interruptions
 
-Receiving a command does not immediately grant an effect. The adapter queues at most 32 commands and resolves them after NetworkSession's update, outside its reentrant-operation boundary. At most 16 active controllers are allowed per world, one per actor. The host cooldown is charged for accepted actions including misses/blocks and survives a fresh client handshake within the same controller. Rejected actions consume their sequence without granting effects. Burst requests therefore cannot obtain extra hits by backdating samples or asking for another epoch.
+A cached duplicate gets the original receipt without another query or host event. An older action whose receipt was evicted stays retired. The client accepts results only for pending actions in its current epoch, preventing repeated confirmation effects.
 
-A cached duplicate returns the original receipt without querying again or publishing another host event. An evicted old index stays retired and cannot become a fresh action. Client bookkeeping accepts a final result only for a pending index in its current epoch; duplicate receipts cannot play confirmation twice. This is session-scoped duplicate protection, not a durable exactly-once currency ledger. Recovery must not re-grant rewards from old receipts.
+Host cooldown applies to accepted actions, including misses and blocks. It survives a new client handshake within the same controller. Rejected actions consume their sequence without effects, so bursts and older samples do not bypass it.
 
-Views, actions, and final receipts use reliable application messages through the existing session. The entire encoded payload must fit maximumCommandBytes and the outer envelope must fit maximumPacketBytes. Default application payload capacity is 4,096 bytes; the geometry bound does not imply that 64 proxies fit this byte limit. Keep views small or configure a mutually supported bounded limit; oversize publication fails explicitly. There is no chunking or compression. Per-recipient visibility follows the session's last published membership. Ordinary replica poses may still use unreliable delivery and existing read-only interpolation.
+On interruption, stop controllers and clear temporary feedback. After the new baseline, create new controllers, history, and host epochs. Do not restore issued views, pending actions, or feedback from a checkpoint. See <doc:multiplayer-recovery-and-rejoining>.
 
-Keep exactly one world/session update path. Stop controllers and clear speculative feedback on menu exit, interruption, session teardown, source removal, ownership transfer, account change, or recovery. A new baseline requires new controllers, fresh host epochs, and fresh history; never restore issued references or pending effects from a checkpoint. Runtime controllers are weakly registered with the world and must be retained by the app. Construction does not authenticate, match, or reconnect. See <doc:multiplayer-recovery-and-rejoining> and <doc:multiplayer-prediction-and-reconciliation>.
+In the showcase's Interactions & lag compensation lab, compare a moving target with its received historical view. Place a wall or respawn the target before a delayed shot arrives to see why the host may refuse it.
 
-## Test the interaction contract
+## Limits and native validation
 
-The showcase's Interactions & lag compensation lab and <doc:validating-multiplayer-interactions> compare a moving live target with an exact received historical view. Fire, compare host hit counts with an uncompensated current-position query, burst into cooldown, add a wall, interact with a nearby beacon, or respawn the target before an action arrives. Latency and jitter can age a view beyond the maximum window and cause refusal. The pose-loss slider affects ordinary unreliable replicas; it does not claim to drop reliable action/view/receipt messages.
+The default history allows a 0.5-second rewind, a 0.2-second cooldown, 128 retained snapshots/views/results, and 16 pending actions. Host time advances from unscaled presentation deltas; pausing does not replay background time. The adapter queues at most 32 commands, resolves outside the session update callback, and supports 16 controllers per world, one per actor. Retain them and keep a single world/session update path.
 
-Tests cover forged and expired references, wrong owners/epochs, cooldowns, duplicate/evicted indices, reordered confirmations, shape bounds, occlusion, target removal/respawn, application validation, and lifecycle cleanup. This layer does not provide projectile simulation, arbitrary world rollback, clock synchronization, native-physics determinism, interest management, or a trusted dedicated server. Signed two-account native Game Center verification remains pending in this checkout. The local simulator showcase has no signed Game Center entitlement; offline results and successful builds do not establish live service delivery.
+Scenes support up to 64 proxies with circles, rectangles, convex polygons, or edges, and up to 16 vertices per shape. Geometry and transforms must pass size, finite-value, and nonsingular-basis checks. Views, actions, and receipts use reliable messages and must fit the session's application and packet limits. The default 4,096-byte application limit may fit fewer than 64 proxies; there is no automatic chunking or compression.
+
+The client can choose among issued samples within the allowed window. That is a gameplay trust choice, not dedicated-server anti-cheat authority. This layer does not simulate projectiles or roll back the world. Receipt deduplication lasts for the session and cannot provide durable currency transactions. Signed two-account Game Center verification remains pending; the local lab's pose-loss control drops unreliable replica poses, not reliable views, actions, or receipts.

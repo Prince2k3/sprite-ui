@@ -1,28 +1,14 @@
-# Gameplay and movement
+# Choosing how a character moves
 
-Choose a movement owner, combine steering goals, and turn a planned route into motion.
+A guard needs to patrol a room, walk around a wall, and stop when it reaches a doorway. Finding a route and moving along it are separate jobs. So is deciding what happens when the guard meets something that was not in the route plan.
 
-## Choose the operation that matches the rule
+Start with the behavior you want, then choose the code that controls position.
 
-Planning, steering, collision queries, character motion, and rigid-body simulation solve different steps of a game rule. Choose one writer for an entity's movement in a given mode.
+## Approach a destination smoothly
 
-| API | It provides | Your game still decides |
-| --- | --- | --- |
-| ``SpriteUI/Graph`` and ``SpriteUI/NavigationMesh`` | A route through connected nodes or walkable space | When to replan and how to traverse the route |
-| ``SpriteUI/AgentGoal`` and ``SpriteUI/Agent2D`` | Steering forces and integrated agent motion | Which goals to combine and where to store the result |
-| ``SpriteUI/SteeringComponent`` with ``SpriteUI/SteeringSystem`` | Scene-space steering applied to entities | Behavior selection and arrival/gameplay outcomes |
-| ``SpriteUI/PathComponent`` with ``SpriteUI/PathFollowSystem`` | Steady-speed movement through scene waypoints | Route generation and collision policy |
-| ``SpriteUI/CollisionComponent`` and world queries | Geometry for rays, overlaps, sweeps, and interaction | What a hit means and whether to move |
-| ``SpriteUI/CharacterControllerComponent`` | Explicit swept movement with recovery and sliding | Velocity, gravity, jumping, steps, and platforms |
-| ``SpriteUI/PhysicsBodyComponent`` | Backend rigid-body response | Forces, impulses, collision masks, and contact rules |
+A character that should slow near a target needs more than a direction. Steering calculates a force from the character's current motion and a goal.
 
-A path follower does not automatically stop at colliders, and a steering avoidance force does not guarantee a collision-free route. Avoid putting a path follower, steering, a transform animation, and a dynamic body in charge of the same transform. Switch modes explicitly or write a system that integrates desired motion with the collision policy you need.
-
-## Start with a pure steering calculation
-
-``SpriteUI/AgentGoal`` is a namespace of force functions. ``SpriteUI/Agent2D`` stores position, velocity, speed/force limits, mass, and radius. Goals return forces; `apply(_:deltaTime:)` caps the combined force, integrates velocity, caps speed, and advances position. Goal weights are force multipliers rather than priorities.
-
-This complete function performs one standalone simulation step without a world or renderer:
+``SpriteUI/Agent2D`` holds position, velocity, and speed and force limits. ``SpriteUI/AgentGoal`` supplies force calculations. In this example, arrival pulls toward the destination while obstacle avoidance pushes away from nearby circles.
 
 ```swift
 import SpriteUI
@@ -37,15 +23,17 @@ func advanceAgent(_ agent: inout Agent2D, toward destination: SIMD2<Float>,
 }
 ```
 
-Construct an agent with positive mass and suitable `maxSpeed` and `maxForce`. `seek` requests full-speed travel toward a point; `arrive` slows near it. Pursuit and evasion use target motion. Separation, alignment, and cohesion use neighboring positions or velocities. `Wander` has evolving state, so keep it and your random generator across updates rather than reconstructing them every frame.
+`agent.apply` combines the result with elapsed time, limits force and speed, then advances position. The avoidance weight of 2 makes that force twice as strong; it does not give it absolute priority over arrival.
 
-An ``SpriteUI/AgentPath`` is a nonempty polyline with a corridor radius and optional closure. `AgentGoal.follow` steers along it; `AgentGoal.stay` keeps an agent near it without providing forward travel by itself. An open path clamps distance sampling at its ends, and a closed path wraps. A path value is geometry for steering, not an automatically scheduled entity controller.
+Use positive mass and choose speed and force limits that suit the character. `seek` asks for full-speed travel toward a point; `arrive` slows near it. Other goals can use a target's motion or neighboring agents. If you use `Wander`, retain its evolving state and random generator between updates.
 
-## Let the ECS adapter advance an entity
+This calculation works without a world or renderer, which is useful when developing movement rules separately from the scene.
 
-The ECS adapter stores goals in ``SpriteUI/SteeringComponent``. Each ``SpriteUI/SteeringGoal`` wraps a ``SpriteUI/SteeringBehavior``, weight, optional name, and enabled flag. Point targets and entity targets use scene space. The system snapshots all agents before calculating forces so iteration order does not bias neighbors.
+## Put a patrol in the scene
 
-This setup function creates a patrol agent with a named path goal and obstacle avoidance. The caller presents the supplied world or advances it headlessly.
+To apply steering to entities, store the goals in ``SpriteUI/SteeringComponent`` and install ``SpriteUI/SteeringSystem``. It reads the agents' starting state, calculates forces, and writes their movement.
+
+Here, an ``SpriteUI/AgentPath`` describes a closed patrol loop. A second goal adds obstacle avoidance.
 
 ```swift
 import SpriteUI
@@ -73,17 +61,19 @@ func addPatrol(to world: World) throws -> Entity {
 }
 ```
 
-Use `components[SteeringComponent.self]?.setEnabled(false, named: "patrol")` to switch off that goal without losing its stored state or weight. Named groups let several weighted goals act as a switchable mode; a group's weight scales the combined inner force. Entity targets use IDs and remap within a cloned or restored hierarchy.
+The path is a line through scene points with a corridor radius. The follow goal supplies forward travel; a stay goal would keep the agent near the path without sending it along the route by itself.
 
-For flocking, add ``SpriteUI/SpatialIndexComponent`` to participating neighbors and install ``SpriteUI/SpatialIndexSystem``. The index system declares that it runs after steering and path following, keeping the next query's positions current. Call `world.updateSpatialIndex()` after initial placement or a teleport if you need an immediate query before its next scheduled refresh. Give a custom mover a `.before(SpatialIndexSystem.self)` dependency when appropriate.
+The name `"patrol"` lets you switch that goal off with `components[SteeringComponent.self]?.setEnabled(false, named: "patrol")`. Named groups let you switch several goals together when the guard changes from patrolling to chasing.
 
-Steering positions, velocities, radii, and goal points use scene coordinates. The adapter converts its result back through rotated or scaled parents. A singular parent prevents a valid commit; it does not justify writing a made-up local pose.
+Steering uses scene coordinates and converts the result through parent transforms. Entity targets use IDs that can follow a cloned or restored hierarchy.
 
-## Plan a route, then choose how to traverse it
+For flocking, add ``SpriteUI/SpatialIndexComponent`` to neighbors and install ``SpriteUI/SpatialIndexSystem``. The index refreshes after steering and path following. Call `world.updateSpatialIndex()` after initial placement or a teleport when you need to query immediately.
 
-``SpriteUI/Graph`` requires neighbors and edge costs and supports path and cost-map searches. ``SpriteUI/AdjacencyGraph`` fits authored connections, while ``SpriteUI/GridGraph`` fits cells with blocked areas and traversal costs. Convert grid nodes to scene points using ``SpriteUI/GridSpace`` before handing them to an entity.
+## Find a route around a wall
 
-This complete helper plans around one blocked cell, smooths the route, and starts constant-speed traversal. It returns `false` when the entity is not in the world or no route exists.
+Steering toward a point does not by itself find a route through a level. A graph describes places the character can visit and the connections between them. ``SpriteUI/GridGraph`` is useful when those places are tiles or cells.
+
+This helper blocks one cell, finds a route to another, and smooths it. ``SpriteUI/GridSpace`` converts the grid cells into scene positions before the entity starts following them.
 
 ```swift
 import SpriteUI
@@ -105,25 +95,19 @@ func startGridRoute(for entity: Entity, in world: World) throws -> Bool {
 }
 ```
 
-`PathFollowSystem` spends the full frame's distance budget across waypoint boundaries. At the final waypoint it removes the component and publishes ``SpriteUI/PathEvents/DidFinish`` after movement commits. Retain the subscription token if you handle completion. `stopFollowingPath()` stops without publishing a finish event.
+`PathFollowSystem` moves at a steady speed and can pass several waypoints in one frame. At the end it removes the path component and publishes ``SpriteUI/PathEvents/DidFinish``. Retain an event subscription if opening the doorway depends on arrival. `stopFollowingPath()` stops without publishing completion.
 
-For open rooms, ``SpriteUI/NavigationMesh`` triangulates bounded walkable floor around padded polygon obstacles. Its `findPath(from:to:)` point overload returns scene points; its graph nodes are triangle indices. Use `bufferRadius` to reserve clearance for the moving unit. ``SpriteUI/ObstacleGraph`` offers a corner-based route representation around polygon obstacles.
+For an open floor plan, ``SpriteUI/NavigationMesh`` finds routes through walkable space around polygon obstacles. Its point-based `findPath(from:to:)` returns scene points. Use `bufferRadius` to leave clearance for the character. ``SpriteUI/ObstacleGraph`` offers routes around obstacle corners instead.
 
-Add ``SpriteUI/PolygonObstacleComponent`` to scene obstacles when using the world navigation helpers. `world.navigationMesh(bounds:bufferRadius:)` and `world.obstacleGraph(bufferRadius:)` capture current obstacle geometry; rebuild or update the result after obstacles move. These navigation obstacles are not automatically physics bodies or colliders. Author those separately when the same wall also needs collision response.
+The world navigation helpers read ``SpriteUI/PolygonObstacleComponent`` geometry when you build the graph or mesh. Update or rebuild it when obstacles move. Add colliders or physics bodies separately when those same walls also need collision behavior.
 
-Tile maps expose `gridGraph` and `gridSpace(at:)` through the umbrella integration. The convenience grid space assumes square tiles, uses `tileSize.x`, and ignores map rotation and scale. Use explicit coordinate conversion for transformed maps rather than treating that helper as a complete affine mapping.
+## Decide what to do when the way is blocked
 
-## Use queries to inspect collision geometry
+A planned route describes where to go. Collision queries tell you what occupies space now. World raycasts inspect a segment, overlaps test a placed shape, and sweeps test a shape translated toward a destination.
 
-World raycasts, overlaps, and sweeps read active model-space colliders and return ``SpriteUI/CollisionHit`` values in scene space. They work without a renderer. A ``SpriteUI/CollisionQueryFilter`` can select categories and exclude exact entity IDs. Supplying its optional `group` also tests target collision masks; omitting it permits inspection independently of physical response.
+The queries return ``SpriteUI/CollisionHit`` values in scene coordinates and work without a renderer. Use a ``SpriteUI/CollisionQueryFilter`` to select categories and exclude particular entities. Supplying a `group` also tests target collision masks.
 
-Raycasts inspect a line segment. Overlaps place a shape under an affine transform. Sweeps translate a shape toward an ending scene origin while holding rotation and scale fixed. A hit reports distance, fraction, and an outward normal; an initial interior or overlap hit can have a zero normal. Queries inspect geometry without performing automatic movement or publishing physics contact events.
-
-Visual clipping and shader effects do not change these model-space queries. Compare the displayed input path in <doc:systems-and-input> when a pointer and a ray appear to disagree.
-
-## Move a kinematic character explicitly
-
-A character controller supplies convex geometry and a synchronous sweep-and-slide operation. This helper advances an already attached character using a scene-space velocity and returns the detailed result for the caller to inspect:
+A query reports geometry; your rule decides whether to stop, replan, or slide. For a walking character that should slide along walls, ``SpriteUI/CharacterControllerComponent`` combines shape sweeps with movement and overlap recovery.
 
 ```swift
 import SpriteUI
@@ -140,20 +124,28 @@ func moveWalker(_ character: Entity, velocity: SIMD2<Float>, deltaTime: Float)
 }
 ```
 
-Inspect `contacts`, `recoveryTranslation`, `remainingTranslation`, and `isOverlapping` to implement grounding, wall response, or a blocked-route policy. Recovery can contribute additional displacement. Rotation and scale stay fixed during one move, and gravity, steps, and moving platforms remain game policies. Controller contacts are returned synchronously rather than emitted as ``SpriteUI/PhysicsEvents``.
+The caller supplies velocity and elapsed time. `moveCharacter` returns contacts, recovery movement, remaining movement, and whether the character is still overlapping. Use these results to decide grounding or blocked-route behavior. Gravity, jumping, steps, and moving platforms remain rules you write.
 
-A controller can provide query and input geometry when neither an explicit collider nor a physics body exists. Do not combine it with a dynamic physics body. Steering can supply a desired direction to a custom controller system, but the built-in `SteeringSystem` writes positions directly; attaching both components does not automatically make it call `moveCharacter`.
+Controller contacts are returned by the call rather than published as ``SpriteUI/PhysicsEvents``. The controller can also supply query and input geometry when there is no separate collider or physics body.
 
-## Let physics own dynamic motion
+## Let forces move a dynamic object
 
-Use ``SpriteUI/PhysicsBodyComponent`` for motion driven by forces, impulses, and rigid-body response. The renderer pushes inputs to the backend, copies completed poses and velocities back, then runs presentation systems. Dynamic simulation requires the backend; a headless world alone does not step rigid bodies. Physics velocity is expressed in the parent's space, unlike the steering adapter's scene-space velocity.
+A crate that falls and tumbles is a different problem from a guard following a route. Give it a ``SpriteUI/PhysicsBodyComponent`` and use forces or impulses. The renderer sends inputs to the backend, then copies completed poses and velocities back before presentation systems run.
 
-An explicit `CollisionComponent` overrides a body's shape, offset, and collision filters. Disabling that collider suppresses its body, queries, and targeted input while retaining component velocities. Contact reporting still needs the body's `contactTestBitMask` configured; physical collision masks and contact reporting are separate settings. Retain subscriptions to ``SpriteUI/PhysicsEvents/ContactBegan`` or ``SpriteUI/PhysicsEvents/ContactEnded`` for contact-driven rules.
+Configure `contactTestBitMask` when game rules need contact events. Physical collision masks and contact reporting are separate settings. Retain subscriptions to ``SpriteUI/PhysicsEvents/ContactBegan`` or ``SpriteUI/PhysicsEvents/ContactEnded`` for those rules.
 
-Use ``SpriteUI/PhysicsJointComponent`` when bodies need a simulated relationship. Use ``SpriteUI/TransformConstraintComponent`` for visual follow, look-at, distance, or limit relationships that do not supply collision response. Constraints are renderer-evaluated, and their status values explain incompatible owners or unresolved targets.
+Use ``SpriteUI/PhysicsJointComponent`` for a simulated connection between bodies. A ``SpriteUI/TransformConstraintComponent`` instead maintains a visual relationship, such as looking at a target, without collision response.
 
-## See also
+## Keep in mind
 
-- <doc:systems-and-input>
-- <doc:rendering-and-resources>
-- <doc:saving-and-debugging>
+Choose one writer for an entity's movement in each mode. Path following does not stop at colliders, and steering avoidance does not guarantee a clear route. To combine steering with a character controller, write a system that feeds desired movement into `moveCharacter`; the built-in steering system writes positions directly.
+
+A character controller must not share motion with a dynamic body. Each controller move holds rotation and scale fixed, and overlap recovery can add displacement. Physics needs the backend; a world advanced without a renderer does not step rigid bodies. Physics velocity uses parent coordinates, while steering uses scene coordinates.
+
+An added `CollisionComponent` overrides body geometry and filters. Disabling it suppresses body activity, queries, and targeted input while retaining component velocities. Model collision queries do not follow visual clipping or in-between animation poses. A singular parent can prevent steering from applying a result.
+
+Tile-map `gridSpace(at:)` assumes square tiles, uses `tileSize.x`, and ignores map rotation and scale. Convert coordinates yourself for transformed maps.
+
+## Next lesson
+
+Read <doc:systems-and-input> to connect player input to these rules. Then use <doc:rendering-and-resources> to give moving characters shared artwork, animation, and labels.

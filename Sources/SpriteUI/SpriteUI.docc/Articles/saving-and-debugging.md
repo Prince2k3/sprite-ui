@@ -1,18 +1,14 @@
-# Saving and debugging
+# Saving a checkpoint and finding scene problems
 
-Define a snapshot schema, reconnect restored identities, and inspect the model and the displayed scene together.
+A player reaches a checkpoint with three health points left. Loading it should restore the player and its target, then reconnect the UI and game rules. Save the data needed to rebuild that situation, and inspect the rebuilt scene when something looks wrong.
 
-## Register the data that should persist
+## Choose what the checkpoint remembers
 
-``SpriteUI/ComponentRegistry`` maps Codable component types to names used in snapshot files. A component is captured only when its type is registered. ``SpriteUI/Transform`` and ``SpriteUI/InputTargetComponent`` are registered automatically. A renderer registers backend components; call `SpriteRenderer.registerComponents()` yourself when saving or loading before a renderer exists.
+A snapshot captures the entity hierarchy and registered components. To save health, make it Codable and register its type before saving and loading. ``SpriteUI/ComponentRegistry`` associates each type with a name stored in the file.
 
-Register app components before both capture and decoding. Use explicit, unique, stable names when files must survive a module or type rename. Registering a type again replaces its registered name. `Codable` conformance alone does not make a component persistent.
+Use stable names for your own save data so a later type or module rename does not silently change the file format. Codable conformance by itself does not register a component.
 
-Gameplay adapter components and attachment references also need intentional registration. Register the Codable types your game actually uses, such as ``SpriteUI/SteeringComponent``, ``SpriteUI/PathComponent``, ``SpriteUI/PolygonObstacleComponent``, or ``SpriteUI/SpatialIndexComponent``. `GameView` registers ``SpriteUI/AttachmentComponent`` when hosting attachments; register it explicitly for standalone file I/O. Do not assume every runtime component has a serializable representation.
-
-## Capture a checkpoint and restore it
-
-A ``SpriteUI/WorldSnapshot`` captures top-level entities recursively, including their names, enabled flags, and registered copyable components. This complete example defines a small health schema and returns encoded checkpoint data. The restore helper decodes before replacing the current hierarchy, so a decoding failure leaves it intact.
+This example registers health and the scene components it uses, encodes a checkpoint, and decodes it before replacing the current hierarchy.
 
 ```swift
 import Foundation
@@ -44,25 +40,19 @@ func restoreCheckpoint(_ data: Data, in world: World) throws -> [Entity.ID: Enti
 }
 ```
 
-Use `WorldSnapshot.write(to:)` for an atomic write to an app-owned URL, and `WorldSnapshot(contentsOf:)` to read it. Report file or decoding failures through app UI. Decode and validate the data you need before calling `restore`; restoration itself is not a throwing file operation.
+If decoding throws, the old scene remains intact. `world.restore` replaces the top-level entities after decoding; it is not a throwing file operation. Use `WorldSnapshot.write(to:)` for an atomic file write and `WorldSnapshot(contentsOf:)` to read a file. Report failures through app UI.
 
-The `snapshot(including:)` predicate selects top-level roots. Once selected, a root's children are captured recursively. It is not a per-descendant filter. Group temporary effects under an excluded top-level root, or deliberately construct a custom snapshot when you need finer filtering.
+The renderer normally registers backend components. Calling `SpriteRenderer.registerComponents()` also supports saving or loading before a renderer exists. Register the additional Codable components your game uses, including attachment references when doing standalone file I/O.
 
-### Know what a world snapshot omits
+`snapshot(including:)` selects top-level roots, then includes their children recursively. Put temporary effects under an excluded root if they should stay out of the checkpoint.
 
-The hidden world root is not captured, so `world.resources` does not enter the standard snapshot. World pause, time scale, physics settings, installed systems, and explicit camera selection are also world runtime configuration. Encode persistent settings in an app-level save envelope or on an explicit saved entity, then reapply them when restoring.
+## Reconnect the restored player
 
-Active playback controllers, animation clocks, actions, event subscriptions, debug state, particle effects, and audio runtime state do not resume from a snapshot. Sprite data retains its saved visual texture, not a running clip's clock. Attachment components save definition IDs and layout choices; SwiftUI content definitions and view state remain view-scoped. Match restored IDs with definitions on the new host.
+Restoration keeps the world object and its runtime configuration but creates new entity objects. Even if a saved ID stays the same, an old object reference still points at the old player.
 
-Copy hooks matter during capture too. A custom component with mutable reference storage should implement `cloned()` to freeze independent state, or return `nil` to exclude runtime storage. Otherwise a supposedly captured value may still refer to mutable application objects.
+Use the dictionary returned by `world.restore` to reconnect selections, UI, and scene controllers. It maps saved IDs to restored entities. Saved IDs are preserved where possible; conflicts with the hidden root or duplicate saved IDs can require new ones.
 
-## Remap references instead of assuming IDs never change
-
-Clones and prefab instances get fresh IDs. World restoration preserves saved IDs when possible, but can assign new IDs if one conflicts with the hidden root or another saved entity. `world.restore(_:)` returns a dictionary from saved IDs to restored entities. It replaces top-level content while keeping the world object and its runtime configuration.
-
-Use the returned map to reconnect app-owned references, selections, and scene controllers. A retained entity from before restoration is an old object, even if the new world contains an entity with the same numeric ID. Cancel or replace old entity-filtered subscriptions as part of that reconnection.
-
-Components containing entity references should adopt ``SpriteUI/EntityReferencingComponent``. This complete component remaps only its entity ID, leaving its unrelated data alone:
+If a component points at another entity, teach it how to update that reference. This ``SpriteUI/EntityReferencingComponent`` remaps a target ID while leaving its desired distance unchanged.
 
 ```swift
 import SpriteUI
@@ -78,19 +68,21 @@ struct TargetLink: EntityReferencingComponent, Codable {
 }
 ```
 
-Register `TargetLink` before saving or decoding it. ``SpriteUI/EntityReferenceRemapping`` runs after all destination entities exist and before attachment to a world. Internal references point at destination copies; IDs outside the copied or restored set stay external. The context also exposes the operation, optional copied root, source transforms, and lookup helpers for components with more involved reference-frame needs.
+Register `TargetLink` before saving or decoding. Remapping runs after destination entities exist and before they enter the world. References inside the restored or copied set follow their new entities; references outside it remain external.
 
-The built-in reference-bearing components provide their own remapping. Your app remains responsible for references held outside components. After restore, recreate pools and reconnect UI, reapply camera selection if needed, and start any playback that current game state requires.
+After restore, replace old entity-filtered subscriptions, recreate pools, select the camera if needed, and start playback appropriate to the restored state. Built-in components remap their own references; app-owned references still need this reconnection work.
 
-## Treat schema changes as game data changes
+## Plan for the next version of the game
 
-Decoding skips components whose registered type name is unknown. This allows a reader to ignore unavailable data, but it is not an automatic migration of your game's rules. A missing health, navigation, or interaction component can still make a loaded scene incomplete. Validate required components and supply deliberate defaults before resuming play.
+Loading an old checkpoint is also a game design decision. Unknown component type names are skipped, so validate the data your rules require and supply deliberate defaults before resuming play.
 
-The snapshot's `version` describes its file layout. Keep an app-level save version when you need migrations for your own schema. Changing a registered name, stored property meaning, or default should be an intentional compatibility decision. Re-registering a type under a new name does not create an alias for the old name.
+Keep an app-level save version for migrations. The snapshot's `version` describes its file layout, rather than changes to your health or inventory rules. Registering a type under a new name does not keep the old name as an alias.
 
-## Inspect one presented world with a debug controller
+## Pause the scene and look at it
 
-``SpriteUI/SceneDebugController`` is an observable, view-scoped controller. Pass one instance to `GameView(debug:)` and choose the ``SpriteUI/SceneDebugOptions`` you need. The following complete view shows the built-in debug panel plus app controls that remain usable while scene simulation is paused:
+If the loaded player is missing or moving incorrectly, inspect the world before changing the movement code. A ``SpriteUI/SceneDebugController`` can show collision shapes, origins, selection, and scene statistics alongside pause controls.
+
+Keep one controller in SwiftUI state for each `GameView`.
 
 ```swift
 import SpriteUI
@@ -127,27 +119,17 @@ struct InspectionScene: View {
 }
 ```
 
-A controller binds to one renderer at a time; sharing it across two mounted `GameView` instances is rejected. Keep one per view identity. It detaches with presentation, and its state does not become snapshot or prefab data.
+Pause stops simulation while the surrounding controls remain usable. `refresh()` updates the inspection without advancing the game. `stepFrame()` requests one renderer frame while paused, using the next ordinary capped frame interval at 1×. It leaves the saved pause and time-scale settings unchanged; audio remains suspended.
 
-Pause and time-scale controls operate on the bound scene. `stepFrame()` requests one renderer frame while paused, at 1×, without changing the stored pause flag or time scale. Requests coalesce while a step is pending. A step uses the next normal capped frame interval, not a deterministic fixed timestep, and audio voices stay suspended. `refresh()` updates inspection and drawings without advancing simulation.
+First check membership and activation, then components, installed systems, and the scene clock. For input problems, inspect the collider and input-target hierarchy. For visual problems, compare model and displayed transforms before changing the camera or artwork.
 
-## Read diagnostics in the right coordinate and timing context
+``SpriteUI/SceneDebugEntity`` exposes both transforms. During animation they can differ because the model already contains the destination. Collision outlines show query geometry, and visual bounds can extend beyond a mask.
 
-``SpriteUI/SceneDebugSnapshot`` reports entity and node counts, nonterminal playback controllers, system timings, and bounded entity inspection values. Counts include disabled entities and exclude the hidden root. Inspection can be truncated; check `inspectionTruncated` before treating the rows as an exhaustive hierarchy. Routine UI sampling is throttled to ten times per second; use `refresh()` for immediate inspection after a command.
+## Record a slow section of gameplay
 
-``SpriteUI/SceneDebugEntity`` exposes both model `transform` and `presentedTransform`, plus the displayed scene position. Compare them when an animation's destination differs from visible artwork. Collision outlines describe query geometry rather than the backend's internal contact manifold. Visual bounds are unclipped bounds, so a mask can explain why an outlined area is not visible or interactive.
+Once the behavior is right, a performance recording can show where time goes. Add `.profiling` to the debug options, then use Start and Stop around the section you want to examine. Showing the panel does not begin recording.
 
-System timings measure system wall-clock work, not GPU time or the physics engine's cost. FPS describes callback cadence, not GPU throughput. Enable only the drawings and inspection that help with the current question; diagnostics themselves require work. For direct world profiling, `isProfilingEnabled` controls collection and `lastSystemTimings` contains systems that actually ran.
-
-Debug selection can inspect visible content without an input-target component and can select disabled entities through the controller or hierarchy UI. Removal, replacement, or activation/reuse invalidates selection. Explicit debug picking suppresses entity-targeted game gestures; unrelated ancestor SwiftUI gestures still use normal gesture arbitration. Do not use inspector selection as a substitute for your game's input validation.
-
-For an interactive SwiftUI attachment, keep mutations inside `AttachmentContext.perform`, including delayed actions. That context validates the view's instance and activation before changing its entity. Combine it with observable app state for context UI that remains accurate across restore, removal, and reuse; see <doc:rendering-and-resources>.
-
-## Record engine performance without changing simulation
-
-Every ``SpriteUI/World`` owns an ``SpriteUI/EngineProfiler``. Recording is off by default and independent of `isProfilingEnabled`/`lastSystemTimings`. Start it explicitly, inspect the throttled `latestFrame` and `summary`, then stop to freeze completed frames. Profiling does not advance clocks, install systems, evaluate queries a second time, or run another render pass.
-
-Add `.profiling` to a debug controller's options to show Start, Stop, Reset, and JSON export controls. Merely displaying this panel does not start a capture. This complete scene moves a small grid through fixed systems, so recording includes both query and fixed-step work:
+This scene moves a grid of sprites with a fixed-step system. Its recording includes system and query work, giving you a small example to inspect before profiling a larger level.
 
 ```swift
 import SpriteUI
@@ -191,7 +173,9 @@ struct EngineProfilingScene: View {
 }
 ```
 
-For an application-owned recording, configure the capacity, target cadence, sampling interval, and optional Instruments signposts directly. This complete helper pair starts a capture and exports an immutable JSON report to a caller-owned local file URL:
+Every world owns an ``SpriteUI/EngineProfiler``. Recording is off by default and separate from `isProfilingEnabled` and `lastSystemTimings`. During recording, `latestFrame` and `summary` provide sampled updates for UI.
+
+Your app can also start and export a recording directly. This helper retains up to 600 frames, compares cadence with a 60 FPS target, and enables Instruments signposts.
 
 ```swift
 import Foundation
@@ -214,42 +198,20 @@ func exportEngineCapture(from world: World, to url: URL) throws -> EngineProfile
 }
 ```
 
-`capture()` copies completed values without stopping a live recording; `stop()` freezes them, and `reset()` stops and clears them. A new `start` discards the previous ring and changes `recordingID`. Hosts that own a recording can retain that ID and compare it before cleanup. The `onEngineProfileRecordingStarted` view modifier observes only the debug panel's explicit Start action; it does not start recording itself. Detaching a debug controller does not stop an application-owned recording.
+`stop()` freezes completed frames. `capture()` copies the retained values into an ``SpriteUI/EngineProfileCapture`` for export. `reset()` stops and clears recording; starting again replaces the previous recording. Detaching a debug controller does not stop a recording started by your app.
 
-### Read the report's measurement boundaries
+Read timings as nested work. Queries may run inside a system, which runs inside a world update, which runs inside a renderer callback. Adding those durations together counts the same work more than once.
 
-``SpriteUI/EngineProfileCapture`` exports format version 1, capture dates, configuration, a summary, total/overwritten/abandoned frame counts, and retained frame values. The ring retains the **newest** configured frames in chronological order; capacity is clamped to 1...3,600. Each completed frame keeps at most 128 distinct system/phase aggregates and flags truncation. No entity names, component values, peer identities, or packet payloads are included. These reports are diagnostics, not world snapshots or replay inputs.
+Frame intervals show callback cadence. Compare recordings with the same settings and workload, since the measurements and inspection also take time. Use Instruments on a physical device when you need deeper attribution.
 
-Frame intervals describe render-update callback cadence; headless frames use the caller's supplied delta. Average, maximum, and nearest-rank p95 use positive intervals in the retained window. Over-budget counts compare those intervals with the configured target cadence. They do not prove a GPU missed a display deadline. Keep the target aligned with the game's intended refresh rate.
+## What a checkpoint and a report leave out
 
-| Metric | Meaning |
-| --- | --- |
-| World update | Elapsed work in world simulation and presentation callbacks |
-| Renderer update/finish | Elapsed main-actor callback work, including world work and binding/constraint/debug overhead |
-| SpriteKit interval | Gap from `update` returning to `didSimulatePhysics` entering; includes actions, physics, and scheduling |
-| Systems | Inclusive elapsed duration and invocation count by type/phase; repeated fixed ticks are aggregated |
-| ECS queries | Calls, indexed candidate count, returned entities, and inclusive query duration |
-| Collision queries | Raycast/overlap/sweep calls, indexed candidates, returned hits, and complete traversal/geometry/sorting duration |
-| Network | Actual replication-update duration and encoded-envelope bytes/packet counts from existing send/receive paths |
-| Workload | Periodic entity/activity, native node, sprite, physics-body, and emitter counts |
+A standard snapshot omits the hidden root, including `world.resources`, and world settings such as pause, time scale, physics configuration, systems, and camera selection. Save persistent settings separately or on a saved entity, then reapply them. Playback clocks, subscriptions, actions, live particles and audio, and SwiftUI attachment content and view state must be rebuilt. Copy mutable reference storage in `cloned()` or omit it so the checkpoint cannot change through a shared object.
 
-These durations overlap: query and networking work may be inside a system, which is inside world/renderer callbacks. **Do not add them together.** SpriteKit interval is not isolated physics CPU time. The capture does not measure GPU time. SpriteKit exposes no exact public draw-call or live-particle counter, so those fields stay unavailable rather than reporting zero or substituting node/emitter counts. Native subtree counts include inactive nodes and exclude the debug drawing layer; they are not visible-object counts.
+A debug controller binds to one renderer at a time. Inspection can be truncated; check `inspectionTruncated` before treating it as a complete hierarchy. Debug picking suppresses targeted game gestures, while unrelated SwiftUI gestures retain normal arbitration.
 
-System phase order and invocation counts come from the actual schedule. Paused redraws and debug priming can produce completed renderer frames with `isSimulated == false` and empty system timings. Fixed-step dropped time records the clock's actual clamp/catch-up discard, even if gameplay subsequently resets that clock. Profiling does not change catch-up budgets.
+Performance reports retain the newest frames and can truncate system detail. They are diagnostics rather than save files or replay inputs, and contain no entity names, component values, peer identities, or packet payloads. Timings do not measure GPU work; the SpriteKit interval is not isolated physics CPU time. Native node counts include inactive nodes, and exact draw-call and live-particle counts are unavailable. Network byte counts cover encoded envelopes, and transport acceptance does not prove remote delivery.
 
-ECS predicates and collision geometry run once. Indexed candidates include inactive entities even when the query skips them. Network bytes include encoded envelopes, exclude transport headers/retransmissions, and a successful send means transport acceptance, not remote delivery. Receive counters count messages processed from known peers, including messages later rejected by decoding; enqueue-rejected and unknown-source arrivals are excluded. Explicit network updates are measured without calling them again. Queries and traffic outside a callback frame are assigned to the next completed frame; stopping first discards pending unframed work.
+## Next lesson
 
-Frame timings are recorded every completed frame. Workload censuses and observable UI publications use `sampleInterval`, clamped to 0.1...10 seconds; `sampledAt` identifies a reused census. `stop()` publishes the newest completed sample immediately. Abandoned/incomplete frames are excluded and counted separately. Diagnostics add measurement and census overhead, so compare like-for-like recordings and use Instruments on a physical device for deeper attribution.
-
-With `emitsSignposts`, the `dev.spriteui.engine` / `Profiling` category emits `Engine frame` and `System` intervals. This is opt-in; no signposts or capture buffers are collected by default. See Apple's [OSSignposter documentation](https://developer.apple.com/documentation/os/ossignposter) for Instruments integration. Rendering target budgets and completed viewport statistics remain available separately through ``SpriteUI/GameRenderMonitor``; enabling a monitor can select a different presentation driver, so it is not enabled automatically by profiling.
-
-## Diagnose from the owner outward
-
-When something fails to appear or move, first check that the entity belongs to the expected world and is active. Then inspect its components, the installed system schedule, and pause/time scale. For interaction problems, inspect the collider and input-target hierarchy before the gesture resolver. For visual disagreement, compare model and presented transforms, then check camera, masks, and render groups. For load problems, inspect registration and reconnection before assuming the saved IDs refer to the old objects.
-
-## See also
-
-- <doc:input-recording-and-replay>
-- <doc:entity-and-scene-lifecycle>
-- <doc:systems-and-input>
-- <doc:rendering-and-resources>
+Read <doc:input-recording-and-replay> when you need to repeat a sequence of player actions. Return to <doc:entity-and-scene-lifecycle> when deciding which scene owner should rebuild references and subscriptions after loading.

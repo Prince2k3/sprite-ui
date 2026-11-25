@@ -1,20 +1,16 @@
-# Quests and leagues
+# Give players goals and a season to compete in
 
-Define player goals and seasonal competition as deterministic values, then optionally report progress through Game Center.
+A daily goal asks the player to collect five coins and rewards 25 gold. A weekly competition adds each round's points and promotes the leaders. Both need stable records so loading a save or receiving the same result twice does not count it again.
 
-## Own the rules separately from remote services
+``SpriteUI/QuestJournal`` tracks goals and claims. ``SpriteUI/LeagueSeason`` tracks a roster, scores, and placements. They are saveable values: your game supplies events and time, then decides when to persist or report the result.
 
-``SpriteUI/QuestJournal`` and ``SpriteUI/LeagueSeason`` live in Gameplay. They are `Codable`, `Sendable` values with explicit player identifiers, occurrence identifiers, and timestamps. They never read a clock, authenticate, write files, submit scores, or grant currency. Supply time from your application's chosen authority.
+## Turn coin pickups into quest progress
 
-For a single-player game, keep these values in your saved player profile. For a shared competitive league, run the rules on an authoritative server and distribute validated snapshots. Local saves and stable result IDs are useful duplicate protection, not protection against a modified client or rollback to an earlier save.
+A quest describes objectives, rewards, and an optional time window. Each objective has a stable ID, an event metric such as `coin`, and a positive target. Every objective must finish; when showing a percentage, each objective contributes equally.
 
-``SpriteUI/GameCenterProgression`` is the optional bridge at `services.progression`. Game Center handles configured achievements and leaderboard scores; SpriteUI handles quest objectives, claim receipts, league rosters, divisions, and promotion policy. Reporting does not synchronize those custom rules between devices. Apple's [recurring leaderboards](https://developer.apple.com/documentation/gamekit/creating-recurring-leaderboards) can supply scheduled score competitions, but a leaderboard page alone is not a complete custom league roster.
+Give each real pickup a stable event ID. The journal ignores a repeated ID even if its payload changes. It also remembers events that matched no active quest, so an old pickup cannot count later when a goal unlocks. Record quest events in nondecreasing time order.
 
-## Create a quest occurrence
-
-Every objective has a stable ID within its quest, an event metric, and a positive target. All objectives must finish. Progress percentage is the mean objective fraction, so two objectives contribute equally even if their targets differ. Prerequisites reference completed quests; claiming the earlier quest is not required. A single event can complete a prerequisite but cannot also advance the newly unlocked dependent.
-
-This complete example uses explicit timestamps and event IDs. Recording a duplicate ID, even with a different payload, does nothing. Events that match no active quest are also retained, preventing an old event from counting after a quest unlocks. Record events in nondecreasing time order.
+This example records a five-coin pickup twice. The player still has five coins of progress and can claim one 25-gold reward.
 
 ```swift
 import Foundation
@@ -35,15 +31,19 @@ func makeCoinJournal(playerID: String, start: Date) throws -> QuestJournal {
 }
 ```
 
-Time windows include their start and exclude their end. An unfinished quest expires at its end; a completed quest remains claimable. For another daily occurrence, create a definition with a new ID and interval. Never clear claim history and reuse an occurrence ID to make it repeat. A journal's definitions are immutable; catalog changes require an explicit application migration into a new profile/journal rather than silently reinterpreting an old ledger.
+The window includes its start and excludes its end. An unfinished quest expires at the end, while a completed quest remains claimable. Tomorrow's daily quest needs a new occurrence ID and window; clearing history and reusing today's ID would undermine duplicate protection.
 
-## Claim and save together
+A prerequisite unlocks on completion, without waiting for a claim. The event that completes it cannot also advance the newly unlocked dependent quest. Definitions stay fixed inside a journal, so changing the catalog requires a profile migration rather than reinterpreting old events.
 
-`claim(_:at:)` returns a ``SpriteUI/QuestRewardClaim`` once within the retained journal. It contains the player, quest occurrence, rewards, and a stable `id`. Grant the application's reward using that receipt ID and persist the receipt and wallet in one transaction. A failed save, a crash between granting and saving, concurrent copies, or restoring an older save can otherwise repeat a grant. This library does not provide a distributed wallet transaction.
+## Save the claim and the wallet together
 
-JSON decoding replays validated events and claims rather than trusting persisted derived counters. Unknown versions, duplicate ledger entries, invalid definitions, impossible receipts, and out-of-order quest events throw. Each ledger has a configured capacity; reaching it rejects new unique records without forgetting prior IDs. Archive an old occurrence and migrate deliberately when a long-lived profile approaches its capacity.
+`claim(_:at:)` returns a ``SpriteUI/QuestRewardClaim`` containing the player, quest occurrence, rewards, and stable receipt ID. It records the claim but does not itself grant your game's currency.
 
-With an ECS player, use ``SpriteUI/QuestJournalComponent`` and `entity.recordQuestEvent(_:)` / `claimQuestReward(_:at:)`. These update the component first, then publish ``SpriteUI/QuestEvents/Recorded`` or ``SpriteUI/QuestEvents/RewardClaimed``. Duplicate occurrences publish nothing. Register the component before world snapshots. Retain subscriptions for their desired lifetime.
+Use the receipt ID when granting the reward, and persist the claim and wallet together. Otherwise, a crash between granting gold and saving the journal could grant it again. <doc:player-profiles-and-cloud-saves> shows a profile store that commits this local transaction for you.
+
+For an ECS player, `QuestJournalComponent` stores the journal and entity helpers update it before publishing quest events. Retain subscriptions for as long as the game needs them. Register the component before taking world snapshots.
+
+The following example attaches the journal to an entity, then shows a file profile holding both quests and a season.
 
 ```swift
 import Foundation
@@ -72,15 +72,15 @@ func loadProgress(from url: URL) throws -> ProgressionProfile {
 }
 ```
 
-The file example saves the progression values together. Include your application wallet and profile schema version in the same transaction if you grant rewards. ``SpriteUI/WorldSnapshot`` is another storage option for the registered component; a game-scoped season can remain in the profile.
+The file write keeps those progression values together. Include the wallet and a profile schema version in that same transaction if rewards change currency. A registered journal component can instead travel in a `WorldSnapshot`.
 
-## Run a season and preserve ties
+## Add rounds to a season
 
-Supply ``SpriteUI/LeagueTier`` values in ascending order and a fixed ``SpriteUI/LeagueParticipant`` roster. ``SpriteUI/LeagueRules`` supports nonnegative accumulated points (`.total`) or each member's best result (`.best`). Higher is always better. A ``SpriteUI/LeagueResult`` has one occurrence ID and can include several members; the whole result is validated before any score changes. Unique results can arrive out of chronological order, but every result's time must belong to the season window.
+Create tiers in ascending order, a fixed participant roster, and a season window. Choose `.total` to accumulate nonnegative points or `.best` to retain each member's best result. Higher scores always rank first.
 
-Standings are per division. Equal scores receive competition ranks such as `1, 1, 3`; player IDs provide stable display order without breaking the tie. Promotion and demotion apply to whole tied groups. If a group crosses the cutoff, it stays in its division. In a cohort smaller than the configured movement slots, promotion positions reserve priority over demotion positions. Boundary tiers cannot move beyond the tier list. Members with no accepted results have score zero and participate in these same tie rules.
+A result has an occurrence ID and can contain several players' scores. Validation happens before any score changes. Repeated result IDs do nothing. Unlike quest events, unique results can arrive out of time order, provided their timestamps fall inside the season.
 
-`finalize(at:)` requires time at or after the end. It freezes placements and is idempotent. New results then fail, while already-recorded IDs remain no-ops. The application creates a future season explicitly, using the placements' `nextTierID` values, a new occurrence ID, a new window, and an appropriate roster. Nothing starts a timer or rolls over automatically.
+Here, Alice earns 20, Bob earns 10, and receiving `round-1` again changes neither score. Finalizing at the window's end promotes Alice to silver.
 
 ```swift
 import Foundation
@@ -104,13 +104,15 @@ func finishPracticeSeason(start: Date) throws -> LeagueSeason {
 }
 ```
 
-## Report to Game Center explicitly
+Equal scores share competition ranks such as `1, 1, 3`. Stable player IDs order the display without breaking ties. Promotion and demotion move whole tied groups; a group that crosses the cutoff stays in its division. In a small cohort, promotion slots take priority over demotion slots. Players with no results have zero and follow the same rules.
 
-Use ``SpriteUI/GameCenterQuestMapping`` to map a specific quest occurrence to a configured achievement. Achievements are permanent and monotonic; a repeatable daily quest should not imply resetting an achievement. Choose a persistent milestone or use distinct configured achievement IDs where appropriate. All mappings validate before the first write, but a failed asynchronous batch can already have committed earlier reports.
+`finalize(at:)` freezes placements at or after the end. Repeating it returns the same outcome; new results then fail, while recorded IDs remain no-ops. Create the next season with a new ID, window, roster, and the placements' `nextTierID` values. No timer starts a season for you.
 
-Use ``SpriteUI/GameCenterLeagueMapping`` for one season and one configured leaderboard. Only the current player's points are submitted, during the local season window and before finalization. Configure the leaderboard to sort higher scores first and retain the player's best submitted cumulative total. Re-submitting a cumulative total must not add that total again on your remote backend.
+## Report milestones and points to Game Center
 
-For a recurring leaderboard, align the schedule in Xcode/App Store Connect with the local window and submit while the intended occurrence is active. The mapping's `context` is score metadata, not a way to select a past occurrence. This bridge does not create native configuration, verify remote occurrence timing, backfill previous occurrences, or download all entries as a promotion roster. A full shared league needs authoritative membership and season management beyond score submission.
+Your quest and league rules stay in the game. ``SpriteUI/GameCenterProgression`` can report a quest to a configured achievement or submit the current player's season score to a leaderboard.
+
+Achievements are permanent and only increase. Map a daily quest to a lasting milestone when appropriate, rather than implying that an achievement resets daily. The season leaderboard should sort higher first and retain the best submitted cumulative total, rather than adding the same total again.
 
 ```swift
 import Foundation
@@ -127,8 +129,16 @@ func reportPlayerProgress(services: GameCenterServices, journal: QuestJournal,
 }
 ```
 
-The journal owner and season roster must use the current identity's `NetworkPeerID.rawValue` (the Game Center game-player ID in live mode). Foreign profiles are rejected. Cancellation/account changes retire pending local results; a server write may still have committed. No retry queue is installed, and reporting never claims local rewards or controls local promotion. `.preview(player:)` exercises these mappings in memory without Apple sign-in. Signed, configured multi-account verification remains separate from preview tests.
+Use the current identity's `NetworkPeerID.rawValue` for the journal owner and season participant ID; live mode uses the Game Center game-player ID. Reporting rejects foreign profiles and never claims rewards or chooses promotions.
 
-See <doc:game-center-services> for setup and cancellation semantics, <doc:saving-and-debugging> for world snapshots, and <doc:building-quests-and-leagues> for a complete asset-free exercise. The showcase's Game Services tab links to a progression lab with file save/load and folding support.
+For a recurring leaderboard, align its configured schedule with your season and submit while that occurrence is active, before local finalization. `context` is score metadata, not a selector for a past occurrence. A leaderboard does not supply a complete custom roster or promotion policy.
 
-Use <doc:player-profiles-and-cloud-saves> to commit a journal claim and local wallet together through SpriteUISaves instead of managing that local file transaction yourself. Cloud-wide economies still require game/server authority.
+Read <doc:game-center-services> for reporting and setup, or <doc:player-profiles-and-cloud-saves> to make quest rewards part of a durable local profile.
+
+## Limits and shared competition
+
+Journals and seasons do not read a clock, write a file, authenticate, or synchronize themselves. Single-player rules can live in a local profile. A competitive league needs server-owned time, membership, results, and season management. Stable IDs prevent duplicates in retained history; they do not protect against a modified client or restoring an older save.
+
+Decoding validates events and claims rather than trusting saved counters. Invalid versions, definitions, ledger entries, receipts, and quest-event ordering throw. Ledgers reject new unique records at capacity instead of forgetting IDs; archive old occurrences and migrate as they fill.
+
+Game Center reports are not one transaction: an earlier write may succeed before a later one fails. Cancellation or account changes retire local results without undoing a server write. No retry queue is installed. Preview mappings run in memory; signed configured multi-account verification remains pending.

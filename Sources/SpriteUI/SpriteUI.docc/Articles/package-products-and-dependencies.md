@@ -1,26 +1,25 @@
-# Choose package products
+# Choosing a package product
 
-Select the complete SDK, the engine without Game Center, or standalone gameplay values.
+You want to put a game scene in a SwiftUI app. Later, you might want its movement rules in a separate simulation, or Game Center in a menu that has no scene. Choose the library product that supplies the part you need.
 
-## Keep the convenience import
+## Start with one import
 
-The `SpriteUI` library product retains the existing `import SpriteUI` API. It re-exports the engine and optional integration modules: `SpriteUICore` for the complete engine and its cross-layer bridges, `SpriteUIGameCenter` for Apple service integration, and `SpriteUISaves` for profiles and optional GameSave access. Existing applications using the umbrella do not need to change their imports.
+Add the **SpriteUI** product to use the engine, Game Center integration, and save integration through `import SpriteUI`. This is the import used by the core lessons, including <doc:getting-started>.
 
-All products remain in this one Swift package and share its release version. This separation does not introduce a remote dependency, a runtime plugin loader, or separate package repositories.
+All products live in the same Swift package and share its release version. You can select narrower products as your app's needs become clearer.
 
-| Product | Import | Includes |
-| --- | --- | --- |
-| SpriteUI | `SpriteUI` | Engine plus Game Center and save integration |
-| SpriteUICore | `SpriteUICore` | ECSCore, Gameplay, GameplayECS, SpriteBackend, GameUI, and cross-layer helpers |
-| SpriteUIGameCenter | `SpriteUIGameCenter` | Game Center services and UI, with ECSCore and Gameplay dependencies |
-| SpriteUISaves | `SpriteUISaves` | Typed player/slot persistence, quest wallet transactions, and optional GameSave; depends only on Gameplay |
-| Gameplay | `Gameplay` | Pure algorithms, agents, pathfinding, quest journals, and league values |
-| ECSCore | `ECSCore` | Entity model, systems, snapshots, input values, and transport-independent networking |
-| DemoBotsGame | `DemoBotsGame` | The example game's implementation |
+| Product | Choose it for |
+| --- | --- |
+| `SpriteUI` | The engine and optional integrations through one import |
+| `SpriteUICore` | The complete engine, including `GameView`, without Game Center or save integration |
+| `SpriteUIGameCenter` | Apple game services and their SwiftUI screens |
+| `SpriteUISaves` | Typed player profiles and save slots, quest wallet transactions, and optional GameSave access |
+| `Gameplay` | Algorithms and gameplay values without a scene or renderer |
+| `ECSCore` | Entities, systems, snapshots, input values, and transport-independent networking |
 
-## Build an engine-only game
+## Build a scene with the engine alone
 
-Choose the `SpriteUICore` product in the consuming app's target dependencies and use `import SpriteUICore`. This aggregate has no dependency on the `SpriteUIGameCenter` target. It includes ``SpriteUI/GameView`` and all engine functionality, including quest rules, ``SpriteUI/QuestJournalComponent``, input replay world helpers, noise images, and tile-map grids. Game Center services, sign-in screens, and native match transports are omitted from this product's dependency graph.
+If your app does not need the service integrations, add **SpriteUICore** to its target and import that module. The same scene APIs are available, including rendering, input, gameplay adapters, and cross-layer helpers.
 
 ```swift
 import SpriteUICore
@@ -38,11 +37,15 @@ struct EngineOnlyView: View {
 }
 ```
 
-If the app later needs Apple services, add the `SpriteUIGameCenter` product alongside the core and import it explicitly. The full convenience product is another option. Module separation does not enable the Game Center entitlement or configure identifiers; follow <doc:game-center-services> for those steps.
+This view works like the first scene in <doc:getting-started>. Choosing the core changes which modules your app depends on; it does not change how entities appear in a `GameView`.
 
-## Use services without the renderer
+To add Apple services later, select **SpriteUIGameCenter** alongside the core and import it. You can also switch to the **SpriteUI** umbrella.
 
-The service target depends on ECSCore for peer/session values and Gameplay for optional progression mappings. It does not depend on SpriteBackend, GameUI, or SpriteUICore. Its built-in screens use SwiftUI directly. Add `import ECSCore` or `import Gameplay` explicitly when directly naming their types in this narrower configuration.
+## Put services in a menu without a renderer
+
+A menu can present Game Center UI without depending on the game renderer. **SpriteUIGameCenter** uses ECSCore for peer and session values and Gameplay for progression mappings. It does not depend on SpriteBackend, GameUI, or SpriteUICore.
+
+This example uses preview services for a practice player.
 
 ```swift
 import ECSCore
@@ -61,12 +64,18 @@ struct ServicesOnlyMenu: View {
 }
 ```
 
-Direct `import GameUI` users who previously accessed Game Center symbols through that implementation module must now add the Game Center product and import `SpriteUIGameCenter`. There is deliberately no reverse re-export from GameUI, because that would reintroduce the dependency being removed. The `SpriteUI` umbrella remains the source-compatible route.
+Import `ECSCore` or `Gameplay` when directly naming their types in this arrangement. If a view imports `GameUI` directly, add and import `SpriteUIGameCenter` to use service symbols.
 
-## Keep gameplay independent
+## Reuse game rules outside the scene
 
-`Gameplay` was already a standalone target and product. It has no target dependencies and does not import SpriteKit, GameKit, SwiftUI, or ECSCore. Select it alone for simulation rules, procedural generation, navigation, or progression logic outside an entity scene. Quest and league rules remain there; only their optional Apple reporting lives in SpriteUIGameCenter.
+Choose **Gameplay** when you need pathfinding, agents, procedural generation, quests, or league values on their own. It has no target dependencies and does not import SpriteKit, GameKit, SwiftUI, or ECSCore. <doc:gameplay-and-movement> shows how these calculations can then drive entities through the engine's adapters.
 
-Use a separate package repository only when gameplay needs an independent release/version lifecycle or separate distribution. Splitting the repository now would add version coordination without changing these target boundaries. See <doc:quests-and-leagues> for the rules/reporting boundary and <doc:gameplay-and-movement> for the existing algorithms.
+Choose **SpriteUISaves** for profiles and save slots without adding a renderer or Game Center. It depends only on Gameplay; neither SpriteUICore nor SpriteUIGameCenter depends on it.
 
-`SpriteUISaves` is independently selectable and has no renderer or Game Center dependency. SpriteUICore and SpriteUIGameCenter do not depend on it. Local profiles support iOS 18/macOS 15; its GameSave adapter requires iOS/macOS 26+. See <doc:player-profiles-and-cloud-saves>.
+## Platform requirements
+
+Build with Xcode 27.2, the tested toolchain, or a compatible newer version supplying the required SDK. The package uses Swift 6 and supports deployment to iOS 18 or macOS 15 and later. Local profiles use those deployment targets; the optional GameSave adapter requires iOS or macOS 26 or later. Adding a Game Center library does not configure entitlements or service identifiers for your app.
+
+## Next lesson
+
+Continue with <doc:getting-started> to build a scene. If you are adding persistence or services, read <doc:player-profiles-and-cloud-saves> or <doc:game-center-services> for the required setup.

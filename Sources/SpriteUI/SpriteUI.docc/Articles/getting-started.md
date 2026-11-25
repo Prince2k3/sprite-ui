@@ -1,16 +1,16 @@
 # Getting started
 
-Install SpriteUI, display an entity, and choose where setup, state updates, and frame logic belong.
+Start with a player on an empty screen. Once it appears, give it a color controlled by SwiftUI, then make it move over time. These three steps show where scene setup, app state, and game rules belong.
 
-## Add the local package to an app
+## Put a player on screen
 
-SpriteUI requires Swift 6 and deployment targets of iOS 18 or macOS 15 or later. Open an app project in Xcode, choose **File > Add Package Dependencies**, choose **Add Local**, and select the folder containing SpriteUI's `Package.swift`. Add the **SpriteUI** library product to your app target. Set the app's deployment target accordingly, then import `SpriteUI` in your scene code.
+Build with Xcode 27.2, the tested toolchain, or a compatible newer version. The source requires its build SDK even though your app can deploy to iOS 18 or macOS 15 and later. SpriteUI uses Swift 6.
 
-The local package already declares its module dependencies. You do not need a separate documentation package plugin or an external dependency to use the SDK. Import SwiftUI as well when declaring views, gestures, and controls.
+In Xcode, choose **File > Add Package Dependencies**, enter `https://github.com/Prince2k3/sprite-ui.git`, and select **Exact Version: 0.5.0**. Add the **SpriteUI** library to your app target. If you already have a local checkout, choose **Add Local** instead and select the folder containing `Package.swift`.
 
-## Display a first scene
+A ``SpriteUI/GameView`` gives your SwiftUI layout a place to draw a game. Inside it, create an ``SpriteUI/Entity`` for the player. The entity gives the player an identity; its ``SpriteUI/SpriteComponent`` supplies the color and size.
 
-This complete view uses a solid-color sprite, so it runs without asset files. Present `FirstScene()` from your app's window or existing view hierarchy.
+This view needs no image files. Present `FirstScene()` from your app's window or an existing view.
 
 ```swift
 import SpriteUI
@@ -32,21 +32,15 @@ struct FirstScene: View {
 }
 ```
 
-``SpriteUI/GameView`` owns the world and renderer for its view identity. Its asynchronous `make` closure receives ``SpriteUI/GameViewContent``, which exposes `world`, `renderer`, and view-scoped attachments. `content.add(_:)` attaches an entity to the world; constructing an entity alone does not display it.
+`content.add(player)` puts the player in the view's ``SpriteUI/World``. Creating an entity alone does not display it. The world holds the scene's entities, and the view's renderer draws them.
 
-Positions use scene points with positive y upward. With no camera, the view centers on the scene origin. An entity's `position` is relative to its parent, and the default sprite anchor is its center. Give the view useful layout space before diagnosing missing content.
+The origin is at the center when there is no camera, and positive y points upward. A sprite is centered on its position by default. Here, `[0, 0]` places the cyan square in the middle of the view. The frame gives it room in the SwiftUI layout.
 
-## Separate three kinds of work
+## Let a SwiftUI control change the player
 
-| Entry point | When it runs | Put this work here |
-| --- | --- | --- |
-| `GameView`'s `make` closure | Initial setup for the host's identity; it can await resources | Create entities, install systems, load a level, and wire subscriptions |
-| `GameView`'s `update` closure | After setup and as SwiftUI updates or observable state read there changes | Reconcile current app state into existing components |
-| ``SpriteUI/System`` updates | Each advancing simulation frame | Movement, timers, decisions, and other time-dependent rules |
+Suppose a toggle should highlight the player. Create the player once, then change the existing sprite when the toggle changes.
 
-The `update` closure is not a display-link callback. Keep it safe to repeat: look up and modify an existing entity rather than adding another copy. Do not accumulate movement there; put elapsed-time calculations in a system.
-
-This complete view creates one player and reflects a toggle into its sprite color:
+`GameView` has a setup closure called `make` and an `update` closure for applying current app state. Setup can also await resources. The update closure runs after setup and as SwiftUI updates or the observable values read there change.
 
 ```swift
 import SpriteUI
@@ -75,11 +69,15 @@ struct ColorScene: View {
 }
 ```
 
-Changing ordinary component data does not itself create SwiftUI observation. Let observable app state drive controls, and use the closure to apply that state to the world. Name lookup is convenient for a small scene; a larger scene can keep entity references or IDs in a main-actor scene owner.
+The setup closure adds one named player. The update closure finds it and sets its color from `isHighlighted`. Because the closure can run again, it edits the existing player each time.
 
-## Add frame-based movement
+Keep the toggle's state in SwiftUI. Ordinary component data does not automatically make a view observe it. Name lookup is convenient here; as a scene grows, a scene owner can retain entity references or IDs.
 
-A component holds data; a system finds matching entities and advances their data. The following declarations form a complete, asset-free moving scene. The velocity is in local points per second, so the system multiplies by `context.deltaTime` before adding a displacement.
+## Move the player every frame
+
+A player moving at 30 points per second needs a different kind of update. Its movement depends on elapsed game time, rather than a change to a SwiftUI control.
+
+Put the speed in a component and the movement rule in a ``SpriteUI/System``. A system asks the world for entities with the data it needs. Here, `CruiseSystem` finds entities with `CruiseVelocity` and advances each position by speed multiplied by elapsed seconds.
 
 ```swift
 import SpriteUI
@@ -122,24 +120,18 @@ struct MovingScene: View {
 }
 ```
 
-The renderer drives frames while presenting a `GameView`; do not also call `world.update(deltaTime:)` for the same hosted world. For a world you own without a renderer, that method advances simulation and presentation systems in sequence. It does not create a graphics view or run backend physics.
+`addSystem` installs the movement rule in this world. Adding `CruiseVelocity` makes the player match the system's query. The sprite starts to the left and moves right, even when no SwiftUI state changes.
 
-Use `world.addSystem(_:)` for a known, valid setup. Use `try world.systems.add(_:)` when your app needs to handle scheduling errors. Calling `registerSystem()` on a system type affects worlds constructed afterward, so per-world installation is usually easier to reason about in reusable views.
+The speed uses the entity's local coordinates. With no parent transform in this example, those match scene coordinates. <doc:systems-and-input> shows movement that also works under rotated or scaled parents.
 
-## Read the unified documentation
+The three places for work now have distinct jobs: setup creates the player, the view's update closure applies the toggle, and a system advances movement. Use that division as you add more game rules.
 
-From the package root, the documentation helper provides these commands:
+## Before you continue
 
-```sh
-Tools/build-documentation.sh build
-Tools/build-documentation.sh check
-Tools/build-documentation.sh preview
-```
+`GameView` drives its world's frames. Calling `world.update(deltaTime:)` yourself on that same world would advance it again. That method is for worlds you advance without a renderer; it does not run backend physics.
 
-The default archive is `.build/documentation/SpriteUI.doccarchive`. Open that built archive in Xcode to browse the unified SDK reference. `preview` serves it at `http://localhost:8080/documentation/spriteui`. The umbrella symbol graph represents the public APIs from ECSCore, Gameplay, GameplayECS, SpriteBackend, and GameUI; DemoBots is excluded.
+For setup that needs to handle scheduling errors, use `try world.systems.add(_:)`. `registerSystem()` affects worlds created afterward, while per-world installation affects the world in front of you.
 
-`check` treats DocC warnings strictly and type-checks the tutorial Swift stages. Documentation catalogs are discovered by Xcode without adding a package plugin. Use the helper's built archive when you need the unified reference; this guide does not assume Xcode's **Build Documentation** action produces the same merged result.
+## Next lesson
 
-## Next steps
-
-Read <doc:entity-and-scene-lifecycle> before building reusable hierarchies, then <doc:systems-and-input> for scheduling and gestures. <doc:rendering-and-resources> adds resource loading and SwiftUI attachments. For a step-by-step learning path, continue with <doc:spriteui-tutorials>.
+Read <doc:entity-and-scene-lifecycle> to attach a label to the player and keep related entities together. For a guided sequence of examples, follow <doc:spriteui-tutorials>.

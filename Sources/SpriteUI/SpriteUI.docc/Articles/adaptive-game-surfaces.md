@@ -1,25 +1,16 @@
-# Adaptive game surfaces
+# Keep the game and its controls in usable screen space
 
-Fit cameras and controls around the safe area and reported reserved regions while retaining one world and its players.
+A fire button can fit beside the game in one window and land under a reserved part of the display after a resize or fold. The camera may need a different rectangle too. Adjust those placements while keeping the current world, players, and cameras alive.
 
-## Read the host's geometry
+``SpriteUI/GameSurfaceGeometry`` describes the host's size, safe-area insets, and reported reserved regions. Use it to choose where the game draws and where a whole control can fit.
 
-``SpriteUI/GameSurfaceGeometry`` describes one ``SpriteUI/GameView`` in local points, with its origin at the top left, x increasing rightward, and y increasing downward. These coordinates differ from the world's positive-y-up coordinates. `displayScale` describes pixels per point; do not multiply surface frames by it when laying out SwiftUI content.
+## Find room for a whole control
 
-The initializer takes `size: CGSize`, `displayScale: CGFloat = 1`, `safeAreaInsets: GameSurfaceGeometry.Insets = .init()`, and `reservedRegions: [GameSurfaceGeometry.ReservedRegion] = []`. Nested `Insets(top:left:bottom:right:)` defaults each edge to zero. Each nested `ReservedRegion(id:kind:frame:isActive:)` has a string ID, an `.occlusion` or `.division` kind, a local `CGRect`, and `isActive` defaulting to true. A division reserves space just as an occlusion does; it does not imply an input device or a particular hardware model.
+Surface geometry uses local points with a top-left origin: x goes right and y goes down. World coordinates use y upward. `displayScale` describes pixels per point; do not multiply the geometry by it for SwiftUI layout.
 
-| Geometry | Meaning |
-| --- | --- |
-| `bounds` | The full surface rectangle |
-| `safeBounds` | Bounds inset by the safe area; reserved regions may still cross it |
-| `usableRegions(includingInactive: false)` | Rectangles remaining after subtracting active reserved frames from the safe area, in deterministic top-left order |
-| `largestUsableRegion` | The largest remaining rectangle, or an empty rectangle when none remains |
-| `rect(for:)` | The rectangle selected by a `GameSurfaceRegion` |
-| `placement(of:anchor:includingInactive:)` | A fully fitting control rectangle, or nil when no usable rectangle can contain its entire size |
+Start with `safeBounds` to avoid edge insets. Use `usableRegions()` to subtract active reserved rectangles as well. A reserved region can describe an occlusion or a division; both reserve space. `largestUsableRegion` gives the largest remaining rectangle.
 
-Inactive regions remain in `reservedRegions` with `isActive == false`. They do not reduce the default usable area. Pass `includingInactive: true` to usable-region or placement queries when you deliberately want to plan around them too. Usable indices describe the current geometry, not persistent physical panels; their deterministic order does not make an index a hardware identity.
-
-This complete value example creates a book-like division without requiring a particular device:
+This example describes a surface with a narrow center division and asks for a 120-by-44-point control near the bottom right.
 
 ```swift
 import SpriteUI
@@ -44,19 +35,17 @@ func controlFrame(in geometry: GameSurfaceGeometry) -> CGRect? {
 }
 ```
 
-The placement anchor is a normalized `SIMD2<Double>`, defaulting to `[0.5, 0.5]`; `[0, 0]` requests the top left and `[1, 1]` the bottom right. Placement selects a fitting location near that preference. It never shrinks a control or returns a partly fitting rectangle. Handle nil by hiding, simplifying, or moving controls outside the game surface. An empty surface can arrive before native layout completes.
+`placement(of:anchor:)` returns a rectangle that fits the entire requested control, or nil if none fits. It chooses a location near the normalized anchor: `[0, 0]` is top left and `[1, 1]` is bottom right. Position the control at the returned rectangle's midpoint in an overlay matching the game host's bounds.
 
-## Observe one surface at a time
+If placement returns nil, simplify or hide the control, or move it outside the game surface. Placement does not shrink it. Geometry can also be empty before native layout finishes.
 
-Apply `.onGameSurfaceChange` directly to the `GameView` whose geometry you need, before combining multiple hosts in a container. The callback reports that host's local geometry, including an initial empty value when layout has not completed. It does not aggregate several surfaces into a global coordinate system.
+Inactive reserved regions remain available as metadata but do not remove usable space by default. Pass `includingInactive: true` when planning around them is intentional.
 
-Read `content.surfaceGeometry` in `GameView`'s `update:` closure to observe geometry while updating existing entities. This is a SwiftUI-driven update, not a frame simulation callback. An attachment descendant can read `@Environment(\.gameSurfaceGeometry)` for the same live geometry. This environment value is supplied inside the host's attachment subtree; a parent, sibling, or ordinary external overlay must use the callback instead.
+## Keep the camera inside an available region
 
-For world-owned observers, retain the subscription returned by `content.subscribe(to: GameSurfaceEvents.DidChange.self)`. ``SpriteUI/GameSurfaceEvents`` delivers `DidChange(scene:previous:geometry:)`: the presented world, previous geometry, and new geometry. The host publishes its coherent new geometry and cancels affected captures before event delivery. The first previous value may describe an empty surface. Do not infer which host changed from a device model or global screen size.
+Give a ``SpriteUI/GameViewport`` a `region` selector. `.surface` uses the full host, `.safeArea` removes edge insets, and `.largestUsable` avoids both insets and active reserved regions. The viewport's normalized `frame` is then resolved inside that rectangle.
 
-## Resolve camera frames inside a region
-
-``SpriteUI/GameSurfaceRegion`` supports `.surface`, `.safeArea`, `.largestUsable`, and `.usable(Int)`. Pass a selector as ``SpriteUI/GameViewport``'s `region` argument. It defaults to `.surface`, preserving existing viewport behavior. The viewport's existing normalized `frame` resolves *within that selected rectangle*. `.safeArea` removes edge insets but does not subtract reserved frames; choose a usable selector when the camera must avoid them.
+This view keeps its camera in the largest usable area.
 
 ```swift
 import SpriteUI
@@ -75,28 +64,36 @@ struct AdaptiveArena: View {
 }
 ```
 
-For two panes, use `.usable(0)` and `.usable(1)` with stable viewport IDs and camera entity IDs. An unavailable usable index resolves to an empty rectangle; its viewport disappears instead of falling back underneath a reserved region. Keep camera entities and players in the same world when a pane disappears. Do not key the whole `GameView` by geometry or rebuild cameras inside `body`.
+For two panes, use `.usable(0)` and `.usable(1)` with stable viewport and camera IDs. An unavailable index makes its pane disappear rather than drawing under a reserved area. Those indices describe the current geometry, not permanent physical panel identities.
 
-Camera following and bounds clamping use the first assigned viewport's resolved point dimensions for that camera. If one camera appears in differently sized viewports, the first assignment determines its clamp size. Use separate stable cameras when panes need independent framing. See <doc:viewports-and-split-screen> for overlap, projection, and the shared simulation clock.
+Retain cameras and players even when their panes disappear. Recreating cameras in `body`, or giving the entire game view a new identity for each geometry, would discard state that a layout change should preserve. Separate cameras allow independent framing; when one camera is reused, its first viewport determines follow-bound dimensions. See <doc:viewports-and-split-screen> for the rest of the camera layout.
 
-## Place HUDs and clip world labels
+## Respond to the surface that changed
 
-Use `placement(of:anchor:includingInactive:)` for floating HUDs. Give the control its requested size and position it at the returned rectangle's midpoint in an overlay matching the host's local bounds. A full fitting rectangle is required even if the requested anchor lies beside a division.
+Apply `.onGameSurfaceChange` directly to the `GameView` you are laying out. Store the reported value for ordinary SwiftUI overlays. The callback describes that host only, and can initially report empty geometry.
 
-``SpriteUI/AttachmentComponent`` defaults `avoidsReservedRegions` to true. Attachments are clipped to `safeBounds` and clipped out of active reserved frames, in addition to their existing viewport clipping. This clips a label at its projected world anchor; it does not relocate the entity, shift its anchor, or move the entire label into a usable region. Set `avoidsReservedRegions: false` to opt out of this surface avoidance while retaining normal viewport clipping. A world label that must stay fully visible needs an app layout policy; use surface placement for an independent floating HUD.
+Inside a game view's `update:` closure, read `content.surfaceGeometry` when adjusting existing entities. That closure follows SwiftUI updates rather than simulation frames. Attachment descendants can read `@Environment(\.gameSurfaceGeometry)`; the environment is supplied within the attachment subtree, so external overlays use the callback instead.
 
-## Release virtual controls when layout changes
+For scene-owned logic, retain a subscription to ``SpriteUI/GameSurfaceEvents``' `DidChange` event. It supplies the scene, previous geometry, and new geometry after the host has applied the layout and cancelled affected captures.
 
-An effective layout change—different `size`, `safeBounds`, or active `usableRegions()`—cancels captured pointer/touch input, manipulation sessions, and other native-routed input actions while preserving native `.hinge` input. Coordinate-space-only changes do not cancel or rearm the hinge, which is independent of pointer geometry; a simultaneous focus, scope, transition, or manual cancellation still requires physical neutral before hinge input resumes. Player sessions and device ownership survive. Attachment contexts are invalidated only for an actual layout change. Changes only to display scale or inactive-region metadata still publish geometry events without cancelling input or invalidating those contexts. A metadata change that leaves the effective layout unchanged does not require a release.
+## Choose whether a label should clip or move
 
-App-owned virtual controls must submit their own releases through the surface callback. Compare the previous and next `size`, `safeBounds`, and `usableRegions()`, release any held virtual samples on a difference, then store the new value. Comparing the entire geometry would also release on scale-only or inactive-metadata changes. Release on disappearance and loss of app activity too. Retain the same hub and sessions; reconnecting devices or replacing players is unnecessary. <doc:adapting-to-game-surfaces> implements this policy in a complete staged example.
+Floating HUD controls can use `placement` to stay fully visible. A world label has a different job: it stays at its projected entity anchor.
 
-DemoBots keeps its existing `main` viewport in `.largestUsable` and places HUD, menus, and whole virtual sticks within usable rectangles. Its **Display & performance** panel is available on home and pause; opening it immediately disables the existing `PlayerInputSession`, cancelling held gameplay input and gating late virtual-control samples. Closing it preserves the same home or paused phase and existing world pause state. Preset changes and optional read-only presentation retain the world, player, camera, input sessions, and rendering clock; render resolution does not change point-space layout. See <doc:bounded-rendering-and-read-only-presentation> for presets and presentation limits.
+By default, ``SpriteUI/AttachmentComponent`` clips labels to safe bounds, away from active reserved regions, and within their viewport. This can cut off a label; it does not move the anchor or relocate the whole label. Use an independent HUD if it must always fit. Setting `avoidsReservedRegions: false` skips surface avoidance while keeping viewport clipping.
 
-Library-level regression coverage uses simulated geometry changes during asynchronous level preparation, cancellation, and fades to assert retained entity IDs, player input sessions, and the shared clock. These fixtures do not verify native folding. For QA in the Duo simulator (and repeat on hardware before release), start open, hold movement/fire through Book and Tabletop changes and outer-display transitions, and check release/rearm behavior without an unintended phase or pause change. Switch display presets while paused, then restore a checkpoint after folding and check that Resume is still required. Record observations; simulator QA remains planned until main integration verifies it, and no physical-hardware session is claimed.
+## Release held virtual controls after a layout change
 
-## Use reported regions and explicit previews
+When the size, safe bounds, or active usable regions change, the native host cancels affected touch and pointer captures, manipulation, and other routed actions. Player sessions and device ownership survive.
 
-On UIKit with iOS 27.1, the native query includes inactive reserved regions and preserves each region's `isActive` value. It runs on native frames as well as layout passes, so activity changes are observed even without a bounds resize. On older supported iOS versions, including iOS 18, and on macOS, native adaptation uses bounds and safe-area insets without reserved-region reporting. Folds are represented only through the regions the host reports. Optional live hinge data and explicitly configured hinge actions are available separately; see <doc:hinge-input-and-effects>. Surface regions remain the layout source. Read-only local mirrors and the optional iOS 27 noninteractive external accessory are supported; see <doc:bounded-rendering-and-read-only-presentation>. That general external role does not grant Duo outer-display camera hosting, which requires the full inner display and an active camera in a camera app. Render resolution leaves this point geometry and native-resolution SwiftUI attachments unchanged. Do not infer folds from an Apple device name, screen-size table, or hypothetical hardware check.
+Your app still owns its virtual controls. In the surface callback, compare the previous and new `size`, `safeBounds`, and `usableRegions()`. On a difference, submit neutral values for held virtual controls before storing the new geometry. Also release them on disappearance and app inactivity. A scale-only change or inactive-region metadata change does not require this release.
 
-`GameView(surfaceRegions:)` provides an explicit override for deterministic previews and demos. Nil uses native reporting; a nonnil array replaces the native reserved-region list rather than adding to it. An empty array explicitly suppresses native reserved regions. The override does not replace the actual host size, display scale, or safe-area insets. Construct synthetic frames in the host's own points, and restore nil for native behavior. Such fixtures demonstrate layout policy, not hardware detection.
+Coordinate changes preserve native hinge input because it does not depend on pointer positions. A simultaneous focus loss, input-blocking transition, or manual cancellation still applies the hinge's neutral requirement. [the complete example](https://github.com/Prince2k3/sprite-ui/blob/main/Sources/SpriteUI/SpriteUI.docc/Resources/spriteui-surfaces-03.swift) shows the geometry comparison and virtual-control release in a complete scene.
+
+## Try alternate layouts and use native reports
+
+Use `GameView(surfaceRegions:)` for previews. Nil uses native reporting; an array replaces the reserved-region list, and an empty array suppresses it. Define frames in the actual host's points. The override leaves host size, scale, and safe-area insets alone, so restore nil when returning to native behavior.
+
+On UIKit with iOS 27.1, native reporting includes active and inactive reserved regions and notices activity changes without a resize. Older supported iOS versions and macOS use bounds and safe-area insets without native reserved-region reporting. A preview division demonstrates a layout; it does not detect hardware or prove a hinge sensor exists. Use reported geometry rather than device names or screen-size tables.
+
+Continue with <doc:hinge-input-and-effects> if folding should also affect gameplay. For drawing quality and optional mirrors, read <doc:bounded-rendering-and-read-only-presentation>; changing pixel resolution leaves this point-space layout unchanged.

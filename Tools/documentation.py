@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Build, check, or preview SpriteUI's DocC catalog with the installed Xcode tools."""
+"""Build, check, or preview SpriteUI's DocC catalog with the installed Xcode tools.
+
+Retired tutorial redirects are static HTML files built after a successful DocC
+convert. The live DocC preview server does not include these redirects.
+"""
 
 import argparse
 import copy
@@ -9,12 +13,66 @@ import re
 import shutil
 import subprocess
 import sys
+from html import escape
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "Sources/SpriteUI/SpriteUI.docc"
 WORK = ROOT / ".build/documentation"
+REDIRECTS = ROOT / "Tools/documentation-redirects.json"
 MODULES = {"ECSCore", "Gameplay", "GameplayECS", "SpriteBackend", "GameUI", "SpriteUICore", "SpriteUIGameCenter", "SpriteUISaves", "SpriteUI"}
+
+
+def normalize_hosting_base_path(value):
+    """Accept only local URL path segments, with optional surrounding slashes."""
+    if value is None or value in ("", "/"):
+        return ""
+    if not isinstance(value, str) or not re.fullmatch(r"/?[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*/?", value):
+        raise ValueError("Hosting base path must contain only safe path segments (letters, digits, '-' or '_').")
+    return value.strip("/")
+
+
+def write_tutorial_redirects(output, hosting_base_path=None):
+    """Validate every redirect before writing static pages inside the archive."""
+    base = normalize_hosting_base_path(hosting_base_path)
+
+    def unique_entries(pairs):
+        entries = {}
+        for old, article in pairs:
+            if old in entries:
+                raise ValueError(f"Duplicate tutorial redirect: {old}")
+            entries[old] = article
+        return entries
+
+    mapping = json.loads(REDIRECTS.read_text(encoding="utf-8"), object_pairs_hook=unique_entries)
+    if not isinstance(mapping, dict):
+        raise ValueError("Tutorial redirects must be a JSON object mapping tutorial slugs to article slugs.")
+    output = Path(output).resolve()
+    articles = (CATALOG / "Articles").resolve()
+    pages = []
+    for old, article in mapping.items():
+        for slug in (old, article):
+            if not isinstance(slug, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+                raise ValueError(f"Tutorial redirect slugs must be simple kebab-case: {slug!r}")
+        target = articles / f"{article}.md"
+        if not target.is_file() or not target.resolve().is_relative_to(articles):
+            raise ValueError(f"Tutorial redirect target article does not exist under Articles: {article}")
+        destination = output / "tutorials" / "spriteui" / old / "index.html"
+        if not destination.resolve().is_relative_to(output):
+            raise ValueError(f"Tutorial redirect would escape the output archive: {old}")
+        url = f"/{base}/documentation/spriteui/{article}/" if base else f"/documentation/spriteui/{article}/"
+        pages.append((destination, escape(url, quote=True)))
+    for destination, url in pages:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+            '<title>Tutorial moved</title>\n'
+            f'<meta http-equiv="refresh" content="0; url={url}">\n'
+            f'<link rel="canonical" href="{url}">\n'
+            '</head>\n<body>\n'
+            f'<p>This tutorial has moved. <a href="{url}">Continue to the guide.</a></p>\n'
+            '</body>\n</html>\n', encoding="utf-8")
+    return len(pages)
 
 
 def run(command, log=None):
@@ -141,6 +199,10 @@ def main():
     parser.add_argument("--hosting-base-path", help="Optional subdirectory for a statically hosted documentation site.")
     parser.add_argument("--port", type=int, default=8080, help="Local preview port (default: 8080).")
     args = parser.parse_args()
+    try:
+        args.hosting_base_path = normalize_hosting_base_path(args.hosting_base_path)
+    except ValueError as error:
+        parser.error(str(error))
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
     if not shutil.which("xcrun") or not shutil.which("swift"):
@@ -149,6 +211,7 @@ def main():
     if output.suffix != ".doccarchive":
         parser.error("--output must name a .doccarchive directory")
     WORK.mkdir(parents=True, exist_ok=True)
+    output.parent.mkdir(parents=True, exist_ok=True)
     graphs = prepare_symbol_graphs()
     if args.command == "check":
         check_swift_examples()
@@ -164,6 +227,8 @@ def main():
         return subprocess.call(command + ["--port", str(args.port)], cwd=ROOT)
     print("Compiling the DocC archive (warnings are errors)…", flush=True)
     run(command, WORK / "docc.log")
+    count = write_tutorial_redirects(output, args.hosting_base_path)
+    print(f"Built {count} static tutorial redirects (not served by DocC preview).")
     print(f"Documentation archive: {output}")
     print("Open this archive in Xcode, or run Tools/build-documentation.sh preview to browse locally.")
     return 0

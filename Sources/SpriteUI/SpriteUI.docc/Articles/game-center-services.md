@@ -1,12 +1,12 @@
-# Basic Game Center services
+# Add scores, achievements, and turns to a game
 
-Start with local achievement progress, scores, and saved turns, then opt into native Game Center screens when your app is configured.
+A player finishes an arena with 120 points. You want to record progress toward an achievement, show a score table, and perhaps let a friend take the next turn. Start with local versions of these actions so the game flow is clear before adding sign-in and native screens.
 
-## Retain one services object
+## Share services across your SwiftUI screens
 
-``SpriteUI/GameCenterServices`` groups `.multiplayer`, `.achievements`, `.leaderboards`, `.turnBased`, `.activities`, and `.challenges`. Keep one instance in SwiftUI state and install `.gameCenter(services)` once on a stable parent. The modifier supplies `EnvironmentValues.gameCenterServices`, one sheet host, and authentication/matchmaking state handling. ``SpriteUI/GameCenterServicesView`` supplies entry buttons and setup help; descendants can instead call `present(_:)` with a ``SpriteUI/GameCenterDestination``.
+``SpriteUI/GameCenterServices`` groups the Game Center features behind one retained object. Store it on a stable parent and install `.gameCenter(services)` once there. Descendants can read it from the environment and ask that shared host to present a screen.
 
-This complete menu uses an account-free preview. Replace `.preview()` with `GameCenterServices(mode: .live)` when you deliberately want native services. You can also construct `GameCenterServices(mode: .preview(player: player))` with an explicit ``SpriteUI/NetworkPeer``. Construction, installing the modifier, and displaying the menu never start authentication or matchmaking.
+This menu uses `.preview()`, so it needs no Apple account. The button demonstrates how a child view opens achievements without owning another services object.
 
 ```swift
 import SpriteUI
@@ -36,17 +36,15 @@ private struct ServiceShortcuts: View {
 }
 ```
 
-Basic destinations are `.signIn`, `.matchmaking`, `.turnBased`, `.achievements`, `.leaderboards`, `.leaderboard(identifier)`, and `.setup`. Activities and challenges add `.activities`, `.activityDefinition(identifier)`, `.challenges`, `.challengeOverview`, and `.challengeDefinition(identifier)`; their native path requires OS 26+. A live account-dependent destination first routes through explicit sign-in when needed, then continues to the requested screen. The sign-in and match-finding controls still require a user action. Preview destinations explain local behavior or expose the local turn inbox; they never authenticate with Apple.
+For live use, construct `GameCenterServices(mode: .live)`. Showing a view or installing the modifier does not sign in or find a match. A player action opens `.signIn`, `.achievements`, `.leaderboards`, `.leaderboard(identifier)`, `.turnBased`, or `.matchmaking`; an account-dependent live destination first routes through sign-in when needed.
 
-`dismiss()` cancels pending presentation work while retaining a ready real-time match. `disconnect()` stops the retained replication session and releases the real-time match. `shutdown()` also invalidates pending service results, clears local caches, and releases listeners; it never signs the person out of their system account. The modifier calls `shutdown()` when its parent disappears, so choose a parent whose lifetime matches the services. Do not put a separate modifier on every button or sheet.
+The modifier shuts down services when its parent disappears. Keep that parent above menu-to-game transitions. `dismiss()` closes presentation while retaining a ready real-time match; `disconnect()` ends that match and its replication session. `shutdown()` also retires pending work and listeners, without signing the person out of their system account.
 
-## Report achievement progress and scores
+## Record progress and show the score
 
-``SpriteUI/GameCenterAchievements`` loads started/completed progress with `load()`, reports a finite percentage in `0...100` with `report(progress:for:)`, and completes one achievement with `unlock(_:)`. Its `achievements` values are inert snapshots. Known progress cannot decrease; an equal or lower report succeeds without another write. Load first when you need existing server progress to suppress repeated completion reports. The native dashboard supplies descriptions of achievements that have no progress yet.
+Achievements measure progress from 0 through 100 percent. Load existing progress before reporting when you need to avoid repeating a completion. Known progress only increases; the native dashboard supplies descriptions for achievements the player has not started.
 
-``SpriteUI/GameCenterLeaderboards`` submits scores with `submit(score:to:context:)` and loads global, all-time results with `entries(for:range:)`. Ranks are one-based; request at most 100 entries at a time. Submission invalidates `lastResults`, so load again to display a fresh result. Live score ordering and formatting come from the configured leaderboard.
-
-This complete helper takes the caller's retained facade and returns values suitable for a view. The identifiers are local tutorial labels; substitute configured identifiers before calling it with live services. Call from a user-initiated task and display any thrown error.
+Leaderboard scores are separate reports. Submit the round result, then load entries to refresh the display. Here, the preview keeps 120 as the best score after a later 80-point result.
 
 ```swift
 import SpriteUI
@@ -61,17 +59,15 @@ func recordPracticeResult(using services: GameCenterServices) async throws -> Ga
 }
 ```
 
-In preview mode this records 25% progress and retains the highest local score, 120, at rank 1. Before any submission, a preview leaderboard is empty. Preview achievement and score data belong to that service instance's memory and disappear when it is discarded or reset. Rank 1 is a local fixture, not a league placement or a comparison with other players.
+Replace `first-steps` and `practice-score` with configured identifiers for live use. Call the helper from an app task and show any error. Preview data lasts only as long as the service instance; its rank 1 is a local result, not a comparison with other players. Live ordering and score formatting come from the leaderboard configuration. Entry ranges are one-based and allow at most 100 results per request.
 
-## Save typed, versioned turn state
+## Pass a small game state to the next player
 
-``SpriteUI/GameCenterTurnBasedMatches`` provides `list()`, `load(id:)`, `findMatch(_:)`, `state(of:as:version:)`, `save(_:in:version:)`, `endTurn(_:in:nextParticipantSlots:version:)`, `finish(_:in:outcomes:version:)`, and `forfeit(_:nextParticipantSlots:)`. Operations and `start()` can register native event listeners but never initiate authentication. The built-in turn-based screen offers explicit refresh, saved-game selection, matchmaking, and Done controls; opening it does not perform work automatically.
+A turn-based game needs enough saved data for the next player to continue. Define a narrow `Codable` value and give its format a positive version number. A newly created match has empty data, so save its initial state before trying to decode it.
 
-Each ``SpriteUI/GameCenterTurnBasedMatch`` is an inert snapshot with participants, current turn, data, revision, and maximum data size. Use `localCanAct` for controls, and reload before submitting. `save` preserves the current turn; `endTurn` supplies ordered fallback participant **slots**, including legal pending slots; `finish` supplies a terminal outcome for every slot. Keep existing terminal outcomes. `forfeit` needs next slots when leaving in turn; leaving out of turn preserves the payload.
+`save` keeps the current turn. `endTurn` saves and names the next participant slots in fallback order. `finish` records a terminal outcome for every slot. Participant slots are positions in the match, including legal pending slots; they are not player IDs.
 
-Encode a narrow `Codable` application value and choose a positive schema version. Empty newly created match data needs an initial save before decoding. Wrong versions, foreign/corrupt data, and oversized payloads are rejected. The encoded envelope also counts toward `maximumDataSize`. Validate decoded values against your game rules. A revision check detects a change observed by the native preflight reload; GameKit has no atomic compare-and-swap guarantee against a second device writing afterward.
-
-The following complete helper shares one explicit ``SpriteUI/InMemoryTurnBasedStore`` between two known preview identities. It saves without passing, reloads as the next player, and finishes a cooperative practice game tied. A standalone preview `findMatch` instead creates pending opponent slots; it does not invent a second signed-in player.
+This example gives two local identities the same ``SpriteUI/InMemoryTurnBasedStore``. The first saves and passes, the second reloads and reads the total, then finishes the cooperative round as a tie.
 
 ```swift
 import SpriteUI
@@ -100,13 +96,15 @@ func exerciseLocalTurns() async throws -> PracticeTurn {
 }
 ```
 
-The store has no singleton, disk persistence, server connection, or automatic synchronization; reload explicitly. Separate preview facades each have their own turn store. Use separate turn services with the same supplied store when you need this two-identity experiment. Apple-hosted turn-based matches persist encoded application state asynchronously between participants. They do not restore an ECS ``SpriteUI/WorldSnapshot`` or provide lockstep simulation. See Apple's [turn-based match and turn-passing guide](https://developer.apple.com/documentation/gamekit/starting-turn-based-matches-and-passing-turns-between-players).
+Reload before submitting, use `localCanAct` to enable controls, and validate decoded values against the game rules. Preserve outcomes that are already terminal. When forfeiting in turn, supply the next slots; forfeiting out of turn preserves the payload.
 
-## Attach an optional real-time match
+The shared store makes this exercise possible without accounts. Separate preview facades otherwise have separate stores, and preview matchmaking leaves opponent slots pending. Live [turn-based matches](https://developer.apple.com/documentation/gamekit/starting-turn-based-matches-and-passing-turns-between-players) persist application data between players; they do not run an ECS simulation or restore a `WorldSnapshot`.
 
-Use `connect(in:schema:request:)` from an explicit app action after installing the modifier. It drives sign-in and matchmaking, waits for the ready roster, selects host/client authority, and retains the resulting ``SpriteUI/NetworkSession`` in `networkSession`. Keep the world alive while the flow is pending; the facade holds it weakly. Preview mode rejects this native connection path; use ``SpriteUI/InMemoryNetwork`` for offline replication.
+## Connect a world when players act together
 
-`startSession(in:schema:configuration:)` is the lower-level helper for an **already-ready** match. It does not start the sign-in/matchfinding flow. The following complete helpers show the two entry points; the caller handles errors and retains the facade and world.
+For a real-time game, supply the world and replication schema as well as a match request. `connect` drives sign-in and matchmaking, waits for the complete roster, and attaches a session. Retain the world while this is pending because the services hold it weakly.
+
+If you already have a ready match, `startSession` attaches it directly. These helpers show the two entry points.
 
 ```swift
 import SpriteUI
@@ -124,32 +122,28 @@ func attachReadyNativeMatch(services: GameCenterServices, world: World,
 }
 ```
 
-`present(.matchmaking)` and the built-in Real-time match button present matchmaking only; they have no world/schema to attach. Use `connect` for automatic session attachment or call `startSession` after readiness yourself. See <doc:game-center-sessions-and-replication> for schemas, host-authoritative commands, fixed-roster limitations, update ownership, and teardown.
+The built-in Real-time match button only finds a match: it has no world or schema to attach. Preview services reject the native `connect` path; use `InMemoryNetwork` for local replication. Read <doc:game-center-sessions-and-replication> before choosing the shared state and host rules.
 
-## Handle failure without assuming rollback
+## Handle a failed report or stale turn
 
-Direct asynchronous operations throw ``SpriteUI/GameCenterServiceError``. Display failures, keep each service's operations serialized, and explicitly reload after stale match or account changes. The facade's `lastError` covers its presentation/connection flow; it is not an automatic collector for every direct service call. Turn-based services additionally expose `lastError`.
+Direct service calls throw ``SpriteUI/GameCenterServiceError``. Catch those errors in the task that made the call. The facade's `lastError` covers its presentation and connection flow, rather than collecting every direct operation's failure.
 
-Reported errors are not automatically placed in an offline retry queue. Cancelling a task retires local results, but an Apple server write may already have committed before cancellation or a later error is reported. Reload authoritative state before deciding whether to retry; cancellation is not a server rollback. Achievement, leaderboard, and turn state remain separate operations rather than one transaction.
+Serialize operations on each service and reload after account changes or a stale turn. Turn revisions detect changes seen during the native preflight reload, but GameKit provides no atomic compare-and-swap guarantee against another device writing afterward.
 
-## Configure and verify the native path
+Cancellation retires local work; a server write may already have completed. Reload before deciding to retry. Achievement, score, and turn updates are separate operations, with no shared transaction or automatic retry queue.
 
-Enable Game Center under the consuming target's Signing & Capabilities and use matching signing/provisioning and bundle ID. Link GameKit. For sandboxed macOS targets, enable incoming and outgoing network connections. The repository's `Tools/templates/game-center-ios.entitlements` and `Tools/templates/game-center-macos.entitlements` are starting points; they do not configure an Apple account. See Apple's [capability and entitlement guidance](https://developer.apple.com/help/account/reference/capability-entitlement-updates/).
+## Native setup and remaining checks
 
-Create matching achievements and leaderboards in App Store Connect, enable Game Center for the app version, and review [multiplayer compatibility](https://developer.apple.com/help/app-store-connect/configure-game-center/add-multiplayer-compatibility). Local testing can use a GameKit configuration in Xcode and Game Progress Manager; it requires a physical device on supported system versions. This Xcode testing path is separate from SpriteUI's in-memory previews. Follow Apple's [Game Center configuration and local testing guide](https://developer.apple.com/documentation/gamekit/initializing-and-configuring-game-center).
+Enable Game Center in the consuming target, link GameKit, and use matching bundle ID, signing, and provisioning. Sandboxed macOS apps need incoming and outgoing networking. Configure achievements, leaderboards, app-version enablement, and [multiplayer compatibility](https://developer.apple.com/help/app-store-connect/configure-game-center/add-multiplayer-compatibility) in App Store Connect. Apple's [configuration guide](https://developer.apple.com/documentation/gamekit/initializing-and-configuring-game-center) also describes Xcode's local testing on supported physical devices. Activities and challenges require iOS/macOS 26+.
 
-Inspect a built `.app` from the repository root:
+The repository's setup checker can inspect a built app:
 
 ```sh
 python3 Tools/check-game-center-setup.py /path/to/MyGame.app --bundle-id com.example.MyGame --json
 ```
 
-The checker reads local bundle metadata and entitlements extracted from the built app's signing data. It does not validate signature authenticity, remote provisioning state, App Store Connect configuration, or live service behavior. With `--entitlements FILE`, it checks a supplied plist instead, explicitly unverified against the signed bundle. A successful local report still leaves remote setup for manual review.
+It checks local metadata and entitlements, not remote configuration or live behavior. Signing templates and App Store Connect setup commands are documented in `Tools/game-center-connect.md`; creating draft challenge metadata does not grant Apple's required approval.
 
-The repository also provides `Tools/game-center-connect.py` for App Store Connect API setup. Its `validate` command checks an Xcode `.gamekit` bundle offline. With your API credentials, `status` reads actual component version/review states and app-version enablement, while `plan` previews missing draft resources using GET requests only. `apply` requires the target bundle ID and a reviewed plan fingerprint, then creates missing versioned definitions and localized text. It reuses matching records and refuses existing metadata conflicts. See `Tools/game-center-connect.md` in the repository for authentication and complete commands.
+Signed two-account/two-device verification remains **pending**. Check sign-in cancellation and account changes, report/reload scores and achievements, pass and reopen a turn on the other account, confirm persistence after relaunch, then connect and disconnect a real-time world. Previews and compilation cannot establish those results.
 
-This is development tooling outside the runtime targets. It supports app-scoped achievements, classic leaderboards, activities, challenges, and text localizations. Complete artwork, app-version enablement, compatibility, and review separately. Apple requires challenge approval before availability to players; creating draft metadata through the API does not grant approval or establish that a native catalog loads correctly. See Apple's [challenge configuration and review requirements](https://developer.apple.com/help/app-store-connect/configure-game-center/manage-challenges).
-
-Signed two-account/two-device native verification remains **pending**. On configured builds, check explicit sign-in/cancellation and account changes; report/reload configured achievements and scores; find, save, pass, reload on the other account, finish, and revisit a turn-based match; then connect a real-time world and disconnect. Confirm persisted turn state after relaunch. Local previews and compilation do not establish these native results.
-
-Follow <doc:starting-with-game-center-services> for three complete, asset-free stages. Build custom progression on top with <doc:quests-and-leagues>. Native social challenges are separate from these local quest and league rules; use <doc:game-center-activities-and-challenges> for activity entry points, staged round results, and per-attempt reporting.
+Continue with <doc:quests-and-leagues> to turn gameplay into lasting goals, or <doc:game-center-activities-and-challenges> to let an invitation lead into a round.

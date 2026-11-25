@@ -1,14 +1,14 @@
-# Hinge input and effects
+# Use a hinge for an effect or a game control
 
-Observe an optional live hinge for visual effects, or explicitly opt into a calibrated action with portable controls for every player.
+Imagine a landscape that changes its lighting as a device closes, or a game where bending the device charges a move. These need different kinds of input: an effect can use the last observed angle, while a gameplay action must not trigger just because the app resumes with the device already bent.
 
-## Read optional sensor data
+SpriteUI lets you observe the optional sensor for effects, then choose separately whether to connect it to a calibrated game action. Keep a button or slider available so the game works without hinge hardware.
 
-``SpriteUI/GameHingeState`` is an ECSCore value conforming to `Hashable`, `Codable`, and `Sendable`. Its failable `init?(angle:status:)` takes a `Double` angle in radians and a status of `.unknown`, `.closed`, `.partiallyOpen`, or `.fullyOpen`. Nonfinite angles produce nil; finite angles clamp to `0...Double.pi`, including when decoded. `openness` is normalized to `0...1`. Status comes from the operating system: the library does not infer a posture from angle thresholds. A present value with `.unknown` status still carries a sensor reading; nil means the live sensor is unavailable.
+## Show the last observed angle
 
-`content.hingeState` and the attachment environment expose the last observed raw state, not a guarantee of a current action sample. Read `content.hingeState` in ``SpriteUI/GameView``'s `update:` closure to apply that telemetry to existing entities. This closure runs with SwiftUI updates, not as a simulation clock. Read `@Environment(\.gameHingeState)` inside attachment descendants. The host supplies that environment only within its attachment subtree; parents, siblings, and external overlays use `.onGameHingeChange` on the particular `GameView` instead. The callback accepts an optional value, including nil for unavailable data.
+``SpriteUI/GameHingeState`` contains an angle in radians, normalized `openness` from 0 to 1, and an operating-system status. Nil means live hinge data is unavailable. A value with `.unknown` status still contains a reading, but does not establish a known posture.
 
-Retain a subscription to ``SpriteUI/GameHingeEvents``' `DidChange` event for scene-level observation. Its `scene`, `previous`, and `state` fields identify the scene and optional old/new readings. Genuine unavailability is observable as a transition to nil. An unchanged fresh sample can establish action currency without changing telemetry or delivering another `DidChange` event or value-change callback. Do not use event counts or callbacks to infer whether the action adapter has a current sample. Subscriptions have the same lifetime rules as other scene events.
+This view shows the last observed angle, or an unavailable message when there is no reading.
 
 ```swift
 import SpriteUI
@@ -32,21 +32,19 @@ struct HingeReadout: View {
 }
 ```
 
-Raw angle and openness are suitable for visual or audio effects. Keep cameras, HUD placement, and occlusion decisions driven by <doc:adaptive-game-surfaces>. A hinge angle does not identify usable display rectangles, and a reserved division does not prove that a hinge sensor exists. Read-only local mirrors and the optional iOS 27 general external accessory are documented in <doc:bounded-rendering-and-read-only-presentation>. They do not grant Duo's outer camera-display role; that camera-only role requires the full inner display and an active camera, independently of hinge input.
+Use raw angle or openness for visual and audio effects. Keep camera rectangles and HUD placement driven by <doc:adaptive-game-surfaces>: an angle cannot tell you which screen regions are usable, and a reserved division does not prove there is a sensor.
 
-## Availability and lifecycle
+Apply `.onGameHingeChange` to the game view whose sensor state you need. The view's `update:` closure can also read `content.hingeState` when changing existing entities, while attachment descendants can read `@Environment(\.gameHingeState)`. That environment is supplied inside the attachment subtree, so external overlays use the callback.
 
-The native UIKit bridge uses `UIHingeInteraction` on iOS 27.1 or later when a hinge sensor is available. Older iOS, macOS, and nonhinged devices report nil. Native observation pauses for hidden or inactive hosts and retains the last known telemetry. Focus loss, inactive input scope, and app disable separately invalidate the action router's sample currency; the retained raw value can still be nonnil. On resume, the bridge re-enables `UIHingeInteraction` to request a current OS sample even if its angle is unchanged. A cached neutral reading cannot arm the action adapter. An `.unknown` status suspends actions without declaring the sensor unavailable; nil represents genuine unavailability and disconnects the native hinge device. Do not manufacture a closed or fully open sensor reading as a fallback, infer hardware from screen sizes, or save a last reading as though it were still live. Codable conformance permits value storage; it does not turn a restored value into a connected sensor.
+For scene-owned observation, retain a subscription to ``SpriteUI/GameHingeEvents``' `DidChange` event. It supplies the scene and old and new optional states. These are change notifications, not a stream proving that every sample is fresh. An unchanged new reading can matter to the action adapter without delivering another change event.
 
-Raw observation does not opt into gameplay input. Configure ``SpriteUI/HingeInputConfiguration`` explicitly on either `.gameInput(input, isActive: true, hinge: configuration)` or `.gameInput(hub, isActive: true, hinge: configuration)`. Both overloads default `hinge` to nil. Bind ``SpriteUI/InputControl``'s `.hinge` control to an action; samples originate on ``SpriteUI/InputDevice``'s `.hinge` device. Attach one input modifier to the intended game host.
+## Map a bend to the same action as a slider
 
-## Calibrate a signed action
+An effect reading does not automatically become gameplay input. Pass a ``SpriteUI/HingeInputConfiguration`` to `.gameInput` and bind `.hinge` to an action to enable that path. Without the configuration, hinge gameplay input stays off.
 
-`HingeInputConfiguration(neutralAngle:activationAngle:deadZone:smoothing:)` defaults to `Double.pi`, `Double.pi / 2`, `Float(0.05)`, and `TimeInterval(0.08)`. Angles are radians. `value(for:)` accepts an optional `GameHingeState` and returns a signed, clamped scalar with its configured dead zone, rescaling the remaining magnitude to full scale. Nil, `.unknown` status, and equal neutral/activation endpoints produce zero. Raw observation still preserves an `.unknown` sample. Neutral maps to zero and the activation angle maps to positive full scale. Movement on the other side of neutral has the opposite sign, within the sensor's available range. With the default neutral at `.pi` and a sample range of `0...pi`, closing produces positive values only. Choose an interior neutral and a distinct activation angle when gameplay needs both signs.
+Calibration chooses a neutral angle and an angle that means full positive input. The default neutral is fully open at `Double.pi`; half open at `Double.pi / 2` means positive full scale. The default dead zone is 0.05, and smoothing takes 0.08 seconds.
 
-Finite calibration angles clamp to `0...pi`, and the dead zone clamps to `0...0.99`. Nonfinite parameters use their defaults; negative smoothing also falls back to `0.08`.
-
-The native adapter applies frame-rate-independent smoothing using monotonic real time. It does not use scene time or multiply a smoothing factor once per rendered frame. The pure configuration value conversion does not perform temporal smoothing. A zero smoothing duration gives an immediate response after rearming.
+This example binds hinge, Space, and a slider to one axis action. The readout shows the resolved action value, so you can try the control without a sensor.
 
 ```swift
 import SpriteUI
@@ -101,20 +99,32 @@ struct CalibratedHingeInput: View {
 }
 ```
 
-The slider and Space binding drive the same action as the native hinge. They do not create sensor readings or announce a hinge device. This example explicitly resets its own virtual slider on appearance, disappearance, inactivity, and effective layout changes. The surface callback compares only `size`, `safeBounds`, and active `usableRegions()` before submitting zero on the app-owned virtual pad. It does not call `input.cancelAll()`, which would also cancel the hinge. Do not wait for an action's `.cancelled` event to release a virtual control: a held hinge can keep the shared action active, with a `.changed` phase instead. <doc:adapting-to-game-surfaces> explains the same geometry comparison and release policy.
+The slider supplies virtual action values rather than sensor readings. It releases its own value on disappearance, inactivity, and meaningful surface-layout changes. It does not cancel the whole controller merely to release the slider, because that would also cancel hinge input. <doc:adaptive-game-surfaces> explains the layout comparison used here.
 
-## Return to neutral before acting
+With the default calibration, closing produces positive values only. For both positive and negative movement, choose an interior neutral angle and a different activation angle. Motion to the other side of neutral then produces a negative value within the sensor's range. The dead zone removes and rescales small changes around neutral.
 
-The adapter requires a current raw calibrated zero before it arms. After focus, scope, or app disable/resume, retained telemetry is not current until a fresh OS sample arrives, even when its value matches the cached neutral. This requirement applies to initial connection, reconnection, resume after focus or scope loss, input-blocking transitions, manual cancellation, configuration changes, and ownership handoff. A nonneutral first reading cannot automatically press an action. Return the real sensor to the configured neutral dead zone, then move again to act. A smoothed value approaching zero is insufficient: rearming uses the unsmoothed calibrated sample.
+The native adapter smooths using elapsed real time, independently of the scene clock or frame rate. Set smoothing to zero for an immediate response after input is ready. Calling the configuration's `value(for:)` directly converts one reading; it does not perform temporal smoothing.
 
-When the host hides, becomes inactive, loses input focus or scope, blocks input for a transition, or receives manual cancellation, held native hinge input is cancelled. Resuming never replays a held bend. Player sessions remain intact through these lifecycle changes. Raw observation may retain the last effect value while native observation is paused; it does not bypass the action adapter's fresh-sample or neutral requirements.
+## Ask for neutral before allowing a new action
 
-Coordinate-space-only changes preserve native hinge input and its armed state. A resize, safe-area change, or change to usable surface regions cancels affected pointer/touch captures, manipulation, and other native-routed actions while excluding `.hinge` from that cancellation. The hinge has no pointer-coordinate dependency. Moving from fully open to partially open can therefore keep driving an already armed action as the surface layout changes, without requiring another neutral reading. A simultaneous focus, scope, transition, or other cancellation still applies its normal neutral gate. Pure angle changes never drive layout; reported surface geometry remains its source.
+After connection, focus loss, cancellation, a configuration change, or an ownership handoff, the real sensor must send a fresh reading inside the calibrated neutral dead zone. Then moving away can act. An already bent device must not charge a move immediately on resume.
 
-## Assign the native device to a player
+The neutral test uses the raw calibrated sample. A smoothed value drifting toward zero cannot arm the control. Neither can a cached neutral reading retained while the app was inactive. The native bridge requests a current sample on resume, even if its angle has not changed.
 
-A ``SpriteUI/PlayerInputHub`` announces `.hinge` only when the native sensor is available and a nonnil configuration opts into it. The backend leaves the device unassigned. Your app chooses a player explicitly, for example in a retained `hub.observe` handler for `.connected(let info)` when `info.id == .hinge`, then calls `try hub.assign(.hinge, to: player)`. Install the handler before the host starts its input adapter. Do not call `hub.connect` to invent native availability.
+Layout changes alone preserve an already armed hinge action because it has no pointer-coordinate dependency. A simultaneous focus loss or other cancellation still requires fresh neutral. Angle changes do not determine layout; reported surface geometry does.
 
-Transfer uses exclusive ownership and cancellation. The old player's held action cancels and the new player must observe calibrated neutral before receiving a bend. Session identity survives host lifecycle changes; physical sensor loss disconnects the device. A reconnect is a new connection opportunity for your app's assignment policy. Hinge feedback is unsupported; do not assume an angle sensor supplies haptics.
+## Give the native hinge to a player
 
-Follow <doc:controlling-a-scene-with-hinge-input> for three complete stages, including a two-player connection handler, transfer control, and virtual sliders that work without hinge hardware. See <doc:player-input-sessions-and-feedback> for general device ownership and feedback rules.
+With a ``SpriteUI/PlayerInputHub``, the configured host announces `.hinge` only when the native sensor is available. It starts unassigned. Install a retained hub observer before the host starts, then choose an owner when `.connected` reports that device and call `try hub.assign(.hinge, to: player)`.
+
+Transfer cancels the old player's held contribution and asks the new owner for calibrated neutral. Sessions survive host lifecycle changes; actual sensor loss disconnects the device. Reconnection gives your joining policy another opportunity to assign it. Do not call `hub.connect` to pretend native hardware is available.
+
+Continue with [the complete example](https://github.com/Prince2k3/sprite-ui/blob/main/Sources/SpriteUI/SpriteUI.docc/Resources/spriteui-hinge-03.swift) for a scene with two players, transfer, and virtual sliders. <doc:player-input-sessions-and-feedback> explains general device ownership.
+
+## Limits to keep in mind
+
+Native observation uses `UIHingeInteraction` on UIKit with iOS 27.1 or later when a sensor is available. Older iOS, macOS, and devices without a sensor report nil. Hidden or inactive hosts pause observation and retain the last telemetry; a nonnil retained value is not proof of current action input. `.unknown` suspends actions without declaring the sensor unavailable; nil disconnects the native hinge device.
+
+State angles stay within 0 through pi, with nonfinite angles rejected. Calibration clamps finite angles and dead zones to their supported ranges. Equal neutral and activation angles, nil readings, or unknown status produce zero action value. A saved reading is still just saved data, not a connected sensor. Hinge feedback is unsupported.
+
+Hinge input does not grant access to an external or outer display. See <doc:bounded-rendering-and-read-only-presentation> for the separate presentation options and their platform limits.

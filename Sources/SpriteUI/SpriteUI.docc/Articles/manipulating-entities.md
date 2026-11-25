@@ -1,14 +1,14 @@
-# Manipulating entities
+# Letting the player move a token
 
-Opt entities into automatic dragging, rotation, and uniform scaling, or drive the same interaction from accessible controls.
+In a puzzle, the player may need to drag a token, turn it, and resize it to fit a space. The same actions should also work from buttons. Give the token a set of allowed operations, then let gestures and controls use those rules.
 
-## Opt into GameView manipulation
+## Make the token interactive
 
-Add both ``SpriteUI/InputTargetComponent`` and ``SpriteUI/ManipulationComponent`` to a visible entity. `InputTargetComponent` makes it pickable; `ManipulationComponent` declares which transform operations it accepts. ``SpriteUI/GameView`` automatically installs direct manipulation on its native game surface. No explicit `.gesture` modifier is needed.
+Add ``SpriteUI/InputTargetComponent`` so the token can be picked and ``SpriteUI/ManipulationComponent`` so it accepts transform changes. ``SpriteUI/GameView`` installs the gestures on its game surface; this approach needs no `.gesture` modifier.
 
-On iOS, drag with a pan and use pinch and rotation for simultaneous changes. On macOS, drag with the pointer and use trackpad magnification and rotation. Provide buttons for users who cannot perform these gestures. Interactive SwiftUI attachments and inspection controls reserve their own input areas.
+On iOS, use pan, pinch, and rotation. On macOS, use pointer dragging and trackpad magnification and rotation. The buttons in this example offer another way to rotate and scale.
 
-The following complete view includes an accessible alternative to rotation and scaling. The scene retains its event subscriptions, the buttons use the explicit renderer session API, and no frame system competes for the sprite's pose.
+The scene owner keeps the token, renderer, and event subscriptions together. Status text follows the interaction, while the buttons begin and finish short manipulation sessions.
 
 ```swift
 import Observation
@@ -87,15 +87,15 @@ struct ContentView: View {
 }
 ```
 
-For a staged version with hierarchy constraints and a dynamic body, follow <doc:manipulating-sprites-with-gestures>.
+`operations` defaults to `.all`. For a token that should only slide, set it to `.translation`. Changing the manipulation component's `isEnabled` turns these operations off without hiding the token or changing its input-target component.
 
-## Choose operations and parent-local constraints
+The retained subscriptions keep the status messages arriving. Their weak captures let the scene owner go away when the view releases it. ``SpriteUI/ManipulationEvents`` reports `Began`, `Changed`, `Ended`, and `Cancelled` after the corresponding state is committed.
 
-`operations` defaults to `.all`: translation, rotation, and scale. Set it to `.translation` for a drag-only entity, or combine operations in an option set. `isEnabled` disables manipulation without disabling rendering or changing `InputTargetComponent` pickability.
+## Keep a piece on a rail
 
-Translation bounds constrain the entity's origin in its parent's coordinates. Grid snapping measures from that parent's origin. `translationAxes = .x` locks the initial local y coordinate, even under a rotated or scaled parent. Bounds constrain the origin rather than every corner of the artwork. Rotation snapping uses radians measured from local zero.
+A puzzle piece may need to move along a tilted rail instead of following the pointer freely. Put it under a parent that represents the rail, then constrain translation in that parent's coordinates.
 
-This complete view places a child on a tilted, scaled parent rail. Dragging in scene space is converted to the parent's local axes before the lock, grid, and bounds apply.
+Here, `.x` keeps the child's starting local y position. The grid snaps in 20-point steps from the parent origin, and the limits keep the child's origin between the ends of the rail.
 
 ```swift
 import SpriteUI
@@ -127,35 +127,38 @@ struct RailView: View {
 }
 ```
 
-`scaleRange` defaults to `0.25...4` and limits the absolute magnitudes of local scale components. A gesture applies one uniform multiplier, preserving aspect ratio and reflection; it does not independently clamp x and y. Inherited parent scaling is outside this local range. Nonfinite samples, nonpositive snap steps, invalid bounds, and configurations with no valid uniform scale are rejected without changing the transform.
+The parent can rotate and scale without changing the meaning of the child's local x axis. Scene-space dragging is converted into parent coordinates before the lock, snapping, and limits apply.
 
-## Drive a session programmatically
+Translation limits constrain the entity's origin, so large artwork can still extend past the rail. Rotation snapping uses radians measured from local zero.
 
-``SpriteUI/SpriteRenderer`` exposes `beginManipulation(at:operations:)` for picking at a scene-space point and `beginManipulation(of:at:operations:)` for a known entity. Both return an optional ``SpriteUI/ManipulationSession``. Automatic picking starts with the frontmost pickable hit and resolves the nearest ancestor with a manipulation component. The explicit overload is useful for tools and button actions.
+`scaleRange` defaults to `0.25...4` and limits the absolute local scale values. A scale gesture applies one multiplier to both axes, preserving aspect ratio and reflection. Parent scaling is separate from this local limit.
 
-Pass a scene-space anchor to the `at:` parameter. For a stationary demo entity, `let scenePoint = entity.scenePosition` uses the hierarchy-aware position. If an app needs an anchor from the currently presented artwork during animation, project its local origin with `renderer.viewPoint(from: .zero, relativeTo: entity)` and convert that view point with `renderer.scenePoint(fromView:)`. `beginManipulation` itself starts from the displayed pose, cancels conflicting transform playback, and keeps the pointer anchor so capture does not jump to a model pose or to the pointer center.
+## Use the same rules from a button or custom tool
 
-`session.update(translation:rotation:scale:)` takes cumulative values relative to capture start: scene-space pointer displacement, parent-local counterclockwise rotation in radians, and a uniform factor. Defaults are zero translation, zero rotation, and scale one. To move a total of 40 points, send `[40, 0]`; do not repeatedly add that displacement on every sample. Request only the channels a button changes so a rotation action does not unexpectedly snap translation.
+The first example calls `beginManipulation(of:at:operations:)` because it already knows the token. ``SpriteUI/SpriteRenderer`` also offers `beginManipulation(at:operations:)` to pick at a scene point. Picking starts with the frontmost input target and looks for its nearest manipulation owner.
 
-Call `end()` for completion or `cancel()` for interruption. Cancellation releases capture at the current committed pose; it is not an undo operation. Keep a session alive across samples in a custom tool and check `isActive`; use `renderer.cancelManipulations()` to cancel all renderer sessions before a reset. A failed begin returns `nil`; a rejected update returns `false`.
+Both return an optional ``SpriteUI/ManipulationSession``. The `at:` anchor is in scene coordinates. For the stationary token, `token.scenePosition` supplies that point. When following animated artwork, project the displayed local origin with `renderer.viewPoint(from: .zero, relativeTo: entity)`, then convert it with `renderer.scenePoint(fromView:)`.
 
-## Observe lifecycle and respect ownership
+A session begins from the displayed pose and preserves the grab offset. Its `update` values are cumulative from the start: scene-space translation, parent-local counterclockwise rotation in radians, and a uniform scale factor. A total movement of 40 points uses `[40, 0]` on the latest sample rather than adding another 40 points each time.
 
-``SpriteUI/ManipulationEvents`` publishes `Began`, `Changed`, `Ended`, and `Cancelled` from the manipulated entity. Every event carries `entity`, `initialTransform`, and the committed local `transform`; cancellation also carries a reason. Retain each ``SpriteUI/EventSubscription`` for as long as the interface observes it, and use weak captures when a scene owns the subscriptions. Callbacks see committed state and may update UI or request another interaction.
+Request only the operation a button changes. The rotation buttons therefore avoid snapping translation. A custom tool retains its session across samples, checks `isActive`, and finishes with `end()` or interrupts with `cancel()`. Cancellation keeps the current pose; implement undo separately if the puzzle needs it. `cancelManipulations()` ends the renderer's sessions before a reset or exit.
 
-Removal, activation changes, hierarchy changes, invalidated configuration, and interrupted native input can cancel a capture. Simultaneous sessions on overlapping parent and child subtrees are rejected. Do not run a ticking system that writes the same entity transform while a session owns it. Entities driven by a character controller or transform constraints, entities under a dynamic-body ancestor, and entities connected by physics joints deliberately reject manipulation to avoid conflicting transform ownership.
+## Release a token with a physics body
 
-## Hand physics back on release
+During capture, native physics bodies in the token's subtree are temporarily static. Their `PhysicsBodyComponent.isDynamic` values stay unchanged. Ending or cancelling restores native dynamics using the configured body properties, including edits made during capture.
 
-Capturing an entity temporarily makes native physics bodies in its target subtree static. Their `PhysicsBodyComponent.isDynamic` configuration remains unchanged throughout capture; the temporary handoff is renderer state, never persisted component state. End and cancellation restore native dynamics according to the configured body properties while preserving application edits to those properties.
+The default `physicsRelease: .stop` releases with zero linear and angular velocity. Gravity and contacts can move the token again immediately. Use `.restoreVelocity` to resume captured velocities. Gesture speed does not create a throw.
 
-The default `physicsRelease: .stop` gives released bodies zero linear and angular velocity. Gravity and subsequent contacts can move them again immediately. Choose `.restoreVelocity` to resume with their captured velocities. Gesture speed does not produce a throw. Manipulation placement does not sweep against colliders or avoid overlap; use collision queries or character movement when placement must be collision-aware.
+## Keep in mind
 
-Manipulation configuration is Codable and participates in registered component save/restore and cloning. Active sessions, native body suspension, pointer state, and subscriptions are runtime state and are neither saved nor cloned.
+A failed begin returns `nil`; a rejected update returns `false`. Invalid limits, nonfinite values, nonpositive snap steps, or an impossible uniform scale are rejected without applying the proposed transform.
 
-## See also
+Let the session control the transform while it is active. Character controllers, transform constraints, dynamic-body ancestors, and joint-connected entities can conflict with manipulation and are rejected. Overlapping parent and child sessions are also rejected. Removal, activation or hierarchy changes, invalidated configuration, and interrupted input can cancel capture.
 
-- <doc:systems-and-input>
-- <doc:gameplay-and-movement>
-- <doc:saving-and-debugging>
-- <doc:manipulating-sprites-with-gestures>
+Placement does not sweep against colliders or prevent overlap. Use <doc:gameplay-and-movement> when the puzzle requires collision-aware movement. Interactive SwiftUI attachments and inspection controls reserve their own input areas.
+
+Manipulation configuration can be cloned and saved as a registered Codable component. Active sessions, pointer state, temporary body suspension, and subscriptions must be recreated at runtime.
+
+## Next lesson
+
+Follow [the complete example](https://github.com/Prince2k3/sprite-ui/blob/main/Sources/SpriteUI/SpriteUI.docc/Resources/spriteui-manipulation-03.swift) to build the rail and physics examples in stages. Read <doc:systems-and-input> when a gesture should trigger a game rule rather than directly move the artwork.

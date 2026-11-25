@@ -1,22 +1,14 @@
-# Viewports and split screen
+# Show two players' cameras in one game view
 
-Present one simulated world through independent cameras, with viewport-aware input and SwiftUI attachments.
+Two players can share a level while looking at different parts of it. Each needs a camera, but the ball between them should still bounce once and the game clock should still advance once.
 
-## Keep one world and one host
+A viewport is a rectangle that shows the world through a camera. Give one ``SpriteUI/GameView`` several viewports to draw the same world in different regions. Physics, actions, camera following, and audio update once per display frame, then each camera draws its view.
 
-Pass a nonnil `[GameViewport]` to one ``SpriteUI/GameView``. The viewport host retains one ``SpriteUI/World``, one ``SpriteUI/SpriteRenderer``, and one native SpriteKit simulation driven by Metal. Each display tick updates the scene once, including physics, actions, camera following, and audio, then draws it through the resolved camera regions. Additional camera passes do not create additional worlds or simulation updates.
+## Put two cameras side by side
 
-Each additional viewport adds an offscreen draw and a reusable texture. An optional rendering configuration bounds the canvas, all pane targets, and three source buffers as one plan; passive mirror consumers reuse completed pixels. Camera draws finish sequentially to isolate SpriteKit's shared rendering state before composition. Keep the number of views small when budgeting rendering work; simulation still advances once.
+Create camera entities once and retain them. Each ``SpriteUI/GameViewport`` names a camera by entity ID and gives its region a stable string ID.
 
-The `viewports` parameter precedes `rendering`, `renderMonitor`, and `presentation` in both `GameView` initializers, including the attachment-builder initializer. With all four nil, the plain host preserves the legacy SKView path. Passing an empty viewport array selects Metal with one full-size automatic-camera viewport. A rendering configuration, monitor, or presentation source also opts into Metal, retained for the host lifetime so quality toggles never switch clock drivers. Changing arrays on a stable `GameView` updates presentation without recreating entities. See <doc:bounded-rendering-and-read-only-presentation> for aggregate target budgets and passive mirrors.
-
-Follow <doc:sharing-a-world-between-viewports> for three complete app stages. <doc:player-input-sessions-and-feedback> explains device ownership; viewports do not automatically assign players or devices.
-
-## Define stable regions and camera identities
-
-``SpriteUI/GameViewport`` uses a string `id`, an optional camera `Entity.ID`, a ``SpriteUI/ViewportRect``, and `isInteractive`. Create camera entities once before computing viewport arrays. Recreating camera entities inside a SwiftUI `body` would produce new IDs on reevaluation. For independent framing, give each player its own camera entity and target.
-
-This complete view places two cameras side by side. Both view the same beacon, from different positions. Changing viewport membership later does not remove the camera or any player from the world.
+This example shows one beacon through two cameras placed on either side of it. Both panes observe the same entity rather than copies of it.
 
 ```swift
 import SpriteUI
@@ -52,23 +44,23 @@ struct SplitScreenView: View {
 }
 ```
 
-Regions use normalized top-left coordinates: x increases rightward and y downward. `ViewportRect.full` covers the host. Rectangles intersect the 0...1 host bounds; invalid or nonpositive rectangles resolve to empty. `rect(in:)` converts a normalized region to points for a decorative SwiftUI frame. Empty or duplicate viewport IDs are ignored, with the first declaration for an ID winning.
+Viewport frames use fractions of the host's size with a top-left origin. The left pane starts at x 0 and takes half the width; the right starts at x 0.5. Y increases downward here, unlike world coordinates where positive y points up. Use `.full` for the entire surface.
 
-The renderer's `resolvedViewports` excludes empty regions and explicit cameras that are missing, removed, inactive, or lack ``SpriteUI/CameraComponent``. A nil camera uses the world's active camera, or the origin when there is none. Declaration order controls overlap: the last viewport is frontmost.
+Changing the array on the same `GameView` changes the layout without recreating players or cameras. Removing a pane does not remove its camera from the world. Empty or invalid regions are omitted, and duplicate IDs keep their first declaration. A pane naming a missing or inactive camera is also omitted. A nil camera uses the active camera, or the origin if there is none.
 
-Camera follow, bounds, and shake advance once per frame for all cameras. Follow bounds use the first declared viewport that references that camera and its point size. Reusing one camera in differently sized regions therefore uses the first region's size for follow bounds; use separate camera entities when framing must differ. The world's active camera remains the single primary audio listener. A minimap does not add an independent listener or replay sounds.
+## Add a minimap above the player views
 
-## Make overlays deliberately noninteractive
+Append a small viewport using a zoomed-out camera. Later declarations draw in front of earlier ones, so the map can overlap a player view.
 
-Append a small viewport with a third, zoomed-out camera and `isInteractive: false` for a minimap. It overlays earlier regions and blocks world input underneath its own rectangle. Noninteractive means a tap cannot fall through to an obscured player pane. Outside that rectangle, other player panes retain their own input. Decorative SwiftUI frames should use `.allowsHitTesting(false)` so they do not intercept gestures.
+Set `isInteractive: false` when the map is only for looking. Its rectangle blocks world input beneath it; taps do not pass through to the obscured player view. Decorative SwiftUI borders should use `.allowsHitTesting(false)` so they do not intercept gestures themselves.
 
-`renderer.viewport(at:interactiveOnly:)` finds the frontmost region. Its default interactive lookup returns nil over a noninteractive overlay, rather than searching the regions beneath it. Gaps also return nil. `GameViewContent.viewport(at:)` exposes the interactive lookup directly. Use these helpers to reject world interaction in gaps or maps before converting coordinates.
+Use `content.viewport(at:)` to find the frontmost interactive pane at a view point. It returns nil in gaps and over a noninteractive map. Viewports do not assign devices to players; use <doc:player-input-sessions-and-feedback> for that.
 
-## Convert through the viewport that captured input
+## Use the camera where a gesture began
 
-Targeted taps and gestures expose `EntityTargetValue.viewportID`. Input contacts latch their starting viewport, so crossing a split during a drag continues using that camera's mapping. Manipulation contacts cannot combine across viewports. Layout, camera, and host-mode changes cancel captured input; invalidating a captured camera also ends its usable mapping. Legacy values retain a nil viewport ID.
+A tap or drag's ``SpriteUI/EntityTargetValue`` supplies `viewportID`. A drag keeps its starting pane even if the finger crosses the split, so its coordinate mapping does not jump to the other camera. Contacts from different panes cannot combine into one manipulation.
 
-The explicit conversion helpers return optional results for invalid viewport IDs or cameras. A latched scene conversion can extend outside its original rectangle, allowing a continuous drag across a border. Treat that as gesture continuity, not permission to start an interaction outside a viewport.
+For a new interaction, find its pane before converting the point. For a marker, project through the intended camera and check that the result falls inside its pane.
 
 ```swift
 import SpriteUI
@@ -89,15 +81,17 @@ func projectMarker(_ point: SIMD2<Float>, content: GameViewContent, viewportID: 
 }
 ```
 
-The renderer also offers `scenePoint(fromView:inViewport:)` and `viewPoint(from:relativeTo:inViewport:)`. Their view points are global within the game host, with a top-left origin; scene points use positive y upward. Entity-relative projection accepts local scene coordinates. Projection itself does not clip visibility; clip custom overlays to `viewportRect(id:)`, as in the marker example. Attachment projection handles its own viewport clipping.
+These view points are relative to the whole game host, with y increasing downward. Scene points use y upward. The conversion helpers return nil for invalid pane IDs or cameras. Projection alone does not clip a custom overlay; the marker helper checks the pane rectangle for that reason.
 
-When viewports are configured, the legacy `scenePoint(fromView:)` uses the frontmost interactive region and returns zero outside one. Zero is also a valid scene position, so it cannot signal whether a new interaction is allowed. Legacy `viewPoint` projects through the first resolved viewport. Prefer the explicit helpers for new viewport-aware code.
+Once a drag has captured a pane, conversions may extend outside its rectangle to keep the drag continuous. That does not make the outside area a place to begin another interaction. Layout and camera changes cancel captured input rather than continuing with a changed mapping.
 
-## Project labels everywhere or scope them to one pane
+Prefer the helpers that take a viewport ID. The older `scenePoint(fromView:)` returns zero outside interactive regions, but zero is also a real scene position. The older `viewPoint` uses the first resolved pane.
 
-``SpriteUI/AttachmentComponent`` has an optional string `viewportID`. Nil is the default, including when decoding older saved components, and projects into every resolved viewport. A nonnil value limits that anchor to the matching region. ``SpriteUI/AttachmentContext`` identifies the projection's viewport, and attachment identities include it so separate projections have independent SwiftUI state.
+## Show a name in both panes and a selection in one
 
-This complete view gives one entity an all-viewport name and a P1-only selection label. It uses one set of view-scoped definitions; it does not duplicate the entity for the second camera.
+A world label often belongs in every view, while a selection belongs only to the player who tapped it. Set `AttachmentComponent.viewportID` for a pane-specific label; leave it nil to project the same anchor into every eligible pane.
+
+This view gives the shared player a name in both panes and a selection label only in P1.
 
 ```swift
 import SpriteUI
@@ -124,25 +118,24 @@ struct ViewportLabelsView: View {
 }
 ```
 
-Each projection is clipped to its viewport. Interactive attachment hit regions apply within their own interactive viewport; projecting into a noninteractive minimap does not grant that map controls or reserve another player's region. Name labels default to noninteractive so entity taps can reach the underlying game surface. Use targeted gesture viewport IDs to keep per-player selection state separate even when both players select the same entity.
+Each projection is clipped to its own pane and has separate SwiftUI state. `AttachmentContext` identifies the pane for the attachment builder. Interactive attachments work only inside interactive panes; a label cannot turn a noninteractive minimap into a control surface. Name labels default to noninteractive, allowing taps to reach the game beneath them.
 
-## Share a hub and inspect real simulation activity
+Keep selection state associated with the gesture's pane ID. Two players may select the same entity without needing duplicate game entities.
 
-Use one retained ``SpriteUI/PlayerInputHub`` for the game surface, two independently assigned virtual devices, and each session's controller in that player's movement system. Apply `.gameInput(hub)` once. Hardware joining stays an explicit application policy. Switching viewport layouts cancels native scene input; release or cancel app-owned virtual buttons separately to prevent stale held movement. Also release them when leaving the view or losing app activity.
+## Change layouts while keeping the game
 
-The seventh tutorial and the demo's Viewports tab show actual world-update, presentation-completion, and contact-began counters. Each counter increments only from its corresponding event subscription; scene time sums actual update deltas. Compare continuity and elapsed simulation when switching layouts. Do not calculate expected updates or contacts from the number of panes, and do not assume a fixed display rate. Contact totals depend on physics and timing. A `RenderingEvents.DidUpdate` event marks presentation completion, not a separate GPU draw for every camera; validating native render passes requires observing the renderer itself.
+Retain the `GameView`, cameras, players, and input hub when switching between one and two panes. Apply `.gameInput(hub)` once and use each player's controller in their movement rule. Release app-owned virtual buttons when changing layout, losing app activity, or leaving the view; the native host cancels its own captured input.
 
-App inactivity and disappearance pause the native display driver, and resume resets its frame clock to avoid background-time catch-up. Keep entity and camera IDs stable through these transitions. Use <doc:saving-and-debugging> for broader scene inspection.
+Camera follow and shake update once per frame for all cameras. If the same camera appears in several differently sized panes, its first pane determines the size used for follow bounds. Use separate cameras when framing needs to differ. The active world camera remains the one primary audio listener.
 
-## Filter artwork per camera
+Each pane adds drawing work and an offscreen texture, even though it adds no simulation. Passing a viewport array selects the Metal host; an empty array selects one full-size automatic-camera pane. See <doc:bounded-rendering-and-read-only-presentation> for quality controls and mirrors that reuse completed pixels. Host suspension pauses the display driver and avoids catching up background time on return.
 
-Use <doc:render-layers-and-camera-visibility> to choose world sprites or map icons from one shared hierarchy. Camera masks and optional viewport restrictions intersect; both panes can remain interactive. The eighth tutorial, <doc:presenting-a-world-with-render-layers>, adds visual hiding, continuing physics counters, and selection labels beneath the selected art.
+Continue with [the complete example](https://github.com/Prince2k3/sprite-ui/blob/main/Sources/SpriteUI/SpriteUI.docc/Resources/spriteui-viewports-03.swift) for a complete split-screen scene. To show detailed sprites in one pane and map icons in another, read <doc:render-layers-and-camera-visibility>.
 
 ## See also
 
-- <doc:bounded-rendering-and-read-only-presentation>
 - <doc:parallax-and-repeating-backgrounds>
-- <doc:sharing-a-world-between-viewports>
-- <doc:sharing-devices-between-players>
+- <doc:player-input-sessions-and-feedback>
 - <doc:systems-and-input>
 - <doc:rendering-and-resources>
+- <doc:saving-and-debugging>

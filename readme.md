@@ -85,8 +85,8 @@ explains product boundaries and imports.
 **[Read the documentation and tutorials online](https://prince2k3.github.io/sprite-ui/documentation/spriteui/)**
 once the first Pages deployment completes.
 
-The [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md|DocC documentation]] includes API
-reference, guides, and complete tutorials from a first scene through multiplayer.
+The [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md|DocC documentation]] starts with a five-lesson course on scenes, systems, input, movement, and levels.
+Task guides cover features to add later, with a separate API reference.
 Build the archive with `Tools/build-documentation.sh check`, then open
 `.build/documentation/SpriteUI.doccarchive` in Xcode.
 

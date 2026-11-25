@@ -1,177 +1,45 @@
-@Tutorials(name: "SpriteUI") {
-    @Intro(title: "Build an interactive SpriteUI scene") {
-        Create a scene, give its entities frame-based behavior, steer around a wall, control a player with shared input actions, manipulate sprites directly, share devices between local players, render their shared world through independent viewports, choose different world and map art with render layers, add a repeating parallax landscape, switch levels while keeping player progress, adapt cameras and controls to reported surface regions, bind optional hinge input with portable virtual controls, bound rendering while sharing completed game frames, separate fixed custom simulation from interpolated presentation and buffered input, record and inspect fixed-input replays, synchronize a small host-authoritative match offline or with optional Game Center, and start with local achievements, scores, and typed saved turns before opting into native service screens.
+@Tutorials(name: "Learn SpriteUI") {
+    @Intro(title: "Learn how a SpriteUI game works") {
+        Start with a square on screen. Give it movement, put it under the player's control, and guide a character around a wall. Finish by switching rooms without losing the player's progress.
 
-        @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
+        The course is for SwiftUI developers who are new to SpriteUI. You do not need to know SpriteKit or have game artwork. Each lesson explains an idea, lets you see it running, and gives you a small change to try.
+
+        @Image(source: "spriteui-first-scene-03-preview.svg", alt: "A cyan player, an orange destination, and a button that changes the player color.")
     }
 
-    @Volume(name: "From your first sprite to basic game services") {
-        Learn to retain a scene, schedule frame-based behavior, handle targeted input, guide a character around an obstruction, map on-screen and hardware controls to actions, drag, rotate, and scale sprites, assign devices to independent players, add split screen with a minimap, filter camera visibility without stopping physics, scroll decorative artwork while preserving model anchors, replace physics rooms without replacing players, fit cameras and HUDs around reserved regions, explicitly assign calibrated hinge input, publish bounded read-only game presentation, run fixed kinematic ticks with interpolated artwork and buffered input, replay recorded commands with diagnostic checksums, validate network commands and repair lost pose updates, and practice basic game services locally before opening optional native screens.
+    @Volume(name: "From a sprite to a game world") {
+        Follow these five lessons in order. Use one SwiftUI app and replace ContentView.swift with the complete code for the stage you are working on. The examples are small so you can focus on one idea at a time.
 
-        @Image(source: "spriteui-tutorials-overview.svg", alt: "Sixteen tutorials progress from scene creation through movement, steering, input actions, manipulation, and local players to split screen, camera-specific artwork, repeating parallax landscapes, persistent-player level transitions, adaptive game surfaces, optional hinge input with virtual fallbacks, bounded rendering with read-only mirrors, fixed-step simulation with interpolation and buffered input, input recording with replay transport and diagnostics, and small network matches with optional Game Center.")
+        @Image(source: "spriteui-movement-03-preview.svg", alt: "The player moves across a game area with a pause button below it.")
 
-        @Chapter(name: "Create and retain a scene") {
-            Learn how a SwiftUI view owns an observable scene and adds entities to GameView.
-
-            @Image(source: "spriteui-first-scene.svg", alt: "A cyan player and an orange destination inside a scene.")
+        @Chapter(name: "1. Put a player on screen") {
+            Learn what entities and components do, arrange two sprites, and change the player from a SwiftUI button.
+            @Image(source: "spriteui-first-scene-03-preview.svg", alt: "Two sprites and a color button.")
             @TutorialReference(tutorial: "doc:creating-your-first-scene")
         }
 
-        @Chapter(name: "Move with systems and input") {
-            Schedule typed systems and respond to taps on the player.
-
-            @Image(source: "spriteui-systems-input.svg", alt: "A tap on a cyan player reverses its motion between two limits.")
+        @Chapter(name: "2. Make the player move") {
+            Store velocity in a component, apply it from a system, and reverse direction when the player is tapped.
+            @Image(source: "spriteui-movement-03-preview.svg", alt: "A player patrols between two limits and responds to taps.")
             @TutorialReference(tutorial: "doc:moving-with-systems-and-input")
         }
 
-        @Chapter(name: "Steer through a scene with walls") {
-            Turn steering forces into collision-aware movement and inspect the route with scene queries.
-
-            @Image(source: "spriteui-steering-collision.svg", alt: "A cyan character follows a curved route above an orange wall to a green destination.")
-            @TutorialReference(tutorial: "doc:steering-and-collision-aware-movement")
-        }
-
-        @Chapter(name: "Control a player with input actions") {
-            Use on-screen buttons, poll held movement from a system, and add optional keyboard, pointer, and gamepad bindings. No physical input hardware is required.
-
-            @Image(source: "spriteui-input-actions.svg", alt: "Virtual and hardware controls feed shared Move and Fire actions.")
+        @Chapter(name: "3. Put the player under your control") {
+            Read held movement and react once to a Fire press. Connect touch, keyboard, and controllers to the same game actions.
+            @Image(source: "spriteui-input-actions-02-preview.svg", alt: "Directional controls move a cyan player.")
             @TutorialReference(tutorial: "doc:controlling-a-player-with-input-actions")
         }
 
-        @Chapter(name: "Manipulate sprites directly") {
-            Opt into automatic gestures, constrain a child in parent-local space, and provide accessible session controls with safe physics release.
-
-            @Image(source: "spriteui-manipulation.svg", alt: "A cyan sprite moves freely, a mint child follows a tilted rail, and an orange body resumes physics above a floor.")
-            @TutorialReference(tutorial: "doc:manipulating-sprites-with-gestures")
+        @Chapter(name: "4. Guide a character around a wall") {
+            Understand the different jobs of steering, collision checks, and a route to follow.
+            @Image(source: "spriteui-steering-04-preview.svg", alt: "A character follows a path above a wall.")
+            @TutorialReference(tutorial: "doc:steering-and-collision-aware-movement")
         }
 
-        @Chapter(name: "Share devices between players") {
-            Route virtual pads to independent sessions, transfer held input safely, and adapt prompts and feedback to optional controllers.
-
-            @Image(source: "spriteui-player-sessions.svg", alt: "Two virtual pads have exclusive player owners while an optional controller waits for assignment.")
-            @TutorialReference(tutorial: "doc:sharing-devices-between-players")
-        }
-
-        @Chapter(name: "Share a world between viewports") {
-            Follow independent players with two cameras, change layouts, and overlay a noninteractive minimap with scoped selection and labels.
-
-            @Image(source: "spriteui-viewports.svg", alt: "One shared world is rendered through two player cameras and a view-only minimap.")
-            @TutorialReference(tutorial: "doc:sharing-a-world-between-viewports")
-        }
-
-        @Chapter(name: "Choose artwork with render layers") {
-            Give one physical object separate world and map artwork, hide visuals while physics continues, and select visible art in either pane.
-
-            @Image(source: "spriteui-render-layers.svg", alt: "World squares and interactive map diamonds represent the same physical objects.")
-            @TutorialReference(tutorial: "doc:presenting-a-world-with-render-layers")
-        }
-
-        @Chapter(name: "Build a repeating parallax landscape") {
-            Generate seamless textures in code, scroll layers at different depths, and compare independent cameras while model anchors stay untouched.
-
-            @Image(source: "spriteui-parallax.svg", alt: "Independent cameras show one star, mountain, and ground landscape at different scrolling depths.")
-            @TutorialReference(tutorial: "doc:building-a-parallax-landscape")
-        }
-
-        @Chapter(name: "Switch levels with persistent players") {
-            Prepare detached physics rooms, retain player progress and cameras, and control fade, crossfade, cancellation, and failure inside one game world.
-
-            @Image(source: "spriteui-levels.svg", alt: "Garden and Workshop level roots share a persistent player, camera, and runtime sessions.")
+        @Chapter(name: "5. Change the room, keep the player") {
+            Decide what belongs to a level and what should survive when the game loads another room.
+            @Image(source: "spriteui-levels-02-preview.svg", alt: "A player keeps its score as Garden changes to Workshop.")
             @TutorialReference(tutorial: "doc:switching-levels-with-persistent-players")
-        }
-
-        @Chapter(name: "Adapt to game surfaces") {
-            Inspect active and inactive reserved regions, assign stable cameras, place fully fitting HUDs, and release virtual controls only when the effective layout changes.
-
-            @Image(source: "spriteui-surfaces.svg", alt: "Two stable cameras and a fully fitting HUD avoid a reported division in one game surface.")
-            @TutorialReference(tutorial: "doc:adapting-to-game-surfaces")
-        }
-
-        @Chapter(name: "Control a scene with hinge input") {
-            Observe optional sensor data, share a calibrated action with virtual controls, and assign a native hinge explicitly to a player.
-
-            @Image(source: "spriteui-hinge.svg", alt: "An optional live hinge and a virtual slider feed one calibrated action with explicit player ownership.")
-            @TutorialReference(tutorial: "doc:controlling-a-scene-with-hinge-input")
-        }
-
-        @Chapter(name: "Bound rendering and share presentation") {
-            Preserve point geometry while changing quality, monitor target reservations, and mirror existing frames with an optional OS external accessory.
-
-            @Image(source: "spriteui-rendering.svg", alt: "One bounded primary canvas publishes completed frames through three reserved GPU buffers to passive mirrors.")
-            @TutorialReference(tutorial: "doc:bounding-rendering-and-sharing-presentation")
-        }
-
-        @Chapter(name: "Run fixed simulation with interpolated artwork") {
-            Move pure kinematic actors at a fixed frequency, compare display FPS independently, and preserve input transitions with explicit pause cleanup.
-
-            @Image(source: "spriteui-fixed-step.svg", alt: "Fixed ticks feed orange canonical and cyan interpolated actors with caller-owned buffered input.")
-            @TutorialReference(tutorial: "doc:running-fixed-step-simulation")
-        }
-
-        @Chapter(name: "Record input and inspect replays") {
-            Freeze initial application state, record one sample per fixed tick, and inspect checksummed replay with pause, step, speed, and lifecycle cleanup.
-
-            @Image(source: "spriteui-input-replay.svg", alt: "Frozen initial state and relative input frames feed fixed rules and completion-time checksum comparison.")
-            @TutorialReference(tutorial: "doc:running-input-replays")
-        }
-
-        @Chapter(name: "Synchronize a small network match") {
-            Connect independent worlds offline, validate client commands, repair unreliable pose loss, and optionally configure a fixed-roster Game Center match.
-
-            @Image(source: "spriteui-network-sessions.svg", alt: "Validated client commands flow to one host; complete selected state returns through offline or Game Center transports.")
-            @TutorialReference(tutorial: "doc:synchronizing-a-small-network-match")
-        }
-        @Chapter(name: "Start with basic Game Center services") {
-            Record local achievement progress and scores, save and pass typed turns between two preview identities, and add optional native buttons without automatic authentication.
-
-            @Image(source: "spriteui-game-center-services.svg", alt: "Local achievement progress and scores lead to typed shared-memory turns and optional explicit native service screens.")
-            @TutorialReference(tutorial: "doc:starting-with-game-center-services")
-        }
-        @Chapter(name: "Build quests and seasonal leagues") {
-            Record objective events, claim a durable reward receipt, save local progress, finalize tie-preserving placements, and explicitly report preview achievements.
-
-            @Image(source: "spriteui-progression.svg", alt: "Quest objectives, league standings, and optional explicit Game Center reports.")
-            @TutorialReference(tutorial: "doc:building-quests-and-leagues")
-        }
-        @Chapter(name: "Save player profiles") {
-            Persist a typed player and atomic quest reward, reload across launches, and opt into a local offline cloud-directory fixture.
-            @Image(source: "spriteui-saves.svg", alt: "One profile revision keeps typed state, quest receipts, and wallet together; cloud access remains explicit.")
-            @TutorialReference(tutorial: "doc:saving-player-profiles")
-        }
-        @Chapter(name: "Route activities and report challenge attempts") {
-            Queue a cold invitation, accept a prepared arena, stage a final round score, and keep lower challenge attempts distinct from a personal best.
-            @Image(source: "spriteui-social.svg", alt: "Explicit incoming activity acceptance, staged completion, and per-attempt challenge reporting.")
-            @TutorialReference(tutorial: "doc:routing-game-center-activities")
-        }
-        @Chapter(name: "Join an activity party") {
-            Prepare separate worlds, ready matching level versions, and wait for a host-committed replication handoff while retaining the current campaign.
-            @Image(source: "spriteui-party.svg", alt: "Two prepared worlds acknowledge a host-committed party handoff while the campaign remains separate.")
-            @TutorialReference(tutorial: "doc:joining-an-activity-party")
-        }
-        @Chapter(name: "Predict multiplayer movement") {
-            Move a separate local visual immediately, acknowledge host-simulated inputs, and replay pending intent after a correction.
-            @Image(source: "spriteui-prediction.svg", alt: "Client input predicts locally; the host acknowledges fixed simulation and the client replays only pending input.")
-            @TutorialReference(tutorial: "doc:predicting-multiplayer-movement")
-        }
-        @Chapter(name: "Validate multiplayer interactions") {
-            Aim from a host-issued historical sample, enforce cooldowns and body lifetimes, and finalize local feedback without repeating gameplay effects.
-            @Image(source: "spriteui-interactions.svg", alt: "Issued view references flow to host validation and one cached final receipt.")
-            @TutorialReference(tutorial: "doc:validating-multiplayer-interactions")
-        }
-        @Chapter(name: "Control replication traffic") {
-            Select per-player scopes, retain required actors and parents, and inspect prioritized pose updates under independent byte credits.
-            @Image(source: "spriteui-interest.svg", alt: "One host selects separate scopes and byte credits for two clients.")
-            @TutorialReference(tutorial: "doc:controlling-replication-traffic")
-        }
-        @Chapter(name: "Play cooperative DemoBots") {
-            Integrate independent party worlds, prediction, historical beams, scoped replication, a shared win, and approved checkpoint recovery.
-            @Image(source: "spriteui-coop.svg", alt: "Two independent worlds share a repair round and require a fresh baseline after recovery.")
-            @TutorialReference(tutorial: "doc:playing-a-cooperative-demobots-round")
-        }
-        @Chapter(name: "Recover a multiplayer session") {
-            Keep a bounded host checkpoint, request a fresh match explicitly, and wait for every returning client to apply its new baseline.
-            @Image(source: "spriteui-recovery.svg", alt: "An approved checkpoint passes through fresh-party matching and client resynchronization before play resumes.")
-            @TutorialReference(tutorial: "doc:recovering-a-multiplayer-session")
         }
     }
 }

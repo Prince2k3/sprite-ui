@@ -1,12 +1,12 @@
-# Systems and input
+# Moving entities and handling input
 
-Schedule frame logic, respect coordinate spaces, and route gestures to the entity that owns an interaction.
+Suppose a ship should drift to the right while the player drags a separate token. The drift needs a rule that runs with game time. The drag needs a pointer location converted into the scene. Keeping those jobs separate makes both easier to follow.
 
-## Make systems the owners of frame logic
+## Turn speed into movement
 
-A ``SpriteUI/System`` is initialized for a world and receives an ``SpriteUI/UpdateContext`` at its scheduled cadence: once per advancing frame for variable systems, or once per executed tick for opted-in fixed systems. Query for the data the system needs rather than retaining a list that becomes stale as entities spawn, deactivate, or leave.
+Store a speed on each moving entity, then ask the world for entities that have it. A ``SpriteUI/System`` runs that rule; an ``SpriteUI/EntityQuery`` selects the matching entities.
 
-This system moves tagged entities at a scene-space velocity, even when their parents are rotated or scaled. It reports rejected coordinate conversions in a world resource rather than writing an invalid local position.
+This example uses scene coordinates so a rotated or scaled parent does not change the direction of travel. It calculates the destination in scene space, then asks the entity to convert that destination into its local position.
 
 ```swift
 import SpriteUI
@@ -44,21 +44,21 @@ struct SceneMotionSystem: System {
 }
 ```
 
-Install this system and add `SceneVelocity` to the entities it should move. This example assumes moving entities do not also move one another as ancestors. If both a parent and child move in scene space, first snapshot their starting scene poses, calculate destinations, then commit parents before children. Queries have no hierarchy-order guarantee. The built-in steering and path-following systems handle that ordering themselves.
+Install `SceneMotionSystem` in setup and add `SceneVelocity` to each entity it should move. The system multiplies points per second by `context.deltaTime` once. It records failed conversions in `MovementReport`, which another part of the game can inspect.
 
-Default queries omit inactive entities. Use `includingDisabled: true` deliberately for reset or inspection work; applying ordinary movement to dormant pooled entities can corrupt their next activation.
+Queries reflect current membership and activation, so newly added movers join the rule and disabled ones stop moving. There is no separate list of movers to maintain.
 
-## Choose phases and explicit dependencies
+## Read results after movement
 
-``SpriteUI/SystemPhase`` has three phases:
+A trail, camera hint, or UI marker may need positions after movement finishes. Systems have phases so you can choose when a rule runs:
 
-1. `fixedSimulation` runs zero or more times before variable simulation when `world.fixedStep` is nonnil. Use it for custom fixed-step game rules.
-2. `simulation` runs once before backend physics. Use it to decide variable-step motion and set physics inputs.
-3. `presentation` runs once after backend physics has copied results into components. Use it for logic that needs the completed physics pose.
+| Phase | When it runs | A typical use |
+| --- | --- | --- |
+| `fixedSimulation` | Zero or more ticks before variable simulation, when a fixed clock is configured | Custom rules that need a constant time step |
+| `simulation` | Once per advancing frame, before backend physics | Movement decisions and physics inputs |
+| `presentation` | After backend physics has copied results into components | Reading the resulting poses |
 
-`WorldEvents.Update` remains once per advancing frame before all systems; `WorldEvents.FixedUpdate` publishes before each tick's fixed systems. The renderer also flushes presentation changes, evaluates transform constraints, and updates cameras late in the frame. A headless `World.update(deltaTime:)` runs the system phases in order, without simulating backend physics or evaluating renderer-only constraints. <doc:fixed-step-simulation-and-interpolation> covers the opt-in clock and <doc:running-fixed-step-simulation> provides three complete kinematic examples.
-
-The default phase is `simulation`. Declare ordering with ``SpriteUI/SystemDependency`` rather than relying on an unrelated feature's installation order. For example, this optional presentation system samples positions after the motion system above:
+The default is `simulation`. Here, `PositionSamplingSystem` runs in `presentation` and stores the movers' resulting scene positions.
 
 ```swift
 // Fragment: add beside SceneVelocity and SceneMotionSystem from the preceding example.
@@ -83,37 +83,23 @@ struct PositionSamplingSystem: System {
 }
 ```
 
-Install both types with `try world.systems.add(...)` in setup. A dependency orders systems that are already installed; it does not install the target. All fixed simulation systems precede variable simulation systems, which precede presentation systems. Cycles and constraints that contradict phase order throw ``SpriteUI/SystemSchedulingError`` and preserve the previous schedule. Without a stronger constraint, the scheduler retains installation order.
+Install both systems with `try world.systems.add(...)`. A ``SpriteUI/SystemDependency`` orders installed systems; it does not install another system for you. Phase order comes first. Cycles or dependencies that contradict it throw ``SpriteUI/SystemSchedulingError`` without replacing the working schedule.
 
-``SpriteUI/SystemCollection`` exposes the resolved `types` order, enablement, and removal. Adding a system during a frame schedules it for the next frame. Removing or disabling a system that has not yet run takes effect immediately. `registerSystem()` applies to subsequently created worlds, while `world.systems.add` applies to one world.
+For two systems in the same phase, declare their relationship when one needs the other's output. Otherwise installation order is retained. `world.systems.types` lets you inspect the resolved order.
 
-## Use the scene clock consistently
+## Use game time for game rules
 
-`context.deltaTime` in variable systems is elapsed display-frame scene time after `world.timeScale` is applied. Their `unscaledDeltaTime` is the supplied elapsed time before that multiplier. Fixed systems instead receive the constant configured `stepDuration`, an unscaled delta of `stepDuration / world.timeScale`, and a nonnil `fixedTick: UInt64?`. The context also exposes `interpolationAlpha`; variable systems keep a nil fixed tick and their original frame deltas. Movement measured in points per second needs one multiplication by delta time; force-producing APIs that already integrate elapsed time should receive it directly.
+In an ordinary frame system, `deltaTime` is elapsed scene time after `world.timeScale` is applied. `unscaledDeltaTime` is the elapsed time before that multiplier. A paused world or zero time scale skips ordinary simulation, so reading the unscaled value does not make a system run while paused. Keep responsive menus in SwiftUI.
 
-Paused worlds and a zero time scale skip ordinary simulation. Using `unscaledDeltaTime` inside a system does not make that system run while paused. Keep menus and other UI that must remain responsive in the app's UI lifecycle.
+For a constant step, configure `world.fixedStep`. Fixed systems receive its `stepDuration` and a `fixedTick`; variable systems still receive the frame's deltas. Follow <doc:fixed-step-simulation-and-interpolation> when you need this clock and smooth display between ticks.
 
-The renderer caps its ordinary frame interval at 1/15 second to limit a large jump after a stall. Opt into a separate fixed clock with `world.fixedStep = FixedStepConfiguration()`; its raw-delta clamp applies before time scaling and its bounded catch-up preserves fractional debt while dropping whole excess ticks. Headless callers choose their own valid elapsed intervals; a zero delta still delivers the world update event. Fixed systems do not change SpriteKit physics or actions into deterministic fixed-step simulation, and reproducible custom rules still need controlled input, ordering, and random state.
+Input can change more than once between fixed ticks. A caller-owned `FixedInputBuffer` preserves press and release transitions; call `consume()` once per tick. Cancel input and reset the buffer on pause or scene exit as appropriate for your game. Pausing the world does not clear that buffer for you.
 
-For input consumed by fixed rules, retain a caller-owned `FixedInputBuffer` and call `consume()` once per tick. This preserves press and release transitions between ticks while held values persist. Explicitly call `input.cancelAll()` and/or `buffer.reset()` on pause or scene exit; pausing a world does not own its input buffer. Follow <doc:fixed-step-simulation-and-interpolation> for cancellation revision and overflow behavior.
+## Convert a drag into a scene position
 
-## Keep model and presented coordinates distinct
+Give a draggable entity an ``SpriteUI/InputTargetComponent``. Add a ``SpriteUI/CollisionComponent`` when you want a touch area independent of the artwork. A collider can define input geometry without a physics body.
 
-``SpriteUI/Transform`` holds parent-relative translation, counterclockwise rotation in radians, scale, and z position. `position` is local; `scenePosition` includes the ancestor hierarchy. A `nil` reference in the relative-transform methods means scene space.
-
-Use `setPosition(_:relativeTo:)` to express a destination in scene or another entity's space. Use `convert(position:to:)` for points and `convert(direction:to:)` for vectors; a direction does not include translation. ``SpriteUI/AffineTransform2D`` retains shear that nested rotations and nonuniform scales can produce. Conversion can be unavailable for unrelated worlds or singular reference transforms, and writes validate before mutating.
-
-Opted-in kinematic `TransformInterpolationComponent` presentation blends previous and current fixed local poses with one fixed tick of latency. `entity.presentation`, displayed hit testing, and attachment projection follow this displayed pose, while model/physics queries and snapshots stay canonical. Teleports outside fixed ticks snap automatically; inside a fixed tick, call the component’s `reset()`. Reactivation and reparenting invalidate history.
-
-During `withAnimation`, components immediately contain their target values. ``SpriteUI/PresentationValues`` exposes what the renderer currently shows; its `position` is still parent-relative. Use presented conversions for a pointer that must follow visible artwork, and model transforms for game rules that intentionally use authoritative destinations. The model collision queries described in <doc:gameplay-and-movement> do not use the in-between animation pose.
-
-## Give gestures an interaction shape and an owner
-
-Add ``SpriteUI/InputTargetComponent`` to an entity or an ancestor to opt its subtree into targeted gestures. The nearest component wins, so a child with `isEnabled: false` can opt out. Provide an explicit ``SpriteUI/CollisionComponent`` when the touch region should differ from artwork or remain stable as artwork changes. A collider does not require a physics body.
-
-The displayed hit-test path prefers explicit collision geometry, then physics or controller geometry, and uses visual bounds or paths as a fallback. A collider ancestor owns implicit descendant visual hits; a child with its own collider remains an independent candidate. Displayed masks clip gameplay hit testing.
-
-This complete view makes the circle follow the drag location. It intentionally places the circle's center under the pointer; a game that needs an unchanged grab offset can store the offset at drag start.
+In this example, the touch circle is slightly larger than the visible circle. A targeted SwiftUI drag supplies the captured entity, and `convertIfAvailable` turns the pointer location into scene coordinates.
 
 ```swift
 import SpriteUI
@@ -146,22 +132,30 @@ struct DragScene: View {
 }
 ```
 
-``SpriteUI/EntityTargetValue`` carries the captured entity and the underlying gesture value. Its conversions use displayed transforms and the current camera. Attach the gesture to the `GameView` or a wrapper containing exactly one `GameView`. `targetedToEntity(_:)` selects a specific hierarchy owner; `targetedToEntity(where:)` selects the nearest matching ancestor.
+`setPosition(_:relativeTo: nil)` places the entity in scene space. This handler puts the circle's center under the pointer. To keep the original grab offset, store that offset when the drag begins, or use the automatic gestures in <doc:manipulating-entities>.
 
-For automatic dragging, rotation, uniform scaling, grab-offset preservation, and parent-local constraints, add `ManipulationComponent` and follow <doc:manipulating-entities>. That path installs GameView gestures automatically and also exposes programmatic sessions for accessible controls.
+Attach the gesture to `GameView` or a wrapper containing exactly one `GameView`. ``SpriteUI/EntityTargetValue`` provides the captured entity and conversions through the current camera. `targetedToEntity(_:)` chooses a particular owner; `targetedToEntity(where:)` chooses the nearest matching ancestor.
 
-## Respect capture validity
+An input-target component can make a whole subtree interactive. The nearest one wins, so a disabled input-target component on a child opts that child out. A collider on an ancestor owns visual hits from descendants without their own collider.
 
-Targets are captured from the gesture's starting pointer rather than a global last-hit entity. Removal, disabling, cancellation, activation/reuse, or reparenting that changes the resolved target cancels delivery. Gestures that cannot identify a starting point are delivered only for an unambiguous contact. These rules keep two fingers or two views from accidentally sharing a target.
+## Follow what the player can see
 
-Keep immediate changes in the handler. If an asynchronous task resumes later, check that the entity still belongs to the intended world and is active, and use an app-owned interaction generation if the same entity can be reused. A retained gesture value is not a permanent authorization to mutate a recycled entity. Prefer `convertIfAvailable` over the nonoptional conversion helpers when the host may have disappeared; a fallback zero is not a meaningful pointer location.
+An entity's `position` is relative to its parent; `scenePosition` includes its ancestors. Relative conversion methods use `nil` for scene space. Use point conversions for locations and direction conversions for vectors, which should not include translation.
 
-Interactive attachments reserve their UI rectangle, and explicit debug picking suppresses entity-targeted game input. Arbitrary ancestor SwiftUI gestures still follow SwiftUI's normal arbitration; these safeguards do not disable every gesture in your app. Use ``SpriteUI/AttachmentContext`` for actions launched from attachment controls, as shown in <doc:rendering-and-resources>.
+During animation, component transforms already contain the destination while the artwork may still be moving toward it. ``SpriteUI/PresentationValues`` describes the displayed pose. Targeted gesture conversions use displayed transforms so the pointer follows the artwork.
 
-## See also
+Fixed-step interpolation also changes only the displayed pose, trailing simulation by one fixed tick. Game collision queries and snapshots read model transforms. That difference explains why an animated sprite can be under a pointer while a model-space ray reports a different position.
 
-- <doc:fixed-step-simulation-and-interpolation>
+## Keep in mind
 
-- <doc:entity-and-scene-lifecycle>
-- <doc:gameplay-and-movement>
-- <doc:saving-and-debugging>
+This movement example assumes a moving entity does not have another moving entity as its ancestor. Queries do not promise hierarchy order. For such hierarchies, capture starting scene poses first, calculate destinations, then apply parents before children.
+
+Conversions can fail for singular transforms or unrelated worlds. Use `convertIfAvailable` when the host may disappear. A failed position write leaves the pose unchanged.
+
+Gesture capture can end when an entity leaves, is disabled, is reused, or changes its resolved owner. After awaiting work, check world membership and activation again; track an interaction generation if instances are reused. Interactive attachments reserve their UI areas, and debug picking suppresses targeted game input. Other SwiftUI gestures still use normal arbitration.
+
+The renderer limits ordinary frame deltas to 1/15 second after stalls. Fixed clocks have separate catch-up limits; they do not turn SpriteKit physics or actions into deterministic fixed-step simulation. Advancing a world without a renderer runs system phases but does not simulate backend physics or renderer constraints.
+
+## Next lesson
+
+Read <doc:gameplay-and-movement> to choose between steering, route following, character movement, and physics. For dragging with rotation, scaling, and button alternatives, continue with <doc:manipulating-entities>.

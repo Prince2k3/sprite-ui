@@ -1,20 +1,18 @@
-# Player profiles and cloud saves
+# Save a player's progress and rewards
 
-Persist typed player state and quest rewards locally, then explicitly opt into GameSave directory synchronization.
+A player collects the last quest coin, receives ten gold, and closes the game. The next launch must restore both the completed quest and the wallet. Saving them separately risks giving the reward again or losing it after a crash.
 
-## Select the optional save product
+Keep them in one typed profile, commit the local change together, and add cloud synchronization when the local save flow works.
 
-`SpriteUISaves` is a separate target and library product. It depends on Gameplay for quest receipts, not on ECSCore, SpriteBackend, GameUI, or SpriteUIGameCenter. Select it and `import SpriteUISaves` for saves without the engine; `import SpriteUI` re-exports it for convenience. SpriteUICore and SpriteUIGameCenter do not depend on this product.
+## Give each player a save slot
 
-Local saving works on iOS 18 and macOS 15. The native [GameSave framework](https://developer.apple.com/documentation/gamesave) requires iOS/macOS 26 or later. ``SpriteUI/CloudSaveDirectory/isSupported`` distinguishes OS support from configuration; true does not mean the consuming app has the required entitlement or an iCloud account.
+``SpriteUI/PlayerProfileStore`` saves your `Codable` state alongside a wallet and reward receipts. Use the optional `SpriteUISaves` product for saves without the engine, or import the complete `SpriteUI` product.
 
-## Bind an identity and slot
+A ``SpriteUI/PlayerProfileID`` separates guests from accounts and separates account providers. Your app supplies stable IDs and handles authentication. Recreate the store when the active identity changes; a Game Center identity and an iCloud identity are separate choices.
 
-``SpriteUI/PlayerProfileID`` separates `.guest(id)` from `.account(provider:id:)`. The same subject string in two namespaces does not share storage. The application supplies stable IDs and handles authentication; these values do not verify credentials, move guest data into an account, or detect Game Center sign-out. Recreate the store when your active game identity changes and retire outstanding application tasks. Game Center and iCloud identities are separate.
+A ``SpriteUI/SaveSlotID`` names progress such as campaign or autosave. `ProfileSaveLocation.applicationSupport` supplies an app-scoped local directory. Constructing the store does not create a save.
 
-``SpriteUI/SaveSlotID`` names a slot such as campaign or autosave. Player and slot identifiers are hashed before use as filenames, so separators in a display identifier do not become path traversal. Use ``SpriteUI/ProfileSaveLocation/applicationSupport(appIdentifier:)`` for app-scoped durable local files. The store constructor does not create a save or start cloud work.
-
-This complete example creates a quest profile and claims its reward inside one store transaction. Pass a new slot, or explicitly load an existing one before updating it; `create` never overwrites an existing or damaged slot.
+This example creates a new campaign and claims a completed quest inside a store update. For an existing slot, load it first: `create` refuses to overwrite existing or damaged data.
 
 ```swift
 import Foundation
@@ -44,17 +42,19 @@ func startCampaign(at now: Date) async throws -> PlayerProfile<CampaignProgress>
 }
 ```
 
-The ``SpriteUI/PlayerProfile`` result carries owner, slot, schema version, revision, parent revision, save time, typed state, and ``SpriteUI/ProfileWallet``. Keep the returned revision after every successful write. `save(_:at:)` persists a modified candidate; `update(_:at:_:)` combines a synchronous candidate mutation and persistence. Use value-semantic `State` and keep closures brief. The actor serializes its operations, and a filesystem lock protects against independent stores/processes overwriting the same revision. A stale candidate throws `staleRevision`; reload and make an explicit game decision rather than blindly retrying an old state.
+Keep the returned profile after every successful write. It carries the revision needed for the next update. If another store or process has saved first, a stale candidate throws `staleRevision`. Reload and decide how the game should proceed rather than blindly saving the old state again.
 
-## Commit rewards with their receipts
+## Commit the reward with the claim
 
-`claimQuestReward(_:in:at:)` validates the journal's owner, claims the occurrence, and applies its rewards to the candidate wallet. ``SpriteUI/PlayerProfileStore/update(_:at:_:)`` encodes the state, journal receipts, wallet balances, and applied claim keys together in one atomic slot-file replacement. A throwing closure, validation/overflow failure, capacity failure, or failed atomic replacement does not persist a partial reward. `spend(_:currency:)` rejects negative amounts and overdrafts. A retained claim key prevents granting the same receipt again even if the application replaces its journal with an unclaimed copy.
+`claimQuestReward(_:in:at:)` checks the journal owner, claims the quest, and updates the candidate wallet. `update` writes the state, receipt, balances, and applied claim keys in one atomic slot-file replacement.
 
-This guarantee is local to the committed profile. Restoring an older backup, choosing another cloud version, copying data elsewhere, editing a save, or granting external rewards is not a distributed wallet transaction. Use a trusted server for valuable shared currency and competitive authority. The checksum detects accidental corruption; it is not encryption, authentication, or anti-cheat protection.
+If the mutation, validation, encoding, or replacement fails, it does not persist half a reward. A retained claim key also stops the same receipt granting gold again if your app replaces the journal with an unclaimed copy. Use brief synchronous update closures with value-semantic state. `spend(_:currency:)` rejects negative amounts and overdrafts.
 
-## Migrate payloads deliberately
+## Keep old saves readable as the game changes
 
-``SpriteUI/ProfileSaveSchema`` has a current positive version and sequential migration closures. A step keyed by n receives version n's raw JSON payload and returns version n+1 JSON. Local loading and cloud-version inspection can migrate in memory but never rewrite the original file. Saving the loaded profile commits the new payload schema and a new revision. Missing migration steps, malformed data, and future schema/archive versions throw; do not replace them with a new game automatically.
+Suppose an earlier game saved `score`, while the new game saves `points` and `stage`. A migration converts the old payload instead of treating it as a new campaign.
+
+``SpriteUI/ProfileSaveSchema`` names the current version and each sequential conversion. This step reads version 1 and returns version 2 with the old score preserved.
 
 ```swift
 import Foundation
@@ -71,25 +71,19 @@ func campaignSchema() throws -> ProfileSaveSchema<CurrentProgress> {
 }
 ```
 
-## Inspect and recover without erasing damage
+Loading migrates in memory without rewriting the file. Saving the returned profile commits the new format and revision. Missing steps, malformed data, and future versions throw. Show a recovery choice or error rather than automatically overwriting the player's progress.
 
-`slots()` returns ``SpriteUI/ProfileSlotSummary`` values. Health is available, recoveryAvailable, or unreadable. A completely unreadable entry may not have a recoverable raw slot ID; its opaque storage key remains visible. Loading never silently falls back to older progress. After a successful replacement, the previous committed archive is retained in the same slot file. `recoverBackup(in:at:)` explicitly promotes it to a new revision, rolling back wallet and state together. It refuses to use recovery to overwrite a recognized future schema/archive version. A completely destroyed outer file may destroy both archives; keep your own exported backups if that risk matters.
+## Offer recovery when a save is damaged
 
-`delete(_:)` explicitly removes the current slot and its retained backup, with the same revision check as saving. The library never deletes slots automatically. Default archive size is four MiB, configurable from one KiB through 64 MiB; limits include metadata/wallet. The outer slot file can contain two base64-encoded archives. Reads are size-checked and malformed/symbolic-link slot files are rejected. A cancelled task is checked before work and immediately before the atomic write, but cancellation after commit is not rollback. An atomic replacement protects against partial replacement; it is not a guarantee against all filesystem or hardware failure modes.
+`slots()` reports whether a slot is available, has recovery available, or is unreadable. The slot retains the previous committed archive after replacement. `recoverBackup(in:at:)` promotes that backup to a new revision, rolling back state and wallet together. It refuses to overwrite a recognized future version.
 
-## Open a native cloud directory explicitly
+Recovery is a player/app decision; loading never silently switches to older progress. If the outer file is destroyed, both archives may be lost. `delete(_:)` removes the slot and backup only when called with the current revision. Completely unreadable entries still expose an opaque storage key even when their original slot ID cannot be recovered.
 
-``SpriteUI/CloudSaveDirectory`` wraps GameSave without exposing its native types. Configure the consuming app's iCloud capability, select iCloud Documents and its container, and use compatible signing/provisioning. `Tools/templates/saves-icloud.entitlements` is a starting plist whose placeholder container must be replaced; it does not configure an Apple account. Local saves require none of these capabilities.
+## Open cloud storage at a game transition
 
-Call `open()` at a deliberate transition and show progress while waiting. It does not display native sign-in or conflict alerts. Handle these statuses:
+Cloud saving uses ``SpriteUI/CloudSaveDirectory``, backed by Apple's GameSave framework. Configure iCloud Documents, a container, signing, and provisioning in the consuming app. Local saves do not need these capabilities.
 
-- `ready`: initial synchronization has completed and the directory is usable.
-- `offline`: local data is usable, but cloud synchronization is incomplete.
-- `localOnly`: GameSave is using local storage without cloud synchronization.
-- `conflicted`: choose a whole-directory version before obtaining a writable store.
-- `syncing`, `closed`, or `failed`: no writable store is available.
-
-GameSave's available directory is separate from a default Application Support store. SpriteUI never copies the local profile into it or silently switches between the two; offer an explicit application import/migration policy when changing backends. This avoids replacing a cloud profile with unrelated local progress.
+Open the directory at a transition where the UI can show waiting or conflict choices. `open()` does not present sign-in or conflict alerts for you. After opening, create a store from that directory rather than reusing an Application Support store.
 
 ```swift
 import Foundation
@@ -111,13 +105,17 @@ func loadCloudProfile(directory: CloudSaveDirectory, player: PlayerProfileID) as
 }
 ```
 
-Retain the directory for the entire store lifetime. Close it on gameplay exit or a relevant application lifecycle transition. Stores and read-only inspectors from that session reject subsequent access with `directoryClosed`, including after a later reopen. Account-change notifications invalidate access before native teardown. A synchronous in-progress file transaction finishes before close invalidates its lease; native syncing never resumes in the middle of that transaction.
+A `ready` directory has completed initial synchronization. `offline` permits local use while cloud synchronization is incomplete; `localOnly` has no cloud synchronization. `conflicted` requires a choice before writing. `syncing`, `closed`, and `failed` provide no writable store.
 
-After GameSave makes a directory available, synchronization is paused while the game uses it. `close()` releases it for synchronization; close and reopen to refresh at another deliberate boundary. `requestUpload()` can trigger pending native work, but true only means uploads were pending. It is not a server acknowledgment that your latest reward is durably synchronized. Opening/finishing can be cancelled; late native completion is ignored. Native cloud work may continue after cancellation.
+Retain the directory while using its stores. Native synchronization pauses while the game uses an available directory; `close()` releases it for synchronization. Close and reopen at another transition to refresh. Stores from a closed session stay invalid even after reopening, so create new ones. Account changes also invalidate access. An in-progress synchronous file transaction finishes before its lease is invalidated.
 
-## Choose conflicts as whole directories
+Cloud and default local storage are separate. If the game changes backends, provide an import policy rather than assuming the cloud directory already contains the local campaign.
 
-``SpriteUI/CloudSaveVersion`` contains an ephemeral choice ID, saving-device label, timestamp, and local flag. Inspect each version through a read-only store. Inspection cannot create lock files, modify slots, claim rewards, recover, or delete. Preview stores are invalidated when a choice is resolved. A future-schema version remains an error rather than being discarded in favor of an older profile.
+## Help the player choose between device versions
+
+Two devices can make different offline progress. Inspect the conflicting directory versions through read-only stores and show useful game values, such as level or points, before asking which to keep.
+
+This example reads points from each choice, then resolves the chosen version and finishes synchronization if needed.
 
 ```swift
 import Foundation
@@ -143,8 +141,16 @@ func chooseVersion(_ id: UUID, directory: CloudSaveDirectory) async throws {
 }
 ```
 
-Selecting a version may replace every profile and slot in the directory, not just the currently displayed campaign. Do not automatically choose the highest score, latest timestamp, or greatest currency balance. Those policies can lose other valuable progress or duplicate grants. This milestone offers explicit selection; application-specific merging and authoritative economies remain application/server work.
+The choice replaces the whole directory, potentially affecting every player profile and slot inside it. A higher score or newer timestamp alone may lose other progress or repeat rewards. Read-only inspectors cannot claim, recover, or delete, and become invalid after resolution. Future-schema data remains an error rather than an excuse to select an older save.
 
-`CloudSaveDirectory.preview(directory:status:)` exposes account-free ready/offline/local-only fixtures. `preview(versions:)` accepts explicit ``SpriteUI/CloudSavePreviewVersion`` directories; selection chooses the corresponding local fixture without uploading, copying, merging, or deleting directories. The showcase's Game Services tab links to a Profiles & saves lab with durable local profiles, guest/account and slot separation, atomic rewards, stale revision rejection, and two-device conflict previews. <doc:saving-player-profiles> provides a complete asset-free tutorial.
+The showcase's Profiles & saves lab lets you inspect local rewards, stale revisions, and two-device conflict previews. Continue with <doc:quests-and-leagues> to define the goals stored in the profile.
 
-Signed iCloud multi-device verification is **pending**. Account-free tests validate rules, persistence, and adapter lifecycle seams, not Apple's live synchronization. On configured builds, verify offline edits, reconnect, conflict inspection/selection across devices, account changes, close/reopen, and launch on the package's older supported OS versions to verify local-only behavior.
+## Limits and cloud validation
+
+Local saving supports iOS 18/macOS 15. Native GameSave requires iOS/macOS 26+; `isSupported` checks OS availability, not entitlement or account readiness. Preview directories exercise choices without uploading or merging data.
+
+Local atomic reward commits do not protect against restored older backups, edited saves, or independent cloud versions. Valuable shared currency needs server authority. The checksum detects accidental corruption, not tampering. Atomic replacement protects against partial replacement, not every hardware failure. Archive size defaults to four MiB, configurable from one KiB to 64 MiB, including wallet and metadata. Symbolic-link and malformed slot files are rejected.
+
+Cancellation after a file commit cannot roll it back. `requestUpload()` returning true means uploads were pending, not that the latest reward is durably on a server; native cloud work can also continue after cancellation.
+
+Signed iCloud multi-device verification remains **pending**. Test offline edits, reconnect, conflict inspection and selection, account changes, and close/reopen on configured devices. Also test local saving on older supported systems. Account-free previews cannot establish Apple's live synchronization.

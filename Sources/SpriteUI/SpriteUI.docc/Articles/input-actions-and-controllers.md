@@ -1,24 +1,14 @@
-# Input actions and controllers
+# Move a player with buttons, keys, or a controller
 
-Resolve keyboard, pointer, controller, and on-screen controls into shared game actions.
+A player should move the same way whether someone holds an on-screen button, presses D, or pushes a stick. Write the movement rule once, then let each control supply a direction to it.
 
-## Define actions independently of devices
+SpriteUI calls that shared intent an ``SpriteUI/InputAction``. A binding connects a control to an action, a map groups bindings for a part of your game, and an ``SpriteUI/InputController`` holds the resulting values. Start with actions such as move and fire rather than separate movement rules for each device.
 
-An ``SpriteUI/InputAction`` describes an intent such as move or fire. An ``SpriteUI/InputBinding`` maps a control to that intent, and an ``SpriteUI/InputActionMap`` groups bindings into a context. The main-actor, observable ``SpriteUI/InputController`` resolves those contexts and exposes values to SwiftUI and systems.
+## Turn a press into a game action
 
-| Action kind | Resolved value | Typical use |
-| --- | --- | --- |
-| `.button` | `.button(Bool)` | Fire, jump, confirm |
-| `.axis` | `.axis(Float)` in -1…1 | Steering or throttle |
-| `.axis2D` | `.axis2D(SIMD2<Float>)` with magnitude at most 1 | Movement or aim |
+Use a button action for fire, an axis for steering, or a two-dimensional axis for movement. Axis values run from -1 to 1; movement vectors have a maximum length of 1. Positive y points up.
 
-Define actions once and reuse them in maps, systems, and observers. Action identity includes its name, kind, and press threshold. A different threshold creates a different action even if the name matches. A button's default threshold is 0.5; analog bindings press it when their processed magnitude reaches that threshold.
-
-``SpriteUI/InputValue`` provides three convenient projections: `vector` returns two axes, `scalar` returns the x component, and `isPressed` tests for a nonzero resolved value. Buttons project to `[1, 0]` or zero. For axis actions, `isPressed` means nonzero, rather than a separate button threshold. Positive y points upward.
-
-## Feed virtual controls and observe transitions
-
-This complete session model needs no physical keyboard or gamepad. It combines two directions on one virtual pad and a separate virtual fire button. Call `setPad(right:up:)` with held directions, then call it with both arguments false to release. Call `setFire(held:)` on press and release.
+The session below defines move and fire once. Its virtual Right and Up controls share a pad, so holding both produces diagonal movement. Fire has its own control. Call the setters on both press and release.
 
 ```swift
 import SpriteUI
@@ -66,21 +56,17 @@ final class ActionSession {
 }
 ```
 
-Retain the ``SpriteUI/InputSubscription`` returned by `observe`; cancellation or deallocation ends delivery. Use weak captures when the owner retains the token. Omit the `action:` argument to observe all actions. Delivery is synchronous on the main actor, so keep callbacks short.
+The fire subscription counts the moment firing begins. Keep its ``SpriteUI/InputSubscription`` for as long as you need callbacks; releasing or cancelling it stops delivery. The weak capture lets the session go away without being kept alive by its own callback. Callbacks run synchronously on the main actor, so keep the work short.
 
-| Phase | Meaning |
-| --- | --- |
-| `.idle` | No transition has been recorded for this action |
-| `.pressed` | The resolved value changed from neutral to nonzero |
-| `.changed` | A nonzero value changed while remaining nonzero |
-| `.released` | Normal input returned the action to neutral |
-| `.cancelled` | Cancellation ended an active action |
+An action's stored phase describes its last transition. `.pressed` can remain there throughout a long hold. Subscribe when you need to fire once; poll `value(for:)` when you need to move continuously. Automatic fire should use the held value and your game's cooldown.
 
-`state(for:)` stores the **last transition**, not per-frame flags. A held action can keep `.pressed` for many frames; a released action can keep `.released`. Identical samples, including keyboard repeats, emit no additional events. Use a subscription for one-shot edges such as firing once. Poll `value(for:)` or `state(for:).isPressed` for continuous movement or automatic fire with a game-owned cooldown. Don't increment a score every frame just because the stored phase is `.pressed`.
+Normal release produces `.released`; interrupted input produces `.cancelled`. A changing held value produces `.changed`. Identical samples, including key repeats, do not produce another press.
 
-## Poll held movement from a system
+## Move while a control is held
 
-Pass the same controller used by your UI through an application-defined ``SpriteUI/Component``. `World` has no `input` property. This complete view moves a root-level sprite while the on-screen Right button is held. Present `InputMovementView()` from your app. The simulation reads held input every frame and multiplies speed by elapsed scene time exactly once.
+In this view, holding Right moves the cyan square. The same movement action also accepts WASD and a gamepad stick or d-pad. The system reads the direction each frame and multiplies speed by elapsed time once.
+
+The view retains the controller in `@State`. An app-defined component passes that same instance to the player's system; `World` has no `input` property.
 
 ```swift
 import SpriteUI
@@ -173,47 +159,23 @@ struct InputMovementView: View {
 }
 ```
 
-Keep runtime controllers out of saved component data. Here, `cloned()` excludes the driver from clones; the component is not registered for Codable snapshots. Reattach a driver when spawning a controlled entity. For parented entities, choose an explicit coordinate space as described in <doc:systems-and-input>.
+The button style sends a release when the button disappears, preventing movement from getting stuck. `.gameInput` connects focused hardware input to the controller used by the button and system.
 
-## Attach focused hardware input
+The driver component contains a runtime reference. Its `cloned()` method excludes it from clones, and it stays out of Codable snapshots. Reattach a driver when spawning a controlled player. For movement under a transformed parent, choose the coordinate space described in <doc:systems-and-input>.
 
-Attach `.gameInput(input, isActive: true)` to the game surface, using the same retained instance as your systems and controls. The modifier owns the active focus used for keyboard, pointer-button, and GameController input. Activate only the intended game surface when several scenes share a window, and set `isActive` false while another interface owns input.
+## Combine directions without increasing speed
 
-``SpriteUI/InputTargetComponent`` continues to opt an entity or subtree into targeted taps and drags. Action bindings do not require it. Disabling or removing the target component changes gesture eligibility; it does not disable movement or firing actions resolved by ``SpriteUI/InputController``. Use action contexts or `input.isEnabled` to control those actions independently.
+Give all directions on one virtual pad the same device identity. Their values combine: Left and Right cancel, while Up and Right produce a diagonal. Separate devices compete by strength rather than adding together, so holding D while pushing the stick does not double the player's speed.
 
-The modifier automatically cancels its hardware sources when action focus is lost. Attach it directly to a `GameView`, or to a wrapper containing exactly one `GameView`, so it can bind the controller to a unique host. With that binding, host lifecycle or inspection cancellation clears both captured entity gestures and the controller’s active actions. A wrapper containing several game views does not provide a unique host; attach a modifier to each intended game surface instead.
+`setValues` applies the listed changes together. Unlisted controls keep their previous values, so send `.button(false)`, `.axis(0)`, or `.axis2D(.zero)` to release them.
 
-Keys use lowercase characters or the names `up`, `down`, `left`, `right`, `space`, `escape`, `return`, and `tab`. Key spelling is canonicalized to lowercase, and a literal space becomes `space`. Pointer button 0 is primary and 1 is secondary. These bindings represent buttons, not pointer position or motion.
+Use binding `scale` to turn a digital press into a direction. A stick dead zone removes small movements near its center and rescales the remaining range. With a dead zone of 0.2, magnitude 0.2 becomes zero, 0.6 becomes 0.5, and 1 stays 1. The resolver limits the final movement vector to length 1, keeping diagonal speed consistent.
 
-The gamepad adapter uses Apple’s [GameController framework](https://developer.apple.com/documentation/gamecontroller) to discover connected controllers and sample their profiles. Vendor-neutral aliases such as `.south` and `.east` feed logical game-action values through your bindings. The adapter supports **extended and micro gamepad profiles**. Extended profiles supply `.leftStick`, `.rightStick`, `.dpad`, `.leftTrigger`, `.rightTrigger`, and their supported buttons. Micro profiles supply their supported buttons and d-pad; unavailable buttons and axes report neutral values. Bind sticks and the d-pad to `.axis2D` actions; triggers can drive `.axis` or thresholded `.button` actions. A controller is identified by `.controller(UUID)`, so disconnecting one producer need not discard another producer's input.
+## Give menus their own controls
 
-Use `handles(control:)` when writing a custom host adapter to determine whether an installed context binds a control and leave unrelated shortcuts to the surrounding interface. Custom adapters and virtual controls feed `setValue(_:for:device:)` or `setValues(_:device:)` on the main actor. For activation baseline gates, `input.isNeutral(value, for: control)` checks a sample against current effective bindings, including scale, dead zones, and button thresholds. An unbound control is neutral only at zero. This helper does not submit a sample or clear a cancellation gate; send the actual sample through `setValue` or `setValues`.
+Space might fire during play and confirm a choice in a menu. Install the menu map above the play map while the menu is open. The upper map reserves its controls by default, so confirming does not also fire.
 
-## Configure GameController support in your app
-
-In the app target’s **Signing & Capabilities** pane, add **Game Controllers**, enable support for controller interaction, and select the profiles your app supports. For this adapter, select **ExtendedGamepad** and **MicroGamepad**. This sets [`GCSupportsControllerUserInteraction`](https://developer.apple.com/documentation/bundleresources/information-property-list/gcsupportscontrolleruserinteraction) to `true`; the [`GCSupportedGameControllers`](https://developer.apple.com/documentation/bundleresources/information-property-list/gcsupportedgamecontrollers) array contains dictionaries whose `ProfileName` values are `ExtendedGamepad` and `MicroGamepad`. Apple’s [GameController overview](https://developer.apple.com/documentation/gamecontroller) describes this setup.
-
-Keep controller use optional for a touch-capable app. The tutorial’s on-screen controls work without a connected controller; declaring support does not require players to own physical hardware.
-
-On supported platforms, an app can also create and connect Apple’s native [`GCVirtualController`](https://developer.apple.com/documentation/gamecontroller/gcvirtualcontroller). Its underlying `GCController` is handled automatically by the adapter once connected, using the supported profile elements and the same action bindings. Your app owns the native controller’s configuration, presentation, and lifetime; `.gameInput` does not present a virtual-controller overlay.
-
-These examples have not been tested with physical controller hardware.
-
-## Understand scaling and multiple devices
-
-Digital directions use binding `scale`, for example `[-1, 0]` for left and `[0, 1]` for up. Dead zones are radial and rescaled: with a dead zone of 0.2, a magnitude of 0.2 resolves to zero, 0.6 resolves to 0.5, and 1 stays 1. Binding scale is applied after dead-zone processing, with each scale component clamped to -1…1. Nonfinite sample components become neutral and values are bounded to their supported range. Installed map configuration is normalized to finite values before map equality is checked, so equivalent normalized maps do not repeatedly cancel input.
-
-The resolver sums bindings **within each device**, then clamps scalars to -1…1 and normalizes vectors whose magnitude exceeds 1. Opposing keyboard directions cancel, and keyboard diagonals move at the same maximum speed as a single direction. It then chooses the strongest resolved device contribution, using a stable device order for exact ties. Keyboard and stick values do not add together to increase speed.
-
-Give the buttons comprising one directional pad the **same virtual device**, such as `.virtual("screen-controls")`, so Up plus Right composes into a diagonal and Left plus Right cancels. Each button still sends its own control value and releases only that control. Use distinct device identities for independent producers, such as two separate sticks or a pad and a fire button. `setPad` above demonstrates atomic changes to a composite producer. Contributions from separate devices compete by strength rather than summing.
-
-`setValues` applies all listed changes before resolving once. **Unlisted controls retain their samples**; send explicit neutral values to release them. Send `.button(false)`, `.axis(0)`, or `.axis2D(.zero)` as appropriate. This also makes scripted input and tests possible without hardware.
-
-## Stack contexts, rebind, and persist maps
-
-Contexts are installed **bottom to top**. In `[play, menu]`, `menu` has priority. The upper map shadows the same action identity completely, even if none of its controls are held. By default, `consumesInput` also reserves every bound control from lower maps, including controls that are currently neutral. Setting it false permits lower maps to use those controls for other actions; it does not disable same-action shadowing.
-
-This complete helper creates a menu that takes Space away from Fire, then demonstrates replacing bindings and encoding maps. Keep stable action definitions when restoring user bindings.
+This helper also shows how to save a changed binding as a preference.
 
 ```swift
 import SpriteUI
@@ -245,25 +207,29 @@ func restoreInput(_ data: Data, into input: InputController) throws {
 }
 ```
 
-`contexts` is read-only externally; use `setContexts(_:)` to replace or rebind the stack. Replacing different maps cancels active actions and gates their held sources. Assigning identical maps leaves input undisturbed. Maps, bindings, actions, controls, and values are Codable; save binding preferences rather than the runtime controller or its current held state. Validate imported preferences against the actions and controls your game supports.
+Maps are ordered bottom to top. An upper map replaces lower bindings for the same action, even while no controls are held. Setting `consumesInput` to false lets lower maps use its controls for other actions; it still replaces bindings for the same action.
 
-## Cancel safely across lifecycle changes
+Use `setContexts(_:)` to replace maps. Different maps cancel active actions; identical maps leave input alone. Keep action definitions stable when restoring preferences: identity includes the name, kind, and press threshold. A button's default threshold is 0.5. `InputValue.isPressed` on an axis means nonzero rather than applying a separate button threshold.
 
-Set `input.isEnabled = false` to cancel held actions when opening a pause interface. Re-enable it when gameplay is ready. Pausing a world alone stops simulation, so also manage input if held gameplay controls must be discarded. The SwiftUI UI and input subscriptions have a separate lifecycle from world frames.
+## Release input when play stops
 
-Use `cancelAll()` when abandoning a session, or `cancel(device:)` when one producer loses ownership. Cancellation gates affected held sources **until each source sends neutral**. For analog input, neutral can be inside the effective bound dead zone; an exact zero sample is not required. A button binding can also be neutral below its press threshold. When a control has several effective bindings, it must be neutral for all of them. After rebinding, a cancelled source must be neutral under both its bindings at cancellation and its current effective bindings. Re-enabling, restoring focus, or installing a new map must not turn a still-held key into a new press. Release the key or on-screen button, or return the stick to neutral, then actuate again. Virtual controls should send neutral on release and disappearance; custom adapters must also handle interrupted interactions and device loss.
+Set `input.isEnabled = false` when a pause interface takes control. Pausing the world stops simulation but does not stop input callbacks. Use `cancelAll()` when leaving a session, or `cancel(device:)` when one device loses ownership.
 
-For a hands-on implementation, follow <doc:controlling-a-player-with-input-actions>. It includes on-screen buttons, system-driven 2D movement, an action-state readout, and optional hardware bindings.
+After cancellation, held controls must return to neutral before acting again. For a stick, the binding's dead zone can count as neutral. After rebinding, neutral must satisfy both the old and current bindings. Re-enabling input should therefore be followed by release and a fresh press, rather than carrying a held control into the next screen.
 
-## Assign input to local players
+## Connect hardware to the game surface
 
-For multiple local players, use a shared ``SpriteUI/PlayerInputHub`` and independent ``SpriteUI/PlayerInputSession`` objects. Assign connected devices explicitly and submit virtual samples through the hub so ownership, safe transfer, and last-meaningful-device tracking stay consistent. Apply `.gameInput(hub, isActive:)` to the game surface. The existing single-``SpriteUI/InputController`` host remains useful for a single action stream.
+Attach `.gameInput(input, isActive:)` directly to the intended `GameView`, or to a wrapper containing exactly one game view. Focus loss cancels hardware input. Set `isActive` false while another interface owns focus. ``SpriteUI/InputTargetComponent`` is for entity taps and drags; action bindings do not require it.
 
-See <doc:player-input-sessions-and-feedback> for device ownership, adaptive prompts, and capability-checked controller feedback, or follow <doc:sharing-devices-between-players> for three standalone stages without required hardware.
+Key bindings accept lowercase characters and names such as `space`, `escape`, `return`, `tab`, and the arrow directions. Pointer bindings represent buttons: 0 is primary and 1 is secondary. They do not supply pointer position.
+
+For gamepads, add **Game Controllers** in the app target's **Signing & Capabilities** and select **ExtendedGamepad** and **MicroGamepad**. The adapter uses Apple's [GameController framework](https://developer.apple.com/documentation/gamecontroller). Extended profiles provide supported sticks, triggers, d-pad, and buttons; micro profiles provide their supported buttons and d-pad. Missing controls remain neutral. Keep touch controls available where the app supports touch. Your app can also present Apple's `GCVirtualController`; once connected, its supported elements use the same bindings.
+
+For a custom adapter, `handles(control:)` identifies controls used by the current maps. `isNeutral(_:for:)` tests a sample against those bindings, but does not submit it or clear a cancellation gate. Feed actual samples through `setValue` or `setValues` on the main actor.
+
+For a complete movement scene, continue with <doc:controlling-a-player-with-input-actions>. When two players need separate controls, read <doc:player-input-sessions-and-feedback>.
 
 ## See also
-
-- <doc:player-input-sessions-and-feedback>
 
 - <doc:systems-and-input>
 - <doc:entity-and-scene-lifecycle>

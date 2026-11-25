@@ -1,18 +1,12 @@
-# Render layers and camera visibility
+# Show world sprites in one camera and map icons in another
 
-Give the same simulated objects different artwork in a world view and an interactive map.
+A comet might look like a large square in the game and a small diamond on the map. Both pictures should follow the same moving body. You do not need two comets, two physics bodies, or two movement rules.
 
-## Choose layers for presentation
+Put the shared game object on a parent entity, then give it separate artwork children. Render layers tell each camera which artwork to show. They change presentation rather than collision or simulation.
 
-``SpriteUI/RenderLayer`` is a `UInt64` option set. `.default` reserves bit zero, `.all` includes all 64 bits, and `.none` is empty. Define app-specific names using bits 1 through 63. Layers control presentation independently of collision categories, lighting masks, stencil masks, and z ordering.
+## Give one moving object two pictures
 
-``SpriteUI/VisibilityComponent`` defaults to `layers: .default` and `isVisible: true`. An entity **without** that component is unrestricted, equivalent to `.all` for the layer test. Adding a default component to a previously untagged container therefore changes its policy: it now gates the entire subtree to the default layer.
-
-Every explicit ancestor must be visible and have at least one layer in common with the effective camera mask. A child cannot escape a hidden ancestor or an ancestor whose layers do not match. Ancestor checks are separate: an ancestor allowing both world and map art permits a child restricted to either one. An empty component layer set hides that entity and its descendants through every camera.
-
-## Give one object separate artwork
-
-Keep physics and simulation on a neutral parent. Put world art on a default-layer child and map art on another child. Both inherit the same physical position; no duplicate body or second simulation is necessary. The complete helper below creates this hierarchy. Keep its custom layer declaration once per app target.
+The helper below gives a physical parent a cyan square for the world view and a mint diamond for the map. Both children inherit the same position.
 
 ```swift
 import SpriteUI
@@ -39,17 +33,21 @@ func makeLayeredObject() -> Entity {
 }
 ```
 
-Leaving the parent untagged is neutral. If it needs a visual hide switch, give it `VisibilityComponent(layers: [.default, .map])` or `.all`, then toggle `isVisible`. Setting its layers to `.default` would also hide its map child in a map-only camera. The eighth tutorial, <doc:presenting-a-world-with-render-layers>, walks through all three cases with complete runnable stages.
+``SpriteUI/RenderLayer`` names groups of artwork. `.default` uses bit zero; define your own groups with bits 1 through 63. `.all` includes every group, and `.none` includes none. These groups are independent of collision categories, lighting masks, stencil masks, and drawing order.
 
-## Intersect camera and viewport masks
+A ``SpriteUI/VisibilityComponent`` places artwork in one or more layers. The square belongs to `.default` and the diamond to `.map`. The parent has no visibility component, so it does not restrict either child.
 
-``SpriteUI/CameraComponent`` has a `cullingMask` default of `.all`. ``SpriteUI/GameViewport`` has an optional `cullingMask` default of nil. The effective mask is:
+## Keep a parent's visibility broad enough for its children
 
-`camera.cullingMask.intersection(viewport.cullingMask ?? .all)`
+Each ancestor with a visibility component also has to permit drawing. Hiding the parent hides both pictures; a child cannot override that. Restricting the parent to `.default` would also prevent the map diamond from appearing in a map-only camera.
 
-A viewport restriction can narrow a camera's mask. It cannot add a layer excluded by that camera. A nil-camera viewport uses the active camera's mask, or `.all` at the origin if there is no active camera. Omitting the viewport API still applies the primary camera's visibility policy. See <doc:viewports-and-split-screen> for framing and coordinate conversion.
+For a shared hide switch, give the parent `VisibilityComponent(layers: [.default, .map])` or `.all`, then toggle `isVisible`. Adding a default visibility component is not neutral: its default layer is `.default`. Leaving the component absent is unrestricted. An empty layer set hides the entity and its descendants from all cameras.
 
-This complete helper creates two retained cameras and their side-by-side descriptors. Add both camera entities to the world before presenting these viewports. Retain the returned cameras rather than calling this helper on each view update.
+## Choose what each camera sees
+
+A camera's `cullingMask` selects permitted layers and defaults to `.all`. A viewport can narrow that selection further with its own mask. The final selection is their intersection, so a viewport cannot add something its camera excludes.
+
+This helper creates separate world and map cameras. Add both cameras to the world once, retain them, and present the returned viewports in one `GameView`.
 
 ```swift
 import SpriteUI
@@ -69,15 +67,15 @@ func makeLayerCameras(restrictMapToWorld: Bool) -> (cameras: [Entity], viewports
 }
 ```
 
-With the restriction enabled, the right pane has an empty effective mask: map intersects world to produce `.none`. Even untagged entities are hidden when the camera mask is empty. Changing the map camera to `[.default, map]` then admits only default-layer art through the restricted pane. A pane with `isInteractive: false` can still show art, but this example deliberately leaves **both** panes interactive.
+Normally the left camera shows the square and the right shows the diamond. When `restrictMapToWorld` is true, the map camera allows only map art while its pane allows only default art. The intersection is empty, so that pane shows neither. Even untagged entities cannot appear through an empty camera mask.
 
-Use one `GameView(viewports: ...)` for the pair. It advances one world clock and one physics simulation, then presents the same world through both cameras. Keep the view and entity identities stable when changing masks.
+Both panes remain interactive in this example. Visibility and `isInteractive` answer different questions: a noninteractive map can still show artwork. <doc:viewports-and-split-screen> explains framing and how a gesture keeps track of its starting camera.
 
-## Hide visuals while gameplay continues
+## Hide the artwork while the object keeps moving
 
-Visual hiding does not deactivate entities. Physics contacts, systems, model queries, actions, and audio continue. Use activation when gameplay itself should stop; use visibility when an object should keep participating while its presentation changes. Empty camera masks and hidden ancestors are also visual-only policies.
+Visibility does not deactivate an entity. Its physics, contacts, systems, actions, audio, and model queries continue. Hide a comet, wait, then show it again: it should appear where its simulation has taken it. Use activation instead when gameplay itself should stop.
 
-This helper hides a physical parent and its art, without changing its activation or physics components:
+This helper hides the parent and its art without changing its physics or activation.
 
 ```swift
 import SpriteUI
@@ -90,19 +88,15 @@ func setVisualHidden(_ hidden: Bool, object: Entity, renderer: SpriteRenderer,
 }
 ```
 
-`renderer.isVisible(_:inViewport:)` checks activation, explicit visibility ancestors, the resolved pane's effective mask, and explicit native hiding. It is a policy query, **not** an on-screen, bounds, opacity, or pixel-occlusion test. Nil uses the primary camera policy; an unknown explicit viewport returns false. `renderer.visibilityMask(inViewport:)` returns nil for an invalid explicit pane. Noninteractive panes can still return true for visual visibility.
+`renderer.isVisible(_:inViewport:)` answers whether activation, ancestor visibility, camera layers, and native hiding permit presentation. It does not tell you whether the entity is inside the screen bounds, opaque, or covered by another sprite. An unknown viewport returns false; nil uses the primary camera policy. `visibilityMask(inViewport:)` returns nil for an invalid pane.
 
-Snapshots and cloning preserve visibility values. Older camera snapshots without `cullingMask` decode to `.all`, and older viewport configuration retains its unrestricted default. An absent visibility component continues to be neutral.
+Visibility values survive snapshots and cloning. Cameras saved before masks were added default to `.all`; an absent visibility component remains unrestricted.
 
-## Select visible art and attach labels to it
+## Attach selection labels to the picture that was tapped
 
-Targeted gestures choose visible targets in the pane where input begins. A capture stays associated with that pane; hiding the captured target or excluding it with a camera mask cancels its interaction. Physics queries keep their existing behavior even when the same entities are visually hidden. For manual picking, pass the pane ID to `renderer.entities(at:filter:inViewport:)` or `renderer.inputTarget(at:filter:inViewport:)`.
+Targeted gestures pick visible art in the pane where the interaction begins. Hiding that art or excluding it with a mask cancels its captured interaction. A hide/show cycle does not revive the old capture. Manual picking can use `renderer.entities(at:filter:inViewport:)` or `renderer.inputTarget(at:filter:inViewport:)` with the same pane ID.
 
-``SpriteUI/VisibilityEvents/DidChange`` retains both `previousPolicy` and `policy`, with an increasing `revision`. A callback can immediately change visibility again, so use those immutable policies to describe the reported transition rather than assuming the live component still matches it. Existing captures stay cancelled after a hide/show cycle; policy edits that keep a presentation visible preserve its interaction and attachment state.
-
-Put selection attachment anchors **under the selected art**, so that art's ancestors gate the label too. Scope `AttachmentComponent.viewportID` to the tapped pane. A nil attachment viewport projects into every eligible pane; it does not bypass the hierarchy's visibility rules. Hidden attachment controls do not reserve input regions. A noninteractive viewport never gains interaction from an attachment.
-
-This complete helper creates a pane-scoped anchor only when the art is eligible in that pane. Define its `selected` template in the owning `GameView` attachment builder, as in the tutorial's final stage.
+Put a selection label under the chosen artwork child, then scope its `viewportID` to the tapped pane. The label inherits the art's visibility, so hiding world squares also hides their labels without removing map selections.
 
 ```swift
 import SpriteUI
@@ -117,12 +111,13 @@ func addVisibleSelection(to art: Entity, renderer: SpriteRenderer, viewportID: S
 }
 ```
 
-The demo's **Layers** tab combines these controls in a 280-point arena. Hide both objects, wait several seconds, and observe the actual bounce count and elapsed simulation. Reveal them to see their new positions. Select a world square and a map diamond, hide world squares, and check that only the corresponding label disappears. Contact totals depend on elapsed simulation; they are counted from events rather than estimated from the number of panes.
+Define the `selected` attachment template in the owning game view. Leaving an attachment's viewport nil projects it into every eligible pane, but does not bypass ancestor visibility. Hidden attachment controls reserve no input regions, and attachments cannot make a noninteractive pane interactive.
+
+If you observe ``SpriteUI/VisibilityEvents/DidChange``, use the event's saved `previousPolicy` and `policy` to describe the change. Another callback may already have changed the live component again.
+
+Continue with [the complete example](https://github.com/Prince2k3/sprite-ui/blob/main/Sources/SpriteUI/SpriteUI.docc/Resources/spriteui-render-layers-03.swift) to build the world-and-map scene. For camera-relative background artwork, read <doc:parallax-and-repeating-backgrounds>.
 
 ## See also
 
-- <doc:parallax-and-repeating-backgrounds>
-- <doc:presenting-a-world-with-render-layers>
-- <doc:viewports-and-split-screen>
 - <doc:entity-and-scene-lifecycle>
 - <doc:rendering-and-resources>

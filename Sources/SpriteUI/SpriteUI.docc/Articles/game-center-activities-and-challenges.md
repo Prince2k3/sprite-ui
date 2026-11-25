@@ -1,14 +1,14 @@
-# Game Center activities and challenges
+# Invite players to a round and report its result
 
-Route incoming activities deliberately, stage round results, and report each completed challenge attempt through the optional SpriteUIGameCenter product.
+A friend sends an invitation to a score-attack arena while the player is midway through a campaign. The game needs to hold that invitation, prepare the right arena, and report the score of the round they actually played.
 
-## Choose the service lifetime
+An activity carries the entry point and round results. A native challenge uses a configured leaderboard to compare attempts. Neither replaces your game's level loading or progression rules.
 
-``SpriteUI/GameCenterServices`` retains ``SpriteUI/GameCenterActivities`` and ``SpriteUI/GameCenterChallenges`` as `.activities` and `.challenges`. Keep one facade and one `.gameCenter(services)` host on a stable parent. Import `SpriteUIGameCenter` for the optional product, or `SpriteUI` for the complete SDK. Neither SpriteUICore nor SpriteUISaves acquires a new dependency.
+## Give incoming rounds a place to wait
 
-Native activities and challenges require iOS/macOS 26+, configured Game Center resources, and an authenticated player. Explicit previews work on iOS 18/macOS 15 without accounts. Construction, installing the host, opening a catalog menu, and view appearance never authenticate, load catalogs, start rounds, or submit scores automatically.
+Retain one ``SpriteUI/GameCenterServices`` above the screens that share it, with one `.gameCenter(services)` modifier. Its `.activities` and `.challenges` services are available through `SpriteUIGameCenter`, or the complete `SpriteUI` product.
 
-This complete preview factory registers known routes before anything can deliver an incoming activity. Configuring fixtures performs no Apple work.
+Register routes before sign-in. In this preview, the score-attack route names an arena, and the sprint challenge points to a leaderboard. Nothing contacts Apple.
 
 ```swift
 import SpriteUIGameCenter
@@ -28,13 +28,13 @@ func makeSocialPractice() throws -> GameCenterServices {
 }
 ```
 
-For a live facade, configure routes before presenting sign-in. The facade starts its configured listener after authentication, with routing ready even if GameKit delivers an intent during registration. Standalone services and previews can call `startListening()` explicitly. `hasPendingActivities()` is an explicit pre-authentication existence check; it does not display authentication UI or accept a request.
+A live facade starts its configured listener after authentication. Standalone services and previews can call `startListening()`. `hasPendingActivities()` checks whether an entry is waiting before authentication without accepting it or showing sign-in.
 
-## Let the game accept an activity
+## Ask the game whether it can accept
 
-``SpriteUI/GameCenterActivityRequest`` holds inert metadata, including a definition ID, properties, party code, and optional party URL. Incoming requests wait in `pendingRequests`; they never replace gameplay, load a level, spend currency, or restore a profile. Check content readiness, progression, and application-owned property allowlists before accepting. Reject unknown levels and choose what to do with an existing active or paused round before accepting another.
+An incoming ``SpriteUI/GameCenterActivityRequest`` waits in `pendingRequests`. Use its definition and properties to decide whether the player has the content and progression needed. Decide what should happen to the current round before accepting another.
 
-This complete helper requires the caller to have prepared the arena. It works without loading the definition catalog, matching a cold-launch intent. A real route should additionally check its own profile and content requirements.
+Here, an unknown arena is declined. A known arena stays pending while it loads. The helper can handle a cold-launch request without first loading the definition catalog.
 
 ```swift
 import SpriteUIGameCenter
@@ -52,15 +52,13 @@ func acceptPreparedArena(_ request: GameCenterActivityRequest,
 }
 ```
 
-Routes are capped at 256 definition IDs, the pending queue at 16, and the handled-instance ledger at 256 per service epoch. Unknown routes, wrong-account deliveries, ended activities, and overflow are not accepted. Duplicate incoming instances are not requeued. Raw GameKit activities with results already staged outside SpriteUI are rejected to avoid submitting another owner's scores.
+After acceptance, the app chooses the screen. For a shared real-time arena, continue through `services.party.findMatch()` and <doc:activity-party-matchmaking-and-handoff>.
 
-Live listener ownership is exclusive within SpriteUI. `stopListening()` unregisters it and releases unconsumed requests, allowing those instances to be delivered again after restart; it retains the current round. `shutdown()` and account changes retire pending work and clear local state. An account change also dismisses the facade's current service presentation.
+## Keep the result for this round
 
-## Stage the latest round result
+A player might earn 100 points, restart, then finish with 40. Staged activity scores describe the latest result, so setting 40 replaces 100 rather than preserving a personal best.
 
-Load definitions explicitly before starting a new activity. `start(definitionID:partyCode:properties:)` merges supplied properties with definition defaults. Party codes must be valid for GameKit; previews use equal-length numeric parts such as `1234-5678`. Metadata exposes the party code and URL for an application-owned sharing flow. For activity-specific real-time matching, use `services.party.findMatch()` and the prepared-world flow in <doc:activity-party-matchmaking-and-handoff>. Generic `connect(in:schema:request:)` remains a separate matchmaking path.
-
-The following complete helper starts one round, stages a replacement score even though it is lower, and finishes once. The returned receipt contains 40 points, not the previous 100. Use configured identifiers with live services.
+Load definitions before starting a new activity. The helper starts one round, pauses and resumes it, replaces its score, and finishes it once.
 
 ```swift
 import SpriteUIGameCenter
@@ -78,17 +76,17 @@ func completePracticeRound(using services: GameCenterServices) async throws -> G
 }
 ```
 
-Up to 64 distinct leaderboards and 64 achievements can be staged per round; replacements do not grow the attempt. Staging does not call the global leaderboard or achievement reporter. `finish()` ends the current attempt once and retains up to 64 local receipts. GameKit's end operation provides no server-durability acknowledgment; a receipt means the local end was requested.
+Staging results does not call the global achievement or leaderboard reporter. `finish()` ends the attempt and returns a local receipt with the staged 40 points. GameKit provides no server-durability acknowledgment for this end operation.
 
-`discard()` clears SpriteUI-staged results before ending and creates no completion receipt. It does **not** restore native quotas or consumed attempts. Follow the configured challenge's rules for an appropriate final score when the player quits. Releasing an owned native wrapper clears its staged results before cleanup rather than implicitly flushing gameplay scores.
+`discard()` clears the staged results before ending, but cannot refund a native attempt or quota. Choose the appropriate final score for a player who quits according to the challenge's rules.
 
-## Report each completed challenge attempt
+## Submit a challenge attempt once
 
-``SpriteUI/GameCenterChallengeDefinition`` describes configured native social challenges, separate from SpriteUI's custom quests and seasonal leagues. `load()` fetches metadata only. `hasActiveChallenges(for:)` is an optional separate query for a UI decoration. Repeatability is metadata; previews do not reproduce friend rosters, attempt quotas, invitations, or server competition state.
+A challenge attempt also uses the latest completed score, even when it is below the player's best. Configure the leaderboard's ordering to preserve the best score; still submit each attempt's own result. Apple consumes attempts through the associated leaderboard submission.
 
-For direct reporting, provide the **latest completed-attempt score**, even below a personal best. Configure the native leaderboard's ordering to retain a best score; do not substitute that rolling best for each new attempt. Apple consumes attempts through the associated leaderboard submission. Never call both activity `finish()` and `challenges.submitAttempt` for the same attempt and leaderboard.
+Choose one reporting path for an attempt and leaderboard: activity `finish()` or `challenges.submitAttempt`. Calling both can report it twice.
 
-This complete preview exercise records 100 and then 20 as two attempts. Reusing the second ID with the same payload requests no additional report. The leaderboard's preview best remains 100.
+This example records 100 and 20 as separate attempts. Reusing the second ID with the same data suppresses a third local submission. The preview leaderboard still shows a best of 100.
 
 ```swift
 import Foundation
@@ -105,14 +103,18 @@ func practiceChallengeAttempts(using services: GameCenterServices) async throws 
 }
 ```
 
-An attempt ID is a local guard, not a Game Center idempotency key. A reused ID with changed data is rejected. `requested` records suppress another local report; errors or cancellation after reporting starts leave `uncertain` records that reject automatic retry. Scores may already have reached Apple or its offline queue. `context` is score metadata, not a remote deduplication token.
+The attempt ID protects this service's memory, not Apple's servers. Reusing it with changed data fails. If reporting starts and then errors or is cancelled, the attempt becomes `uncertain`: Apple or its offline queue may already have received it. Do not automatically retry it. Persist your own IDs and uncertainty decisions if they must survive relaunch or account changes.
 
-The in-memory ledger retains at most 256 IDs and refuses new IDs at capacity rather than forgetting prior submissions. Shutdown, account changes, and relaunch clear it. Games that need durable attempt tracking must persist application IDs and uncertainty policy themselves. There is no cross-device exactly-once transaction or automatic startup retry.
+## Let players browse native options
 
-## Present native options explicitly
+The `.activities` and `.challenges` destinations show catalog menus with Load buttons. `.activityDefinition(id)` presents an activity's native options; `.challengeDefinition(id)` presents challenge creation options; `.challengeOverview` opens browsing. These screens use the existing presentation host. Your app still prepares the game world.
 
-Use `.activities` and `.challenges` destinations for SpriteUI's catalog menus. Their Load buttons request metadata. `present(.activityDefinition(id))` opens the configured activity's native options; `.challengeDefinition(id)` opens challenge creation options, and `.challengeOverview` opens native challenge browsing. These screens use the facade's existing presentation host and availability checks. They do not prepare a game world for the app. Preview destinations display an explanation instead of contacting Apple.
+The showcase's Activities & challenges lab lets you follow a queued invitation through acceptance, staged results, and completion.
 
-Configure activity and challenge definitions, leaderboard associations, and supported app versions in App Store Connect, then enable Game Center and signing in the consuming app. Configure activity entry points and any required linked content so the app can prepare the correct route. Follow Apple's [activity guide](https://developer.apple.com/documentation/gamekit/creating-activities-for-your-game) and [challenge guide](https://developer.apple.com/documentation/gamekit/creating-engaging-challenges-from-leaderboards) for service setup and attempt rules.
+## Availability and limits
 
-The showcase's Activities & challenges lab and <doc:routing-game-center-activities> exercise cold requests, explicit acceptance, staged completion, lower-score attempts, and duplicate suppression without an account. They do not prove signed native invitations or remote challenge consumption. Verify those separately with configured resources and two test accounts, including cold/warm delivery, account changes, cancellation after reporting, and older-OS availability.
+Native activities and challenges require iOS/macOS 26+, authentication, and configured Game Center resources. Previews work on iOS 18/macOS 15 but do not reproduce friend rosters, attempt quotas, or remote competition. Configure definitions, leaderboard associations, supported versions, and linked content using Apple's [activity guide](https://developer.apple.com/documentation/gamekit/creating-activities-for-your-game) and [challenge guide](https://developer.apple.com/documentation/gamekit/creating-engaging-challenges-from-leaderboards). Challenge approval is required for player availability.
+
+Incoming requests are deduplicated; unknown routes, wrong accounts, ended activities, and activities with externally staged results are rejected. The service accepts up to 256 routes, 16 pending requests, and 256 handled instances per service epoch. Stopping the listener releases unconsumed requests for later delivery while keeping the current round.
+
+A round can stage 64 leaderboards and 64 achievements; the service keeps 64 completion receipts. The attempt ledger holds 256 IDs and rejects new ones when full. Shutdown, account changes, and relaunch clear its memory. Signed two-account invitation and challenge verification remains pending, including cold/warm entry, cancellation after reporting, and older-OS availability.

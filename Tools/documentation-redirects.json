@@ -1,0 +1,23 @@
+{
+  "adapting-to-game-surfaces": "adaptive-game-surfaces",
+  "bounding-rendering-and-sharing-presentation": "bounded-rendering-and-read-only-presentation",
+  "building-a-parallax-landscape": "parallax-and-repeating-backgrounds",
+  "building-quests-and-leagues": "quests-and-leagues",
+  "controlling-a-scene-with-hinge-input": "hinge-input-and-effects",
+  "controlling-replication-traffic": "replication-interest-and-bandwidth",
+  "joining-an-activity-party": "activity-party-matchmaking-and-handoff",
+  "manipulating-sprites-with-gestures": "manipulating-entities",
+  "playing-a-cooperative-demobots-round": "demobots-cooperative-multiplayer",
+  "predicting-multiplayer-movement": "multiplayer-prediction-and-reconciliation",
+  "presenting-a-world-with-render-layers": "render-layers-and-camera-visibility",
+  "recovering-a-multiplayer-session": "multiplayer-recovery-and-rejoining",
+  "routing-game-center-activities": "game-center-activities-and-challenges",
+  "running-fixed-step-simulation": "fixed-step-simulation-and-interpolation",
+  "running-input-replays": "input-recording-and-replay",
+  "saving-player-profiles": "player-profiles-and-cloud-saves",
+  "sharing-a-world-between-viewports": "viewports-and-split-screen",
+  "sharing-devices-between-players": "player-input-sessions-and-feedback",
+  "starting-with-game-center-services": "game-center-services",
+  "synchronizing-a-small-network-match": "game-center-sessions-and-replication",
+  "validating-multiplayer-interactions": "multiplayer-interactions-and-lag-compensation"
+}

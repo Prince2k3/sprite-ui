@@ -1,66 +1,77 @@
-@Tutorial(time: 15) {
-    @Intro(title: "Creating your first scene") {
-        Display a colored sprite with ``GameView``, retain the scene in SwiftUI, and use observable state to change its appearance.
+@Tutorial(time: 20) {
+    @Intro(title: "1. Put a player on screen") {
+        Start with a square you can see and change. Along the way, you will learn what an entity is, what a component adds to it, and how SwiftUI and SpriteUI work together.
 
-        @Image(source: "spriteui-tutorial-hero.svg", alt: "Subtle cyan paths connect geometric nodes on a dark background.")
+        Before you begin, add SpriteUI to a SwiftUI app as shown in <doc:getting-started>. Each code stage is a complete `ContentView.swift`. Use one stage at a time and keep your app's existing entry point.
+
+        @Image(source: "spriteui-first-scene-03-preview.svg", alt: "A preview of the scene you will build in this lesson.")
     }
 
-    @Section(title: "Create the player and own its lifetime") {
+    @Section(title: "Give an entity something to draw") {
         @ContentAndMedia {
-            Start with an iOS 18 or macOS 15 SwiftUI app that depends on the SpriteUI package product. Each step supplies the complete contents of `ContentView.swift`. Replace that file in your app target with the current stage and keep your existing app entry point's `ContentView()` unchanged. Use one stage at a time; the resources are independent replacements, not files to add together. The files deliberately contain no app declaration and need no image assets.
+            Think of an entity as an object in your game. On its own it has a name and a position, but no appearance. Adding a ``SpriteComponent`` makes our player a cyan square.
 
-            A scene model is ordinary application code. It retains the entities you want to address later; GameView owns the rendered ``World``. Keep this mutable scene work on the main actor, matching the isolation of ``Entity`` and GameView's closures.
-
-            `@State` retains the scene reference across SwiftUI body evaluations. The GameView `make` closure adds the existing entity to its world. This closure is asynchronous so setup can await resources when needed; this stage has nothing to await. GameView guards setup after it has completed for this host. A newly created host has its own setup lifetime, so don't create a new scene model inside `body` or a per-frame callback.
-
-            @Image(source: "spriteui-first-scene.svg", alt: "Two retained entities share one scene coordinate space.")
+            ``GameView`` provides the game world. The setup closure adds the player to that world so the renderer can draw it. The `FirstSceneModel` holds on to the player so later buttons can change the same object.
         }
 
         @Steps {
             @Step {
-                Replace your host app's `ContentView.swift` with the complete first stage. Its `@MainActor`, `@Observable` scene retains a player built from an Entity and a ``SpriteComponent``. A solid cyan rectangle avoids an asset-loading prerequisite.
+                Run the first stage. Find the `Entity` declaration in `FirstSceneModel`, then the call to `content.add(player)` in `install`. Together, these create the player and put it on screen.
 
-                Run the host app. A 36-point cyan square appears at the center of the 320-point-high game area.
+                `@State` keeps the scene model while SwiftUI redraws the view. `@MainActor` keeps its entity work on the same actor as the game view.
 
                 @Code(name: "ContentView.swift", file: "spriteui-first-scene-01.swift") {
-                    @Image(source: "spriteui-first-scene-01-preview.svg", alt: "Diagram: One retained player.")
+                    @Image(source: "spriteui-first-scene-01-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                Change `.cyan` to `.pink` and run again. Then try changing the size from `[36, 36]` to `[60, 24]`. You are describing the player's appearance through component data; you do not need to create or configure an `SKSpriteNode` yourself.
             }
         }
     }
 
-    @Section(title: "Place entities in scene coordinates") {
+    @Section(title: "Arrange the scene") {
         @ContentAndMedia {
-            The default view centers the scene origin. Positive x points right and positive y points up. A sprite's default anchor is its center. These tutorials keep entities at the scene root, so local positions and scene positions coincide.
+            A second entity can mark a destination. Giving each entity its own position arranges the scene without changing how either sprite is drawn.
+
+            The center of this game area is `[0, 0]`. Positive x goes right; positive y goes up. These entities have no custom parent, so their positions are measured from the scene origin.
         }
 
         @Steps {
             @Step {
-                Replace the contents of `ContentView.swift` with this stage. Retain a destination entity alongside the player. During setup, place the cyan player 80 points left of the origin and the smaller orange destination 80 points right, then add both entities.
+                Use stage two. The player starts at `[-80, 0]` and the orange marker at `[80, 0]`. Run the app and check that the square is left of the marker.
 
-                Keep entity creation and initial placement in setup. Repeating `content.add` from a state update would mix construction with later changes. Run the app and confirm the two rectangles stay separated around the center.
+                The scene model now retains both entities, and setup adds both to the world.
 
                 @Code(name: "ContentView.swift", file: "spriteui-first-scene-02.swift", previousFile: "spriteui-first-scene-01.swift") {
-                    @Image(source: "spriteui-first-scene-02-preview.svg", alt: "Diagram: Place player and destination.")
+                    @Image(source: "spriteui-first-scene-02-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                Move the marker to `[80, 60]`. It should appear above and to the right of the center. This is the coordinate system you will use for movement, walls, and cameras throughout the course.
             }
         }
     }
 
-    @Section(title: "Bridge observable state into the scene") {
+    @Section(title: "Change the existing player") {
         @ContentAndMedia {
-            Use `make` for initial asynchronous setup, `update` for state-driven changes, and a ``System`` for work on every simulation frame. The update closure observes the scene properties it reads and can also run when SwiftUI refreshes the host. Keep its mutations repeatable rather than assuming an exact call count.
+            Once the scene exists, you usually want to change its entities rather than build them again. A SwiftUI button changes the model's `usesWarmColor` property. The `GameView` update closure reads that property and changes the player's sprite component.
+
+            Setup creates the scene. The update closure applies app state to it. In the next lesson, a system will handle changes that depend on time.
         }
 
         @Steps {
             @Step {
-                Replace the contents of `ContentView.swift` with this stage. The button toggles `usesWarmColor` on the retained observable scene. GameView's update closure reads that property and writes the player's color through its typed component accessor.
-
-                Tap or click Change player color. Only the player's color changes; its entity identity and position persist. No timer or manual call to the world update method is necessary. Continue with <doc:moving-with-systems-and-input> to add frame-based movement.
+                Use the final stage and press Change player color. The player changes color while the marker stays orange. Find the typed component access, `scene.player.components[SpriteComponent.self]`, which lets the closure edit the player's appearance.
 
                 @Code(name: "ContentView.swift", file: "spriteui-first-scene-03.swift", previousFile: "spriteui-first-scene-02.swift") {
-                    @Image(source: "spriteui-first-scene-03-preview.svg", alt: "Diagram: Observable state changes the player color.")
+                    @Image(source: "spriteui-first-scene-03-preview.svg", alt: "Expected appearance of the running example.")
                 }
+            }
+            @Step {
+                Toggle the button several times. The player stays in the same place because you keep changing one entity instead of adding a new one.
+
+                You can now create an entity, give it an appearance, and change its component data. Continue with <doc:moving-with-systems-and-input> to make it move.
             }
         }
     }

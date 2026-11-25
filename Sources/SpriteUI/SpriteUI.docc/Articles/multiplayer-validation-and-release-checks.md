@@ -1,61 +1,66 @@
-# Multiplayer validation and release checks
+# Check a multiplayer round before release
 
-Collect reproducible local evidence, then verify native Game Center behavior separately with signed accounts.
+Two local windows can agree on a score while the real game still fails when a friend backgrounds their device. Test the actions players depend on: meet, move, fire, finish, leave, and resume. Then repeat the native flows with signed accounts.
 
-## Run the local gate
+Local checks make game rules and message handling repeatable. Signed-device checks establish that the configured Apple services work for those players. Keep the evidence for both.
 
-From the repository root, run `python3 -B Tools/check-multiplayer-release.py`. The default selection exercises network sessions, recovery, movement, interactions, interest management, Game Center preview services, and the integrated DemoBots co-op round. It also runs the Python tool tests. Use `--full-tests --documentation` for the complete package suite and strict DocC compilation.
+## Play a round with delayed messages
 
-The tool writes fresh command logs and a JSON report under `.build/multiplayer-validation/`. A zero exit means the requested **local** checks passed. Missing test summaries, an empty Swift selection, command failure, or timeout fails the check. The report records the checkout revision and whether the working tree was dirty. It never authenticates, matches players, changes provisioning, or modifies Apple account settings.
+Open DemoBots → Co-op Debug Arena and start local co-op. It uses independent player worlds and service coordinators. Set a nonzero Delay, enable Vary packet delay, and raise Unreliable loss.
 
-After building DemoBots for the Duo simulator and Mac, optionally pass `--ios-app /path/to/DemoBots.app --macos-app /path/to/DemoBotsMac.app`. These checks compare bundle IDs and inspect the supplied entitlement templates. Their source is explicitly **unverified against the signed bundle**. Omit an app option when that artifact is unavailable; an omitted bundle has no recorded bundle evidence. The report does not claim that it built either app. Build failures must be resolved separately.
+Move, stop, and fire at a moving bot. Watch the local predicted player respond, then compare confirmed hits and shared score. Reliable lobby control, membership, commands, recovery, and receipts keep their delivery/order; unreliable movement results and poses may be lost. The controls affect future fixture sends, rather than simulating every Internet failure.
 
-`Tools/check-game-center-setup.py` can inspect entitlements extracted from an actually signed app instead. Even that read-only check does not verify signature authenticity, provisioning, or App Store Connect state. See <doc:game-center-services> for the setup contract.
+The useful questions are about the game:
 
-## Exercise the combined game under adverse delivery
+- Does the lobby wait until both players have compatible content and are ready?
+- Does movement settle on the host's position after input stops, even if the last pose was lost?
+- Do a blocked shot, rapid firing, and a respawned target obey the host's rules?
+- Do both players receive one shared result when the round ends?
+- After saving and interrupting, does recovery use the approved checkpoint and wait for both baselines?
+- Does backgrounding or closing clear held input and temporary effects before another round starts?
 
-Open DemoBots → Co-op Debug Arena, or use the asset-free host in <doc:demobots-cooperative-multiplayer>. Local co-op uses two independent service coordinators and worlds. Set Delay to a nonzero one-way delay, enable Vary packet delay, and raise Unreliable loss. These controls affect future local fixture sends only. Reliable lobby, membership, recovery, commands, and receipts retain delivery/order; unreliable movement and poses can be lost. This is not a model of every real-world network failure.
+The preview clock must advance during preparation as well as play. Its matching, handoff, and recovery deadlines use that clock; native services use elapsed wall time. Let the bundled view own fixture updates instead of adding another pump. See <doc:demobots-cooperative-multiplayer> for the sample's code entry points.
 
-GameCenterPartyPreview accepts an optional delay, loss rate, and seed, exposes bounded pending packet/byte counts, and keeps the zero-delay default compatible with existing callers. Its controlled clock must advance even during preparation: preview matchmaking, handoff, and recovery deadlines share that clock, so an unrelated blocked renderer does not expire a paused fixture. Native Game Center deadlines retain elapsed wall-time behavior. DemoBots waits for readiness and the exact recovery offer rather than assuming a fixed number of zero-time flushes. Cancellation still stops that wait.
+## Run the repeatable local checks
 
-The local regression coverage includes:
+From the repository root, run `python3 -B Tools/check-multiplayer-release.py`. The default selection covers sessions, recovery, movement, interactions, interest management, preview services, the combined DemoBots round, and Python tool tests. Use `--full-tests --documentation` when you need the full package suite and strict DocC compilation.
 
-- Per-player scope entry/exit, forced owned actors/ancestors, reliable membership, stale pose-base rejection, and atomic malformed-frame validation.
-- Independent entity-byte credits, priority/aging, small-packet packing, loss repair for the last stationary pose, and bounded queues during repeated scope changes.
-- Activity readiness and baseline handoff into separate worlds, prediction convergence, historical beam validation, cooldowns, and one authoritative shared score.
-- Approved recovery into fresh worlds/epochs with old held input and pending actions cleared, plus cancellation during delayed preparation.
-- Input cancellation and re-arming, explicit teardown, and the client handshake gate before it can issue shots.
+The tool writes logs and a JSON report under `.build/multiplayer-validation/`. A zero exit means the requested local checks passed. A failed command, timeout, empty Swift selection, or missing test summary fails the gate. It does not sign in or change Apple configuration.
 
-These are bounded deterministic scenarios, not measured Internet latency guarantees. The entity budget applies to entity replication; application/control lanes have their own limits and are reported separately. Membership snapshots and recovery payloads must fit the documented packet/archive limits. Oversized state fails explicitly; there is no implicit snapshot chunking or asset streaming. Scope is a publication policy, not a security boundary. See <doc:replication-interest-and-bandwidth> and <doc:multiplayer-interactions-and-lag-compensation>.
+Read failures in terms of the player action they threaten. Scope tests check whether a player receives the right actors and parents. Traffic tests check deferrals and repair of lost final poses. Recovery tests check fresh worlds and epochs, cleared old input, and the baseline gate. These are controlled cases, not measured Internet latency guarantees.
 
-## Prepare signing without inventing an identity
+Entity budgets cover only entity traffic; commands and control messages have their own limits. Membership frames and recovery payloads must fit their packet/archive limits. Oversized state fails rather than being automatically split or streamed. Scope also does not protect secret component data. See <doc:replication-interest-and-bandwidth> before interpreting traffic numbers.
 
-The DemoBots XcodeGen project supplies `App/DemoBots-iOS.entitlements` for device builds and `App/DemoBots-macOS.entitlements` for the Mac target. The Mac template includes sandbox client/server networking. Simulator builds do not require the iOS Game Center entitlement. These files mirror the setup templates under `Tools/templates/`.
+## Prepare the app that players will actually run
 
-Select a real development team, matching bundle identifiers and profiles, and enable the corresponding capabilities in Xcode and the developer portal. The example does not select a team. Its Mac target keeps signing disabled by default for local builds; explicitly enable signing when preparing the signed validation build. Configure the `dev.spriteui.demobots.coop` two-player activity and intended version/platform compatibility in App Store Connect. An entitlement file alone cannot perform those steps.
+Use matching bundle identifiers, development team, provisioning, and enabled Game Center capabilities. The DemoBots iOS and macOS entitlement templates live under `Examples/DemoBots/App/`; the Mac template includes sandbox networking. Mac signing is disabled by default for local builds, so enable it for signed validation. Configure the `dev.spriteui.demobots.coop` two-player activity and intended platform/version compatibility in App Store Connect.
 
-## Use the DemoBots local GameKit setup
+After building, the local gate can accept `--ios-app /path/to/DemoBots.app` and `--macos-app /path/to/DemoBotsMac.app`. These options inspect supplied artifacts and entitlement templates; they do not build them or verify the templates against signed bundles. An omitted artifact supplies no bundle evidence.
 
-DemoBots includes a Debug-only Game Center Test Lab alongside the campaign and co-op arena. The default preview exercises achievement progress, best-score submission, explicit activity lifecycle/entry acceptance, and separate challenge attempts without accounts. Opening or switching modes never authenticates or reports campaign progress. Closing cancels outstanding operations and releases the service facade.
+`Tools/check-game-center-setup.py` can inspect entitlements extracted from a signed app. Even that check cannot establish signature authenticity, remote provisioning, or App Store Connect readiness. See <doc:game-center-services> for setup.
 
-The example's `App/DemoBotsLocal.gamekit` defines First Repair, Repair Score, Repair Test, the two-player co-op activity, and Repair Challenge linked to Repair Score. IDs are shared with the test model. Placeholder images are opaque RGB at the dimensions required by Xcode's activity/challenge editor. The local bundle is excluded from Release app resources.
+## Use the sample's native test lab
 
-Choose the shared DemoBots Local Game Center or DemoBotsMac Local Game Center scheme for Apple's local tools. These schemes enable GameKit Debug Mode and open the test lab with native GameKit selected. Sign in and choose each operation explicitly. The normal schemes keep this flag off. XcodeGen's post-generation helper preserves the distinction. Use Debug → GameKit → Manage Game Progress with a supported physical device to inspect/reset progress and exercise Repair Test entry points; consult Apple's [configuration guide](https://developer.apple.com/documentation/gamekit/initializing-and-configuring-game-center).
+DemoBots includes a Debug-only Game Center Test Lab. Its preview mode exercises achievement progress, best scores, activity entry and completion, and challenge attempts without accounts. Opening the lab does not authenticate or report campaign progress.
 
-Run `python3 Examples/DemoBots/Tools/check-game-center-testing.py` to verify the sample IDs, challenge relationship, party counts, local artwork, Release exclusions, and shared scheme flags. Reopen the lab after resetting an achievement externally because the service wrapper deliberately retains monotonic known progress. The reusable SDK API is unchanged; this configuration belongs to the consuming app. Actual Game Progress Manager execution and signed two-account delivery remain pending.
+The DemoBots Local Game Center and DemoBotsMac Local Game Center schemes enable GameKit Debug Mode and select native GameKit in the lab. Sign in and choose operations there. On a supported physical device, use Debug → GameKit → Manage Game Progress to inspect/reset progress and exercise activity entry points. Apple's [configuration guide](https://developer.apple.com/documentation/gamekit/initializing-and-configuring-game-center) describes that workflow.
 
-## Keep the native gate pending until observed
+`App/DemoBotsLocal.gamekit` provides the sample definitions and is excluded from Release resources. Run `python3 Examples/DemoBots/Tools/check-game-center-testing.py` to check identifiers, challenge links, party counts, artwork, exclusions, and scheme flags. Bundled definitions and a successful ordinary leaderboard submission do not establish that a native challenge catalog loaded or consumed an attempt. Reopen the lab after externally resetting an achievement, since the wrapper retains known increasing progress.
 
-This checkout's native two-account testing remains **pending**, at the user's request. Every generated local report keeps `native_testing.status` as pending and `release_ready` as false. There is no flag that promotes local fixtures into native evidence.
+## Record signed two-player observations
 
-Record the signed app revisions, OS/platforms, account pair, steps, and observed results for each native check:
+Signed two-account testing remains **pending** at the user's request. Generated local reports retain `native_testing.status` as pending and `release_ready` as false. Local fixture success cannot promote that status.
 
-| Native check | Required observations | Current status |
+For each signed test, record the app revision, OS/platforms, account pair, steps, and observed result:
+
+| Player flow | What to observe | Status |
 | --- | --- | --- |
-| Signing and accounts | Valid signatures/profiles/capabilities, intended app records, two distinct Game Center accounts | Pending |
-| Party entry | Same-code matchmaking; configured cold/warm activity invitations; intended iOS/macOS compatibility | Pending |
-| Complete round | Both players move/shoot; final receipts and shared cures/score agree; both see round completion | Pending |
-| Recovery | Save, interrupt/background, fresh same-roster match, exact offer approval, baseline gates, neutral input | Pending |
-| Account/peer changes | Sign-out/account change or peer loss during setup/play stops gameplay; deliberate retry creates no stale effects | Pending |
+| Sign in | Intended app records, valid signing/capabilities, two distinct accounts, cancellation and retry | Pending |
+| Join friends | Same-code matching, cold/warm invitations, intended iOS/macOS compatibility | Pending |
+| Play and finish | Both move and shoot; cures, final receipts, score, and completion agree | Pending |
+| Resume | Save, interrupt/background, fresh same-roster match, approved offer, baseline gates, neutral input | Pending |
+| Lose a peer or change accounts | Gameplay stops during setup/play; a deliberate retry has no stale effects | Pending |
 
-A Duo simulator check can verify folding, local background cleanup, controls, and the preview round. It cannot establish successful signed two-account Game Center transport. Retain that distinction when deciding whether to ship. See <doc:activity-party-matchmaking-and-handoff> and <doc:multiplayer-recovery-and-rejoining>.
+A simulator can check layouts, controls, and local cleanup. It cannot establish signed two-account transport. Native challenge reporting and the remaining Game Progress Manager checks also remain unverified; partial single-device checks do not establish release readiness.
+
+When a recovery test fails, return to <doc:multiplayer-recovery-and-rejoining> and locate the last phase both players reached. When entry fails, use <doc:activity-party-matchmaking-and-handoff> to distinguish finding the roster, preparing content, readiness, and committing play.

@@ -58,3 +58,16 @@ environment. The expected public address is
 `https://prince2k3.github.io/sprite-ui/documentation/spriteui/`. This site follows
 `main`; it is not a separately hosted archive for every release tag. An existing
 environment approval policy still applies.
+
+## Organize learning content
+
+The DocC catalog has a five-lesson introductory course under `Tutorials/`.
+Task guides under `Articles/` explain features a game may need later; the API
+reference is separate from the learning path. DemoBots is a sample app based on
+Apple's example, not part of the course.
+
+`Documentation/previous-tutorials/` preserves the former feature-specific lesson
+prose outside the public catalog. Its runnable Swift stages remain in catalog
+Resources and are still compiled. `Tools/documentation-redirects.json` maps old
+public tutorial addresses to their replacement guides. The documentation builder
+writes static redirects after conversion so existing web links keep working.

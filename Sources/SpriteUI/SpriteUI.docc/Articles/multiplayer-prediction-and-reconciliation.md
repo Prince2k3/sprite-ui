@@ -1,20 +1,22 @@
-# Multiplayer prediction and reconciliation
+# Make multiplayer movement respond immediately
 
-Predict a player's kinematic movement immediately, then reconcile it with acknowledged host state without giving the client authority over replicated entities.
+A player presses right, but the host's reply takes time to arrive. Waiting for that reply makes movement feel sluggish. Let the local game show the expected movement immediately, then correct it when the host reports what actually happened.
 
-## Keep prediction separate from replication
+This is prediction followed by reconciliation: keep the player's unconfirmed inputs, accept the host's answer, and replay only the inputs the host has not processed yet.
 
-``SpriteUI/NetworkPrediction`` and ``SpriteUI/NetworkInputAuthority`` live in ECSCore and use portable Codable/Sendable state and input. ``SpriteUI/KinematicMovement2D`` lives in Gameplay. ``SpriteUI/NetworkMovementController2D`` and its fixed/presentation systems live in GameplayECS. Engine-only apps can use these through SpriteUICore; Game Center remains an optional transport and session setup layer.
+## Move a local visual, keep the host's answer
 
-The client predicts a separate unsynchronized visual. The canonical replica continues receiving host state through ``SpriteUI/NetworkSession``. Remote presentation interpolation remains unchanged. Do not add native physics to the predicted visual, publish its pose as host authority, or run a second movement system on the host actor. This initial adapter supports root-level rectangular center bounds, not collision rollback, native SpriteKit prediction, lag-compensated hits, or host migration.
+The client uses two entities for its player. A synchronized replica holds the latest host state. A separate, unsynchronized visual shows the predicted movement. Queries and snapshots still read the replica, while presentation can feel immediate.
 
-## Sequence intent on the host's clock
+``SpriteUI/NetworkPrediction`` manages this idea with value state and input. ``SpriteUI/NetworkInputAuthority`` processes those inputs on the host. The 2D movement adapter connects them to worlds and sessions; Game Center is only one possible transport.
 
-The host creates a ``SpriteUI/NetworkPredictionStream`` containing the network entity, transport-authenticated owner, and fresh ownership epoch. Each ``SpriteUI/NetworkInputCommand`` has a positive sequence and narrow input, with no client-supplied time delta. The authority validates admission and queues commands. Only `advance()` consumes at most the next contiguous command on a host-owned fixed tick. Gaps use neutral input without skipping acknowledgment; duplicates cannot replace a queued command or run twice. A burst cannot accelerate simulation.
+## Count inputs instead of trusting client time
 
-Each complete ``SpriteUI/NetworkAuthoritativeState`` includes a host revision and the latest actually simulated input. The client discards acknowledged commands, replaces canonical state immediately, and replays the remaining bounded history. Older/equal revisions do nothing. A future/regressing acknowledgment or wrong epoch fails validation. Explicit host corrections increment revision even when no new input was consumed.
+Each input has a sequence number. The host creates a stream identifying the actor, authenticated owner, and a fresh ownership period, called an epoch. The client cannot choose its own simulation time delta.
 
-This complete value-only exercise models two predicted inputs. Only the first is acknowledged, so reconciliation replays the second. Pure step and validation closures must use value-semantic state and must not publish events, play effects, or grant rewards: replay can execute them again. The generic values do not authenticate their own transport.
+On each host fixed tick, `advance()` consumes at most the next contiguous input. A missing input uses neutral movement without skipping its acknowledgment. Duplicates cannot run again, and sending a burst cannot buy extra simulation time.
+
+This example predicts two steps but sends only the first to the host. When the host acknowledges one step, the client starts from that answer and replays the remaining step. The displayed result stays at two.
 
 ```swift
 import SpriteUI
@@ -36,13 +38,15 @@ func reconcileTwoInputs() throws -> Int {
 }
 ```
 
-``SpriteUI/NetworkPredictionConfiguration`` defaults to 60 Hz and 256 pending inputs; construction/decoding bounds duration to 1/240...1/10 second and capacity to 1...512. An overflow refuses the new input rather than deleting unacknowledged history. Decide explicitly whether to stop/rebuild the stream. These are small-session limits, not an unbounded rollback archive.
+Keep the `step` and validation closures pure and value-based. Replaying movement may run them again, so they must not play sounds, publish events, or grant rewards. The generic values also need an authenticated transport around them; they do not establish sender identity themselves.
 
-## Attach one movement controller per owned actor
+A host result includes a revision and the last input actually simulated. Older results do nothing. Invalid acknowledgments or an incorrect epoch fail validation rather than discarding uncertain input history.
 
-Both worlds need the same ``SpriteUI/World/fixedStep`` and movement rules. Retain controllers for their session lifetime. The factory installs fixed and presentation systems once; world registrations hold weak controller references. Up to 16 active movement controllers are supported per world, with one controller per network entity. The synchronized source must be root-level, select `transform`, and be owned by the authenticated remote player. Ownership alone never grants component write access.
+## Let one controller move the host actor
 
-This host helper runs after the session is connected and the application has attached the owned actor. Keep the returned controller in the match coordinator, not in a temporary local variable. The adapter advances authority; the app should not also move this actor from a command event handler.
+Use the same fixed-step duration and movement rules in both worlds. The host controller advances the remotely owned actor; do not also move it from an application command handler.
+
+Attach it after the connected session and root-level synchronized actor exist. The actor must select `transform` and belong to the authenticated remote player. Retain the returned controller in your match state, because world registrations hold it weakly.
 
 ```swift
 import SpriteUI
@@ -56,7 +60,11 @@ func attachHostMovement(world: World, session: NetworkSession,
 }
 ```
 
-Create the client controller only after its session has accepted the initial replica baseline. Supply a distinct root-level visual entity with no SynchronizationComponent or native physics; hide the owned canonical replica's artwork if necessary. Replica queries and snapshots remain canonical. The adapter waits for a host-approved stream before predicting, and checks identical movement rules and fixed duration. Input must be a finite vector of magnitude at most one; the shared rule prevents diagonal speed boosts and clamps the actor center to bounds.
+These rules move at up to 120 units per second and keep the actor's center inside an 800-by-600 rectangle. Input length is limited to one, preventing faster diagonal movement.
+
+## Give the client its own visual
+
+Wait until the client has received its initial host replica. Then create a separate root-level visual without `SynchronizationComponent` or native physics and attach the client controller. Hide the owned replica's artwork if it would draw a second player.
 
 ```swift
 import SpriteUI
@@ -71,7 +79,13 @@ func attachClientMovement(world: World, session: NetworkSession,
 }
 ```
 
-Sample held input through `setInput(_:)`; one command is captured per client fixed tick. Tie neutral input and cleanup to the consuming app's player-input/session lifecycle. Zero input is a normal ordered command. Do not send another prediction from the presentation loop. This complete helper neutralizes input without ending a healthy controller; a full interruption uses `stop()` and the app's shared session/party interruption flow.
+The controller waits for the host-approved stream and checks the movement rules and fixed duration. Its visual can smooth a small correction over 0.12 seconds; a correction of 100 units or more snaps. The model accepts the host correction immediately regardless of visual smoothing.
+
+## Sample held input on fixed ticks
+
+Call `setInput(_:)` when the player's direction changes. The controller captures one ordered command per client fixed tick, including zero input. Avoid sending a second prediction from the presentation loop.
+
+This helper turns movement neutral when gameplay loses focus without stopping a healthy controller.
 
 ```swift
 import SpriteUI
@@ -83,20 +97,20 @@ func updateMovementInput(_ direction: SIMD2<Float>, controller: NetworkMovementC
 }
 ```
 
-Host `correct(to:)` applies canonical state immediately and schedules a reliable result. Client reconciliation never smooths the model. ``SpriteUI/NetworkMovementPresentationConfiguration`` smooths only the local visual's error offset; a zero duration or correction at/above snapDistance snaps it. Inspect pendingInputCount, acknowledgedInput, replayedInputCount, correctionDistance, correctionCount, rejectedCommandCount, status, and lastError. A failed controller needs explicit application recovery; it does not silently restart or discard its error.
+For a full interruption, stop the controller and use the app's party/session cleanup. Returning to the foreground must not revive an old held button. After recovery or ownership changes, wait for a new baseline and create fresh controllers and epochs. Prediction history and smoothing offsets belong to the old connection, not to a checkpoint.
 
-## Keep packet and lifecycle boundaries
+## Observe a correction
 
-Inputs use reliable `sendCommand(_:)`. Initial stream state and explicit corrections use reliable delivery; normal complete results use unreliable delivery when the full envelope fits 1,000 bytes, falling back to reliable otherwise. A later complete result repairs a dropped result. `sendResponse(_:to:reliably:)` is host-only and requires a recipient's baseline handshake. Responses share `maximumCommandBytes` and `maximumPacketBytes` limits and carry the existing session/join identities. ``SpriteUI/NetworkEvents/ResponseReceived`` is raised only for the authenticated current host; unrelated application streams have no shared result revision filter. Each protocol must validate its own ordering. Responses must be sent outside a NetworkSession update callback to avoid reentrancy.
+The host can call `correct(to:)` to apply a position immediately and send a reliable result. Watch `pendingInputCount`, `acknowledgedInput`, and `correctionDistance` to see how much local work remains and how far the visual differs from the host.
 
-The adapter namespaces its messages and ignores unrelated protocols. It binds commands to entity, owner, client attempt, and host epoch, rejects invalid movement input, and consumes only one command per host tick. Transport callback queues and pending input remain bounded. This is host-authoritative cooperative game logic, not a trusted server or a general anti-cheat service.
+Inputs and initial stream setup use reliable delivery. Normal complete results can use unreliable delivery when they fit 1,000 bytes; a later result repairs a dropped one. Corrections are reliable. Keep world and session updates advancing exactly once. A failed controller needs the app to stop or rebuild it rather than silently restart.
 
-Keep fixed world updates and the session's presentation system advancing exactly once. Pause stops automatic updates. Interruption, owner departure, session teardown, ownership transfer, or fixed-clock mismatch retires the controller; the app must release it and create fresh controllers after the new baseline. Never restore prediction history or smoothing offsets from a checkpoint. The current owner must agree on a fresh host epoch after recovery or rejoin. Stop input, controllers, and the app-owned transport on background/menu exit according to the game's lifecycle policy; foregrounding alone must not revive held input. See <doc:multiplayer-recovery-and-rejoining>.
+The showcase's Prediction & reconciliation lab lets you add delay, vary packet timing, and nudge the host position. For shots, read <doc:multiplayer-interactions-and-lag-compensation>: movement replay must never grant an interaction effect.
 
-## Verify the local protocol and live transport separately
+## Limits and native validation
 
-The Game Services showcase's Prediction & reconciliation lab and <doc:predicting-multiplayer-movement> use two headless worlds over an account-free byte link. Compare the local visual, host, and latest canonical replica; increase latency, jitter, and unreliable loss, then nudge host authority and stop input. Model convergence and bounded acknowledgment repair are also covered by tests, including total loss of normal results followed by a reliable correction.
+This adapter handles root-level kinematic movement inside rectangular center bounds. It does not predict native SpriteKit physics or replay collisions through an arbitrary level. Do not add native physics to the predicted visual. The host remains a cooperative player's device, not a trusted anti-cheat server.
 
-The adapter works with an already-connected Game Center session; it does not sign in, match players, transfer ownership, or recover a session automatically. Native signed two-account verification remains pending in this checkout, whose local simulator app has no signed Game Center entitlement. Successful offline tests and builds do not prove live service delivery. Follow <doc:game-center-sessions-and-replication> for native app configuration and test prediction, backgrounding, input cancellation, rejoin, and fresh-epoch rejection on signed devices before release.
+Prediction defaults to 60 Hz and 256 pending inputs. Supported durations are 1/240 through 1/10 second, history capacity is 1 through 512, and a world supports 16 movement controllers, one per actor. Overflow refuses new input rather than losing unacknowledged history. Session command and packet limits also apply. Custom response protocols must validate their own ordering and send responses outside session update callbacks.
 
-For validated shots and proximity interactions, continue with <doc:multiplayer-interactions-and-lag-compensation>. Its exact host-issued views and final receipts are separate from movement replay; never emit interaction effects from a replayed movement step.
+Signed two-account Game Center verification remains pending. Test movement, backgrounding, neutral input, rejoin, and rejection of old epochs on configured signed devices; local byte-link results do not establish native delivery. See <doc:game-center-sessions-and-replication> for connection setup.

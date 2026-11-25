@@ -1,12 +1,12 @@
-# Entity and scene lifecycle
+# Keeping a scene together
 
-Choose owners for scene data, control activation, and keep copies and event handlers predictable.
+A player's name should move with the player. When the player leaves the level, the name should leave too. A parent and child relationship lets the scene express both rules without updating two unrelated objects.
 
-## Build a hierarchy before attaching it
+## Give related objects a parent
 
-An ``SpriteUI/Entity`` is an identity, a component set, and an ordered collection of children. A ``SpriteUI/World`` has a hidden `root` entity; `world.entities` contains its top-level children, and `world.allEntities` includes descendants. `GameViewContent.scene` and `UpdateContext.scene` are conveniences for the same `World` exposed as `world`.
+An ``SpriteUI/Entity`` holds components and can have children. A child's position is relative to its parent, so a label placed 30 points above a player keeps that offset as the player moves.
 
-Build related entities while detached, then attach the complete root. Children inherit their parent's transform and activation. This helper adds a character with a locally offset label to any world:
+Build the pair first, then add the player to the ``SpriteUI/World``. Adding the parent brings its children into the world too.
 
 ```swift
 import SpriteUI
@@ -26,23 +26,27 @@ func addLabeledPlayer(to world: World) -> Entity {
 }
 ```
 
-Removing a parent removes its subtree from the world. `removeFromParent()` detaches an entity; it does not destroy an object that your code still retains. Moving between parents with `addChild(_:)` preserves local component values, which can change the resulting scene pose. Use the throwing `setParent(_:preservingWorldTransform:)` operation when the scene pose must be retained. A transform that would require unsupported shear, a singular reference frame, or an invalid hierarchy can reject the operation without partially changing it.
+The world has a hidden `root` entity. `world.entities` gives you its top-level children; `world.allEntities` includes their descendants. `GameViewContent.scene` and `UpdateContext.scene` refer to the same world available as `world`.
 
-Use `findEntity(named:)` for hierarchical lookup. Names are labels, not unique identities; use an entity ID or object reference when ambiguity matters.
+`removeFromParent()` detaches an entity and its children from the world. Your code may still hold those objects, so detaching is useful when moving content between scenes or saving it for later.
 
-## Distinguish enabled, inherited, and active state
+`addChild(_:)` keeps the child's local transform. Moving it to another parent can therefore change where it appears. When it should stay in the same place on screen, use `setParent(_:preservingWorldTransform:)` and handle a rejected conversion.
 
-| Property | Meaning |
+Names help you find scene content with `findEntity(named:)`. They need not be unique. Keep an object reference or ID when you need to identify one particular player.
+
+## Hide a group without losing its state
+
+Imagine temporarily disabling a squad while a menu is open. Set the squad parent's `isEnabled` to `false`. Its children keep their components and their own enabled flags, but stop participating while their ancestor is disabled.
+
+These properties answer progressively wider questions:
+
+| Property | Question |
 | --- | --- |
-| `isEnabled` | This entity's local switch |
-| `isEnabledInHierarchy` | This entity and all ancestors are enabled |
-| `isActive` | The entity belongs to a world and is enabled throughout its hierarchy |
+| `isEnabled` | Is this entity's own switch on? |
+| `isEnabledInHierarchy` | Are its switch and all ancestor switches on? |
+| `isActive` | Is it also attached to a world? |
 
-Disabling a parent leaves descendant local flags intact. A child that was disabled before its parent was re-enabled remains disabled. Default ``SpriteUI/EntityQuery`` results include only active entities; set `includingDisabled: true` for inspection, reset, or editor work.
-
-Disabled entities remain in the hierarchy with their IDs and components. The backend suspends their presentation activity and input; ordinary deactivation suspends playback rather than discarding the playback request. An ``SpriteUI/EntityPool`` release has stronger cleanup semantics, described in <doc:rendering-and-resources>.
-
-This function counts dormant entities without accidentally including the hidden root:
+Ordinary ``SpriteUI/EntityQuery`` results include active entities. When inspecting or resetting disabled content, ask for it with `includingDisabled: true`. This helper counts inactive entities without including the hidden root.
 
 ```swift
 import SpriteUI
@@ -54,11 +58,11 @@ func dormantEntityCount(in world: World) -> Int {
 }
 ```
 
-Activation changes publish ``SpriteUI/WorldEvents/DidChangeEntityActivation``. Attachment does not erase a local disabled flag. Restore and pool reuse can replace or reactivate objects, so a retained entity reference alone is insufficient proof that an old user interaction still applies.
+Re-enabling the parent restores children whose own switches are on. It leaves individually disabled children disabled. Ordinary deactivation suspends presentation, input, and playback advancement; releasing an instance to an ``SpriteUI/EntityPool`` performs additional cleanup.
 
-## Store data at the scope that owns it
+## Keep match rules with the match
 
-Put per-character data on that character. Put scene-wide component resources in `world.resources`, which is the component set on the world's hidden root. Systems can read resources without needing a special visible entity or a process-wide singleton.
+Health belongs on a character. A movement multiplier shared by the whole match belongs to the world. Store such data in `world.resources`, the component set on the hidden root, so systems can read it without a singleton or a visible placeholder entity.
 
 ```swift
 import SpriteUI
@@ -75,15 +79,15 @@ func configureMatch(_ world: World) {
 }
 ```
 
-Mutate components through `components.set(_:)` or the typed subscript so the world and backend receive changes. Reading a value component into a local variable and changing only that local copy does not update the entity; assign it back. World resources are useful runtime state, but the standard world snapshot captures top-level entities and their children, not the hidden root. Save persistent match-wide settings separately or put them on an explicit saved entity; see <doc:saving-and-debugging>.
+Use `components.set(_:)` or the typed subscript to write component changes. If you read a value component into a local variable, changing that copy takes effect only after you assign it back.
 
-`world.isPaused` pauses simulation, backend physics, and actions. Component edits can still render while paused, and app UI can still change. `timeScale = 0` freezes ordinary simulation without removing scene data. Time scale accepts finite, nonnegative values. Disabling an entity and pausing a world solve different ownership problems: activation selects participating content, while pause controls advancement of the scene clock.
+To stop the scene's clock, use `world.isPaused`. It pauses simulation, backend physics, and actions while component edits can still render and SwiftUI controls remain usable. `timeScale` changes the pace of scene time; zero stops ordinary simulation. Disabling a group instead selects which entities participate.
 
-## Retain subscriptions for their intended lifetime
+## Keep an event handler alive
 
-``SpriteUI/EventSubscription`` is the lifetime token for an event handler. Store it on a scene owner or system. Dropping the token cancels delivery; keeping only the closure is insufficient. Explicit `cancel()` ends delivery while you still retain the token.
+Suppose the UI counts activation changes. Subscribing returns an ``SpriteUI/EventSubscription``. Retain that token for as long as you want to receive events; dropping it cancels delivery.
 
-This scene observer owns its token and uses a weak capture so its closure does not retain the observer:
+This observer stores its token and uses a weak capture so the handler does not keep the observer alive.
 
 ```swift
 import SpriteUI
@@ -108,13 +112,15 @@ final class ActivationObserver {
 }
 ```
 
-The app must also retain the `ActivationObserver` for as long as it needs these events. A subscription can filter to a particular entity with `on:`. Filtering uses the source entities supplied to `world.publish`, rather than scanning an event payload for an entity property. For your own events, publish with `from: entity` when entity-specific subscribers should receive them. A multi-source event reaches a subscriber on either source once.
+The scene must retain the `ActivationObserver` too. Its `stop()` method ends observation before the scene releases it.
 
-Handlers run synchronously on the main actor. They can publish another event or change the hierarchy, so game logic that continues after publication should re-check assumptions. World additions report parents before children, while removals report children before parents. Subscribe to ``SpriteUI/ComponentEvents`` when component addition or removal is the relevant boundary; do not treat those events as a general SwiftUI observation mechanism.
+Use the subscription's `on:` argument to listen to one entity. For your own events, publish with `from: entity` so those subscribers can receive them. Filtering uses the supplied event sources, rather than searching the event's stored properties.
 
-## Clone data, then reconnect runtime behavior
+Handlers run synchronously on the main actor. A handler can change the hierarchy or publish another event. If your rule continues after publishing, check any scene relationships it still relies on.
 
-`entity.clone()` creates a detached recursive copy with fresh IDs, preserved child order, names, local transforms, and local enabled flags. `clone(recursive: false)` copies only the entity. Add the copy to a world explicitly.
+## Spawn another copy
+
+Once the player and label form a hierarchy, you can copy them together. `clone()` makes a detached copy with fresh IDs, preserving child order, names, local transforms, and enabled flags. Add it to the world when it is ready.
 
 ```swift
 import SpriteUI
@@ -128,12 +134,18 @@ func spawnCopy(of prototype: Entity, in world: World) -> Entity {
 }
 ```
 
-Every component controls its copy through `cloned()`. The default is a value copy; custom mutable reference storage needs a deep copy, or can return `nil` to omit runtime state. Immutable resources can stay shared. Entity subclasses are constructed through their required initializer; properties outside components keep initializer defaults.
+Components decide how they copy through `cloned()`. Value data uses the default copy. A component containing mutable reference storage should make an independent copy or return `nil` to leave that runtime state out. Immutable resources can remain shared.
 
-Actions, event subscriptions, and active playback are not cloned. Reconnect those behaviors after spawning. A ``SpriteUI/PrefabResource`` captures a reusable hierarchy using the same copying rules; its instances also start detached with fresh IDs.
+The copy does not inherit active actions, playback, or event subscriptions. Start those behaviors for the new instance. A ``SpriteUI/PrefabResource`` packages a hierarchy for repeated spawning using the same rules.
 
-For components containing entity IDs, adopt ``SpriteUI/EntityReferencingComponent``. Cloning creates the destination hierarchy first and then remaps internal references, so one copied child can point at another copied child. References outside the copied subtree remain external. The same hook supports snapshot restoration; <doc:saving-and-debugging> shows a complete component example.
+If one copied child stores another child's ID, adopt ``SpriteUI/EntityReferencingComponent`` so the reference follows the copy. <doc:saving-and-debugging> shows that small component in full.
 
-## Continue building
+## Keep in mind
 
-Use <doc:systems-and-input> to act on active entities each frame. Use <doc:rendering-and-resources> to reuse hierarchies in bounded pools, and <doc:saving-and-debugging> to separate persistent data from scene runtime state.
+Preserving a scene transform can fail for a singular transform, unsupported shear, or an invalid hierarchy; the operation leaves the hierarchy unchanged on failure. A world time scale must be finite and nonnegative.
+
+Standard snapshots omit `world.resources` because they omit the hidden root. Save persistent match settings separately or on a saved entity. Cloning an entity subclass copies its components; other properties keep their initializer defaults.
+
+## Next lesson
+
+Read <doc:systems-and-input> to make active entities respond to time and gestures. When repeated spawning becomes part of the game, <doc:rendering-and-resources> shows how to share resources and reuse instances.

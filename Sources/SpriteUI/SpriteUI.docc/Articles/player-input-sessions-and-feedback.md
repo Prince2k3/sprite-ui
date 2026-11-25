@@ -1,16 +1,12 @@
-# Player input sessions and feedback
+# Give each local player their own controls
 
-Assign devices to local players, adapt prompts to meaningful input, and request capability-checked controller feedback.
+In a two-player game, pressing Fire on one pad should fire only that player's weapon. If someone hands the pad to the other player while holding Fire, the handoff should not fire another shot.
 
-## Give each player independent action state
+Use a ``SpriteUI/PlayerInputHub`` to keep track of devices and their owners. Each ``SpriteUI/PlayerInputSession`` has its own controller and action maps. Players can share the same definitions for move and fire while keeping their held values and press events separate.
 
-Use one retained, main-actor ``SpriteUI/PlayerInputHub`` for the local game surface. Each ``SpriteUI/PlayerInputSession`` owns its own ``SpriteUI/InputController`` and context stack. Players can share action definitions and maps while keeping values and transitions independent. Pass the appropriate session's `input` to that player's movement system, as in <doc:input-actions-and-controllers>.
+## Start with two pads and two players
 
-A hub starts with logical keyboard and pointer sources. These describe the host's coalesced input routes; their presence does not confirm that a physical keyboard or mouse is connected. Controllers discovered by the native host appear in `hub.devices` **unassigned**. Choose joining and transfer policy in your app; the host does not choose a player.
-
-## Connect virtual producers and assign explicitly
-
-This complete model creates two players and two virtual pads. Each pad begins with one owner. Call `pressAndRelease` from a button action to increment only that owner's counter. No physical hardware, native framework imports, or feedback provider is required.
+The model below creates two virtual pads, assigns one to each player, and counts fire presses separately. Call `pressAndRelease` from a SwiftUI button to try it without physical controllers.
 
 ```swift
 import Foundation
@@ -67,53 +63,60 @@ final class LocalPlayers {
 }
 ```
 
-Connect a virtual producer before submitting its samples. Route owned devices through `hub.submit(_:device:)`; writing directly to a session's controller bypasses hub ownership and active-device tracking. A partial snapshot updates the listed controls atomically and leaves unlisted controls unchanged. Give independent pads different ``SpriteUI/InputDevice/virtual(_:)`` identities; related controls within one composite pad may share its identity.
+Connect a virtual device before submitting its values. Send owned input through `hub.submit(_:device:)` so the hub can route it to the right player and remember which device they used. Writing directly to a session's controller bypasses that work.
 
-Use `hub.owner(of:)`, `player.devices`, and `hub.devices` to build an assignment interface. Call `try hub.assign(device, to: player)` to assign or transfer a connected device to a player from the same hub. Handle assignment errors instead of silently ignoring them. `unassign` removes ownership; `disconnect` removes a producer. `removePlayer` also releases that player's devices. Controller identities last for a connection; do not save them as persistent player preferences.
+A submission updates the listed controls together and leaves the others alone. Related controls on one pad should share its device identity; independent pads need different identities. Pass each player's `input` to their movement system as shown in <doc:input-actions-and-controllers>.
 
-## Transfer held controls safely
+## Let players join and swap devices
 
-One device has at most one player owner. Transfer removes its old contribution and stops its feedback. The hub remembers unassigned raw samples so assigning a currently held device cannot create a surprise press for the new owner. New controller connections also establish a first-snapshot baseline.
+Build a joining interface from `hub.devices`, `player.devices`, and `hub.owner(of:)`. Call `try hub.assign(device, to: player)` to give a connected device to a player in that hub. The same call transfers an already owned device. Handle errors in the joining interface so a failed assignment is visible.
 
-After transfer, a held control must return to neutral before acting for the new owner. For an analog binding, neutral respects its effective dead zone; exact zero is unnecessary. Test this with the tutorial's Hold Fire toggle: press, transfer, release, then press again. The release clears the gate; it does not increment the new player's counter. Contributions from the old player's other devices remain available.
+Each device has at most one owner. A transfer removes its old input contribution and stops its feedback. Other devices belonging to the old player keep working. `unassign` releases ownership, `disconnect` removes a device, and `removePlayer` releases that player's devices.
 
-Retain tokens from `hub.observe` and `player.input.observe`; releasing or cancelling a token ends delivery. Device events describe connection, metadata updates, disconnection, assignment, and active-device changes. Callbacks run synchronously on the main actor. Use weak captures when the observing object retains its token. Count one-shot press edges in an action subscription, and poll held values in a simulation system.
+A held button must be released before it can act for its new owner. A stick must return to its effective dead zone. The hub remembers samples even while a device is unassigned, so assigning a held pad cannot sneak in a new press. Newly connected controllers also establish a starting sample before acting.
 
-## Attach the focused hardware host
+Keep observer tokens alive while the interface needs them. Both device and action callbacks run synchronously on the main actor. Use an action subscription for one-shot presses, including taps that begin and end within one SwiftUI update; use polling for held movement.
 
-Apply `.gameInput(hub, isActive: gameplayHasFocus)` to the game surface. Keep one active native host for a hub. The host discovers controllers and submits keyboard, pointer-button, and controller samples; ownership remains an application decision. Assign logical Keyboard or Pointer explicitly if your game uses them. System-reserved shortcuts and unsupported controls remain subject to the platform and controller profile.
+## Bring in keyboard and controller input
 
-Set `hub.isEnabled` to suspend input for every player, or `player.isEnabled` for one player. Use `hub.cancelAll()` when leaving the surface. Focus loss cancels held input and feedback while preserving assignments. Release held controls before actuating again after focus returns or input is re-enabled. Pausing the simulation alone does not suspend the input session.
+Apply `.gameInput(hub, isActive: gameplayHasFocus)` to the game surface, using one active native host for the hub. It discovers controllers and supplies keyboard, pointer-button, and controller samples. Discovered controllers start unassigned; your joining policy chooses their players.
 
-In SwiftUI, retain the model in `@State`. Submit samples in button actions, `.onChange`, or lifecycle handlers. Do not submit input, request feedback, or change ownership while evaluating `body`. A `.onChange` reaction is useful for a held toggle; a subscription captures every action edge even when a press and release occur within a single SwiftUI update.
+The hub's initial Keyboard and Pointer entries describe logical input routes. Their presence does not confirm attached hardware. Assign them when your game uses them. Controller identities last for a connection, so save binding preferences rather than treating those IDs as permanent player settings.
 
-## Show prompts for the last meaningful device
+Retain the model in `@State`. Submit input and change ownership from interaction or lifecycle handlers rather than while SwiftUI evaluates `body`.
 
-`player.activeDevice` describes the last owned device to send a meaningful bound input. Neutral samples, identical repeats, unbound activity, and stick noise inside a bound dead zone do not take over the prompt. Assignment alone is not meaningful activity. When ownership is removed, the session can fall back to another previously used owned device.
+## Match the on-screen hint to the control being used
 
-Call `player.prompt(for: action)` when rendering an action hint. The returned ``SpriteUI/InputPrompt`` contains a label, an optional SF Symbols name, and the selected control and device. Render a `Label` when `symbolName` exists, otherwise plain text. A prompt can fall back to another owned device that expresses that action, or return `nil` when none does. It uses effective bindings rather than bindings shadowed by higher contexts.
+A player who switches from keyboard to gamepad should see a matching Fire hint. `player.activeDevice` follows the last owned device that sent meaningful input for a bound action. Stick noise inside a dead zone, repeated samples, and unrelated keys do not change it. Assignment alone does not change it either.
 
-``SpriteUI/InputDeviceInfo`` exposes control presentations, `supportsHaptics`, and `hasRemappedElements`. Native controller presentations follow the operating system's control labels and remapped symbol names. Use these presentations instead of hard-coding vendor button labels. Nonempty controller presentations also describe which controls are available; a prompt skips absent controls. Device metadata can update without changing ownership. The presentation is a hint, not a guarantee that every controller supports every action.
+Use `player.prompt(for: action)` to obtain an ``SpriteUI/InputPrompt``. Show a SwiftUI `Label` when it has a `symbolName`, or text otherwise. The prompt follows the current effective bindings and the operating system's control labels and remapped symbols. It can fall back to another owned device that supports the action, or return nil if none does.
 
-## Report feedback capability and outcome
+Device metadata can change without ownership changing. Using its presentations avoids hard-coding a particular controller's button names or offering a hint for a control that its profile lacks.
 
-Call `player.playFeedback(.selection)` from an interaction handler. Other presets are `.impact`, `.success`, and `.failure`; ``SpriteUI/ControllerFeedback`` also accepts intensity, sharpness, and duration. The default target is the player's last meaningful device. Keyboard or virtual activity does not silently vibrate a different assigned controller. To deliberately target an owned controller, pass its identity in `on:`.
+## Add controller feedback without depending on it
 
-| Result | Meaning |
+Call `player.playFeedback(.selection)` from an interaction handler. Other presets include `.impact`, `.success`, and `.failure`; ``SpriteUI/ControllerFeedback`` also lets you choose intensity, sharpness, and duration.
+
+By default, feedback targets the last meaningful device. A keyboard action does not silently vibrate some other assigned controller. Pass an owned controller in `on:` when that is the intended target.
+
+| Result | What the game can tell the player |
 | --- | --- |
-| `.accepted` | The backend scheduled the request; this does not prove physical vibration |
-| `.unsupported` | The selected owned device does not support controller feedback, including virtual pads and keyboard |
-| `.unavailable` | No eligible owned target or active backend is available, or input is disabled |
-| `.failed` | The backend could not play the request |
+| `.accepted` | The backend scheduled feedback; physical vibration is not confirmed. |
+| `.unsupported` | This device does not support controller feedback. |
+| `.unavailable` | No eligible target or active backend is available, or input is disabled. |
+| `.failed` | The backend could not play the request. |
 
-Display the returned ``SpriteUI/InputFeedbackResult`` and keep gameplay functional for every result. Call `player.stopFeedback()` to stop explicitly. Cancellation, transfer, disconnection, and native-host teardown stop affected feedback. `supportsHaptics` is capability metadata, not a promise that a later playback request will succeed.
+Keep the interaction usable for every result. `supportsHaptics` helps describe capability, but a later request can still fail. `player.stopFeedback()` stops feedback; cancellation, device transfer, disconnection, and host teardown also stop affected feedback.
 
-Action maps and binding preferences can be saved. Sessions, assignments, active-device history, held samples, subscriptions, and feedback engines are runtime state and stay out of world snapshots.
+## Pause and leave the game
+
+Disable the hub to suspend everyone, or disable one session to suspend one player. Focus loss cancels held input and feedback while retaining assignments. After input returns, controls must pass through neutral before acting again. Pausing the world by itself does not suspend these sessions.
+
+Use `hub.cancelAll()` when leaving the surface. Sessions, assignments, device history, held values, and feedback engines are runtime state and stay out of world snapshots. Save action maps and preferences separately.
+
+Continue with [the complete example](https://github.com/Prince2k3/sprite-ui/blob/main/Sources/SpriteUI/SpriteUI.docc/Resources/spriteui-player-sessions-03.swift) to practice joining and transfer. For a camera per player, read <doc:viewports-and-split-screen>.
 
 ## See also
 
-- <doc:viewports-and-split-screen>
-- <doc:sharing-a-world-between-viewports>
-- <doc:sharing-devices-between-players>
 - <doc:input-actions-and-controllers>
 - <doc:saving-and-debugging>

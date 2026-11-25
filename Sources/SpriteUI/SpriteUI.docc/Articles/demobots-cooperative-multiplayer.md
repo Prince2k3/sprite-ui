@@ -1,12 +1,45 @@
-# DemoBots cooperative multiplayer
+# Explore the DemoBots sample app
 
-Exercise the library's multiplayer layers together in a complete two-player debug arena alongside the separate DemoBots campaign.
+@Metadata {
+    @PageKind(sampleCode)
+    @CallToAction(url: "https://github.com/Prince2k3/sprite-ui/tree/main/Examples/DemoBots", purpose: link, label: "View the sample")
+}
 
-## Start with the local round
+Repair the corrupted robots before the timer runs out. DemoBots puts movement, bot decisions, collisions, animation, and SwiftUI controls into one playable game, so you can see how the pieces cooperate beyond a small code example.
 
-Select the DemoBotsGame package product for the reusable example, or open Examples/DemoBots/DemoBots.xcodeproj and choose Co-op Debug Arena from the campaign home menu. The full example uses Apple's existing DemoBots artwork. The asset-free fallback uses procedural sprites and needs no asset catalog. Neither construction nor appearance creates a party or authenticates.
+This is a walkthrough of Apple's [DemoBots sample](https://developer.apple.com/library/archive/samplecode/DemoBots/Introduction/Intro.html) rebuilt with SpriteUI instead of GameplayKit. It is a sample app to explore after the core lessons, rather than a course lesson or a prerequisite for learning SpriteUI.
 
-This complete app-root view hosts the full co-op menu, arena, controls, local partner, recovery actions, and explicit optional Game Center setup. The example product depends on SpriteUI; it is not re-exported by the engine umbrella.
+## Play the campaign first
+
+Open `Examples/DemoBots/DemoBots.xcodeproj` and run the DemoBots scheme for iPhone/iPad or DemoBotsMac for Mac. The ordinary schemes launch the campaign. `Examples/DemoBots/readme.md` explains controls, setup, and the sample's scope.
+
+The campaign keeps all three original level layouts, patrol configurations, scenery, and robot animation artwork from DemoBots 2.3. Retained Apple terms are in `Examples/DemoBots/APPLE-LICENSE.txt`. This is a recreation of the game with SpriteUI, rather than a port of every original platform feature. The game module imports neither SpriteKit nor GameplayKit.
+
+Start a level, move toward a red bot, and hold the rechargeable Debug Beam on it until it turns green. GroundBots pursue and attack; FlyingBots attack an area, and curing one also cures nearby bots. Try pausing and restoring a checkpoint, then open Scene tools to inspect the actors that make the round work.
+
+## Follow a frame through the campaign code
+
+Begin with the SwiftUI host, then follow its retained session into the simulation. These are the main repository entry points:
+
+| File under `Examples/DemoBots/` | What to follow |
+| --- | --- |
+| `App/DemoBotsApp.swift` | App entry and the campaign's `DemoBotsView` |
+| `Game/DemoBotsView.swift` | `GameView`, menus, HUD, touch controls, and scene inspection |
+| `Game/DemoBotsSession.swift` | One round's world, level loading, resources, player, and timer |
+| `Game/DemoBotsInput.swift` | Touch, keyboard, and gamepad actions feeding the same player input |
+| `Game/BotComponents.swift` and `Game/DemoBotsSystems.swift` | Bot state and the decisions applied each update |
+| `Game/BotNavigation.swift` | Routes around the original level obstacles |
+| `Game/DemoBotsPresentation.swift` and `Game/DemoBotsCheckpoint.swift` | Visible feedback and the state saved between play sessions |
+
+The session loads the authored `.sks` hierarchy and reads patrol data from the level's `.plist`. Components describe the bots; systems make decisions before steering and correct movement afterward. SwiftUI presents the HUD while `GameView` renders the world. That separation is useful to watch when a bot changes from chasing the player to being repaired.
+
+For the engine ideas behind this campaign, read <doc:gameplay-and-movement> and <doc:saving-and-debugging>.
+
+## Optionally try the separate co-op arena
+
+After exploring the campaign, choose Co-op Debug Arena from its home menu. This small arena asks two players to cure four bots within 120 seconds; each bot needs two confirmed hits. It has an open floor and rectangular movement bounds, separate from the campaign's irregular walls and checkpoints.
+
+The `DemoBotsGame` package product also exposes the co-op view. This host uses procedural artwork, so it needs no asset catalog.
 
 ```swift
 import DemoBotsGame
@@ -18,21 +51,13 @@ struct ContentView: View {
 }
 ```
 
-Start local co-op runs two independent GameCenterServices preview coordinators over GameCenterPartyPreview. It uses the actual activity readiness/handoff and replica-baseline machinery, not a single shared world masquerading as two players. The local human is the client; an optional scripted teammate owns the host world. Turn teammate movement/firing off to inspect your own contributions. Delay, Unreliable loss, and Vary packet delay exercise adverse local delivery; reliable readiness/recovery and final receipts do not drop. The displayed queue remains bounded. Preparation advances the fixture clock until the required readiness/offer arrives instead of assuming zero delay. Preview matchmaking/handoff/recovery deadlines use that same explicit clock; native services retain wall-clock deadlines. A 120-second round ends after curing four corrupted bots or running out of time. Each bot needs two confirmed hits. Score is absolute shared round state, not a replayed reward.
+Choose Start local co-op. The sample runs two independent preview service coordinators and worlds through `GameCenterPartyPreview`. You control the client; an optional scripted teammate runs on the host. Turn off teammate movement and firing to inspect your own contribution. Add Delay, Unreliable loss, or Vary packet delay to see late poses and confirmations. Reliable control and receipts retain delivery and order.
 
-This first co-op arena has an open floor and rectangular center bounds. It deliberately does not claim predictive movement through the campaign's irregular collision walls or deterministic native physics. The campaign's levels, checkpoints, and game logic remain separate and retain their existing behavior.
+Follow `Game/DemoBotsCoopView.swift` for those controls and `Game/DemoBotsCoopSession.swift` for the match owner. The latter retains the network worlds, services, controllers, and recovery choice. A separate presentation world mirrors actor state and the locally predicted visual. Only the host changes bot corruption, time, shared score, or round completion.
 
-## Give each layer one owner
+Shots use host-issued interaction views. The host checks cooldown, range, view age, target lifetime, and the current round before accepting a hit. Temporary beams can appear immediately, but confirmed particles and audio wait for a final receipt. A bot already cured cannot add another cure to the score.
 
-The retained `DemoBotsCoopSession` owns one local network world, an optional partner world, party services, prediction/interaction controllers, canonical observer locations, approved recovery metadata, and operation cancellation. Network worlds are headless kinematic simulation. GameView renders a separate local presentation world that mirrors inert actor state and the owned predicted visual. It never runs another network-session update or grants effects from visual positions.
-
-Host rules run in the fixed phase after remote movement controllers. Only the host changes corruption, shared time, round completion, or score. The client receives a fresh movement epoch after its baseline and submits sequenced intent. Beams aim from an exact host-issued interaction view, selecting a nearby eligible bot, with facing as the fallback. The host validates cooldown, range, view age, target lifetime, and current round state. Already-cured bots cannot award another cure. Burst commands do not bypass the cooldown.
-
-NetworkSpatialInterest follows canonical player positions. The round score/time is always relevant; owned players and ancestors stay present. NetworkReplicationBudget bounds entity traffic separately for each player while application commands and final receipts remain in their independently bounded lane. The UI shows entity/application bytes, scope, and deferrals. Interaction views include only published scope identities.
-
-The example's actor/round schemas contain only portable validated values. Native bodies, playback resources, input sessions, runtime weak references, presentation entities, and controller histories are not replicated. See <doc:replication-interest-and-bandwidth>, <doc:multiplayer-prediction-and-reconciliation>, and <doc:multiplayer-interactions-and-lag-compensation> for the underlying contracts.
-
-For headless experiments, this complete helper constructs a stopped local fixture. A button or test then calls start. Advance it exactly once per bounded application update; the bundled DemoBotsCoopView already owns that pump, so do not add another while using the view.
+For an experiment outside the bundled view, this helper creates a stopped fixture with a stationary teammate. Start it from your own action and advance it once per application update. The bundled view already owns this clock, so it needs no second pump.
 
 ```swift
 import DemoBotsGame
@@ -46,21 +71,13 @@ func makeStoppedCoopExperiment() -> DemoBotsCoopSession {
 }
 ```
 
-## Keep input and feedback out of replay
+## Follow an interruption and recovery
 
-Touch movement, keyboard WASD/arrows, and the gamepad left stick share PlayerInputHub and PlayerInputSession action maps. Space, the gamepad south button, and the on-screen Debug Beam button request a fresh shot. Controller ownership is explicit. Losing focus cancels input; returning requires neutral/released controls. Resizing/folding cancels captured touch input and rebuilds the thumbstick without replacing the match or its network worlds.
+Save recovery point stores the host's selected actor and round state with a versioned time payload. The session retains the exact descriptor approving that local file. It does not read an arbitrary older file when the view appears.
 
-Predicted beam lines are short-lived local feedback. Confirmed hits produce local particles/audio once on a final client receipt. Only new authoritative receipts change corruption/score; replayed movement never runs sound or reward code. Host-local shots use the same inert geometry and host cooldown directly, without pretending to be remote commands. The teammate's host simulation is a local fixture policy, not Game Center matchmaking with another account.
+Interrupt clears input, controllers, feedback, and connection ownership. Rejoin saved round requests a fresh match with the original roster and host. The host offers the approved checkpoint; clients accept it; fresh worlds are prepared. Gameplay waits until all clients acknowledge the restored baseline. New movement and action epochs start without old held input or feedback. Restoring the score does not grant rewards again.
 
-## Recover an approved round explicitly
-
-Save recovery point captures a host-approved checkpoint with selected actor/round state and a validated versioned time payload. It writes one local file under application-scoped Application Support. The retained exact descriptor approves that file for this run. Appearance never reads or selects it. An unrelated older file cannot silently resume another match, and the campaign save is untouched.
-
-Interrupt clears input, pending feedback, controllers, and old connection ownership. Rejoin saved round requests a fresh same-roster activity match. The original host offers its approved checkpoint. Fresh worlds are prepared through GameCenterParty.prepareRecovery; host proxies, relevance, and runtime systems are rebuilt explicitly. The original host/roster/content policy and client baseline gate still apply. New prediction/action epochs start with no old input history. Saved round state restores score absolutely; it does not grant achievements or rewards again.
-
-A native client chooses Accept host recovery offer after the fresh match receives the offer. Native hosts wait for both participants to ready before Start prepared round. A lost checkpoint, incompatible file, absent original player, or failed baseline leaves gameplay disabled and surfaces the error; retry is deliberate. Closing the co-op screen stops the services and leaves the campaign at its own home menu.
-
-This complete application hook illustrates lifecycle ownership outside the bundled view. The bundled view already performs this cleanup, including neutral input on inactive and party interruption on background; do not run a second lifecycle owner around it.
+The bundled view owns its lifecycle cleanup. This hook shows how a custom menu owner would stop movement and interrupt, without adding a second lifecycle owner around that view.
 
 ```swift
 import DemoBotsGame
@@ -72,12 +89,12 @@ func interruptCoopFromGameMenu(_ game: DemoBotsCoopSession) {
 }
 ```
 
-## Configure live Game Center separately
+When a checkpoint is missing, incompatible, or cannot reach the original players, the sample leaves gameplay disabled and shows the error. A retry is a player action. Closing co-op returns to the campaign's own home menu.
 
-Use live Game Center is an explicit mode switch that stops the previous local fixture. Sign in explicitly, load/start the configured `dev.spriteui.demobots.coop` activity, and enter the same party code on both players. Native activity parties require OS 26+ and a configured party-capable two-player activity definition in App Store Connect. Use the matching bundle ID, signed Game Center entitlement, provisioning, and multiplayer compatibility. Keep the co-op view's one gameCenter host stable through lobby, gameplay, and recovery. Queued configured invitations are accepted explicitly; they never replace an active round automatically.
+## Native play and sample limits
 
-Native setup, cold activity routing, matching, disconnect/rejoin, account changes, and actual network delivery must be verified with two signed test accounts/devices. The user chose to leave that work pending for this checkout. Local fixtures, setup templates, successful builds, and unit tests do not establish live Game Center behavior. See <doc:game-center-services>, <doc:activity-party-matchmaking-and-handoff>, and <doc:multiplayer-recovery-and-rejoining>.
+The co-op adapter predicts rectangular kinematic movement, not movement through the campaign's collision walls or native physics. Only portable validated actor and round values are shared. Cameras, physics bodies, input, playback resources, and controller histories stay local. The entity traffic budget does not include application/control messages, which have separate limits.
 
-See <doc:multiplayer-validation-and-release-checks> for the repeatable local gate, signing templates, and pending native matrix.
+Use live Game Center stops the local fixture. Sign in, load/start `dev.spriteui.demobots.coop`, and enter the same party code on both devices. Native activity parties require iOS/macOS 26+, a configured two-player party-capable activity, matching bundle IDs, signing, provisioning, and compatibility. Keep one services host through lobby, gameplay, and recovery; queued invitations wait for acceptance.
 
-The local automated round covers delayed/lossy handoff and recovery, complete handoff, prediction convergence, host cooldowns, a shared win, approved checkpoint restoration, cancelled preparation, and input neutralization. Follow <doc:playing-a-cooperative-demobots-round> to exercise the same flows in the simulator before signed testing.
+Signed two-account co-op verification remains **pending** for this checkout. Local rounds do not establish native invitations, matching, delivery, or rejoin. Before release, test those flows, account changes, and backgrounding on signed devices. Continue with <doc:activity-party-matchmaking-and-handoff> to understand the lobby flow, or <doc:multiplayer-recovery-and-rejoining> to follow the saved-round handoff.
