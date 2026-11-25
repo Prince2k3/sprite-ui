@@ -1,6 +1,8 @@
 import Foundation
 
 /// An immutable hinge sample with an angle in radians and an OS-supplied status.
+/// Native samples require a device with a physical hinge and an OS-supported
+/// hinge sensor. Constructing this value does not provide hardware support.
 public struct GameHingeState: Hashable, Codable, Sendable {
     /// The operating system's hinge classification, independent of the angle.
     public enum Status: String, Codable, Sendable {
@@ -45,6 +47,8 @@ public struct GameHingeState: Hashable, Codable, Sendable {
 }
 
 /// Maps a hinge angle into a signed scalar action value.
+/// Native action input requires supported physical hinge hardware. This value
+/// only configures the mapping; use separate virtual controls on other devices.
 public struct HingeInputConfiguration: Hashable, Codable, Sendable {
     /// The angle in radians that maps to zero, clamped to zero through pi.
     public let neutralAngle: Double

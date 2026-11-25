@@ -1,8 +1,16 @@
 # Use a hinge for an effect or a game control
 
-Imagine a landscape that changes its lighting as a device closes, or a game where bending the device charges a move. These need different kinds of input: an effect can use the last observed angle, while a gameplay action must not trigger just because the app resumes with the device already bent.
+On a device with a physical hinge and a supported hinge sensor, opening or closing it can change the lighting or charge a move. Native hinge observation and controls require that hardware.
 
 SpriteUI lets you observe the optional sensor for effects, then choose separately whether to connect it to a calibrated game action. Keep a button or slider available so the game works without hinge hardware.
+
+## Check the hardware requirements
+
+Native hinge input works only on devices with a physical hinge whose sensor is exposed by the operating system. SpriteUI's native adapter requires UIKit on iOS 27.1 or later. A supported OS version alone does not make a device hinge-capable.
+
+On devices without that hardware, older iOS versions, and macOS, live hinge state is nil and no native hinge input device is available. The examples can still run using their sliders, buttons, or keyboard bindings. Those controls supply game-action values; they do not simulate a physical hinge sensor.
+
+Use the reported availability rather than assuming that a device has a sensor. Resizing a window or showing a split-screen layout does not provide hinge data.
 
 ## Show the last observed angle
 

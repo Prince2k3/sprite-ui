@@ -21,6 +21,7 @@ public struct GameViewContent {
     /// `update:` observes resizing, safe-area changes, and reserved regions.
     public var surfaceGeometry: GameSurfaceGeometry { surfaceState.geometry }
     /// The last native hinge sample, or nil for an unsupported/detached hierarchy.
+    /// Native samples require a physical hinge with an OS-supported sensor.
     /// Sampling pauses with presentation; angle is measured in radians.
     public var hingeState: GameHingeState? { hingeStore.state }
 

@@ -4,6 +4,8 @@ A fire button can fit beside the game in one window and land under a reserved pa
 
 ``SpriteUI/GameSurfaceGeometry`` describes the host's size, safe-area insets, and reported reserved regions. Use it to choose where the game draws and where a whole control can fit.
 
+These layout features work on devices without hinges too. Measuring a fold angle or using folding as a game control is separate: native hinge input requires a physical hinge with an OS-supported sensor. See <doc:hinge-input-and-effects> for hardware requirements and controls for other devices.
+
 ## Find room for a whole control
 
 Surface geometry uses local points with a top-left origin: x goes right and y goes down. World coordinates use y upward. `displayScale` describes pixels per point; do not multiply the geometry by it for SwiftUI layout.

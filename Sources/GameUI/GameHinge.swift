@@ -13,6 +13,7 @@ private struct GameHingeEnvironmentKey: EnvironmentKey {
 
 extension EnvironmentValues {
     /// The last observed hinge of this GameView's hierarchy, or nil when unavailable.
+    /// Native readings require a physical hinge with an OS-supported sensor.
     /// Available inside the host's SwiftUI attachments; use the callback for an external HUD.
     public var gameHingeState: GameHingeState? {
         get { self[GameHingeEnvironmentKey.self] }
@@ -28,6 +29,7 @@ struct GameHingePreferenceKey: PreferenceKey {
 extension View {
     /// Observes optional native hinge state from one descendant GameView. Angle is
     /// in radians; use reserved surface regions for layout, rather than hinge angle.
+    /// Requires supported physical hinge hardware; devices without it report nil.
     public func onGameHingeChange(_ action: @escaping @MainActor (GameHingeState?) -> Void) -> some View {
         onPreferenceChange(GameHingePreferenceKey.self) { state in
             MainActor.assumeIsolated { action(state) }

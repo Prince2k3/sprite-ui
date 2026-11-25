@@ -60,6 +60,7 @@ SwiftUI updates, rather than the simulation clock.
 - **Rendering:** sprites, shapes, text, cameras, tile maps, particles, audio, viewports, and SwiftUI attachments.
 - **Movement:** agent goals, navigation, collision queries, character controllers, physics, and joints.
 - **Input:** actions, rebinding, touch and controllers, local-player sessions, and recording/replay.
+- **Hinge input:** optional effects and controls on devices with supported physical hinge hardware; other devices can use virtual controls.
 - **Simulation and diagnostics:** fixed ticks, interpolation, snapshots, scene inspection, and opt-in profiling.
 - **Optional services:** Game Center, replication, quests, leagues, player profiles, and cloud saves.
 

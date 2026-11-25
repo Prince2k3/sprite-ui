@@ -312,6 +312,8 @@ with <doc:getting-started> or <doc:spriteui-tutorials> instead.
 
 ### Hinge input and effects
 
+Native hinge readings and actions require a device with a physical hinge and an OS-supported hinge sensor. See <doc:hinge-input-and-effects> for platform requirements and virtual controls for devices without that hardware.
+
 - ``SpriteUI/GameHingeState``
 - ``SpriteUI/GameHingeEvents``
 - ``SpriteUI/HingeInputConfiguration``

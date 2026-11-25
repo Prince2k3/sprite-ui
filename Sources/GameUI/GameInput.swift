@@ -9,6 +9,8 @@ public extension View {
     /// Gamepads are sampled at 60 Hz; controls held on activation must go neutral.
     /// Pass `hinge` to opt in to calibrated `.hinge` samples. Raw hinge telemetry
     /// remains available through GameViewContent even without action routing.
+    /// Native hinge samples require supported physical hinge hardware; the
+    /// configuration does not enable hinge input on devices without that sensor.
     func gameInput(_ input: InputController, isActive: Bool = true, hinge: HingeInputConfiguration? = nil) -> some View {
         modifier(GameInputModifier(input: input, hub: nil, isActive: isActive, hinge: hinge))
     }
@@ -17,6 +19,7 @@ public extension View {
     /// attached to one host at a time; player assignment remains game policy.
     /// An opted-in hinge is discovered as `.hinge` and stays unassigned until the
     /// game assigns it. Reconnection and cancellation require physical neutral.
+    /// Discovery requires a physical hinge with an OS-supported sensor.
     func gameInput(_ hub: PlayerInputHub, isActive: Bool = true, hinge: HingeInputConfiguration? = nil) -> some View {
         modifier(GameInputModifier(input: nil, hub: hub, isActive: isActive, hinge: hinge))
     }
