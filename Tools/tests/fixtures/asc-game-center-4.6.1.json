@@ -1,0 +1,1265 @@
+{
+  "source": "https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip",
+  "version": "4.6.1",
+  "paths": {
+    "/v2/gameCenterLeaderboards": "#/components/schemas/GameCenterLeaderboardV2CreateRequest",
+    "/v2/gameCenterLeaderboardLocalizations": "#/components/schemas/GameCenterLeaderboardLocalizationV2CreateRequest",
+    "/v2/gameCenterAchievements": "#/components/schemas/GameCenterAchievementV2CreateRequest",
+    "/v2/gameCenterAchievementLocalizations": "#/components/schemas/GameCenterAchievementLocalizationV2CreateRequest",
+    "/v1/gameCenterActivities": "#/components/schemas/GameCenterActivityCreateRequest",
+    "/v1/gameCenterActivityLocalizations": "#/components/schemas/GameCenterActivityLocalizationCreateRequest",
+    "/v1/gameCenterChallenges": "#/components/schemas/GameCenterChallengeCreateRequest",
+    "/v1/gameCenterChallengeLocalizations": "#/components/schemas/GameCenterChallengeLocalizationCreateRequest"
+  },
+  "components": {
+    "schemas": {
+      "GameCenterAchievementLocalizationV2CreateRequest": {
+        "type": "object",
+        "title": "GameCenterAchievementLocalizationV2CreateRequest",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "gameCenterAchievementLocalizations"
+                ]
+              },
+              "attributes": {
+                "type": "object",
+                "properties": {
+                  "locale": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "beforeEarnedDescription": {
+                    "type": "string"
+                  },
+                  "afterEarnedDescription": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "beforeEarnedDescription",
+                  "locale",
+                  "afterEarnedDescription"
+                ]
+              },
+              "relationships": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterAchievementVersions"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "data"
+                    ]
+                  }
+                },
+                "required": [
+                  "version"
+                ]
+              }
+            },
+            "required": [
+              "relationships",
+              "attributes",
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GameCenterAchievementV2CreateRequest": {
+        "type": "object",
+        "title": "GameCenterAchievementV2CreateRequest",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "gameCenterAchievements"
+                ]
+              },
+              "attributes": {
+                "type": "object",
+                "properties": {
+                  "referenceName": {
+                    "type": "string"
+                  },
+                  "vendorIdentifier": {
+                    "type": "string"
+                  },
+                  "points": {
+                    "type": "integer"
+                  },
+                  "showBeforeEarned": {
+                    "type": "boolean"
+                  },
+                  "repeatable": {
+                    "type": "boolean"
+                  },
+                  "activityProperties": {
+                    "nullable": true,
+                    "$ref": "#/components/schemas/StringToStringMap"
+                  }
+                },
+                "required": [
+                  "vendorIdentifier",
+                  "repeatable",
+                  "showBeforeEarned",
+                  "referenceName",
+                  "points"
+                ]
+              },
+              "relationships": {
+                "type": "object",
+                "properties": {
+                  "gameCenterDetail": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterDetails"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    }
+                  },
+                  "gameCenterGroup": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterGroups"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    }
+                  },
+                  "versions": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "gameCenterAchievementVersions"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "data"
+                    ]
+                  }
+                },
+                "required": [
+                  "versions"
+                ]
+              }
+            },
+            "required": [
+              "relationships",
+              "attributes",
+              "type"
+            ]
+          },
+          "included": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameCenterAchievementVersionV2InlineCreate"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StringToStringMap": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "GameCenterAchievementVersionV2InlineCreate": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "gameCenterAchievementVersions"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "relationships": {
+            "type": "object",
+            "properties": {
+              "achievement": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "gameCenterAchievements"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "type"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "GameCenterActivityCreateRequest": {
+        "type": "object",
+        "title": "GameCenterActivityCreateRequest",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "gameCenterActivities"
+                ]
+              },
+              "attributes": {
+                "type": "object",
+                "properties": {
+                  "referenceName": {
+                    "type": "string"
+                  },
+                  "vendorIdentifier": {
+                    "type": "string"
+                  },
+                  "playStyle": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "ASYNCHRONOUS",
+                      "SYNCHRONOUS"
+                    ]
+                  },
+                  "minimumPlayersCount": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "maximumPlayersCount": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "supportsPartyCode": {
+                    "type": "boolean",
+                    "nullable": true
+                  },
+                  "properties": {
+                    "nullable": true,
+                    "$ref": "#/components/schemas/StringToStringMap"
+                  }
+                },
+                "required": [
+                  "vendorIdentifier",
+                  "referenceName"
+                ]
+              },
+              "relationships": {
+                "type": "object",
+                "properties": {
+                  "gameCenterDetail": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterDetails"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    }
+                  },
+                  "gameCenterGroup": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterGroups"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    }
+                  },
+                  "versions": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "gameCenterActivityVersions"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "attributes",
+              "type"
+            ]
+          },
+          "included": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameCenterActivityVersionInlineCreate"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GameCenterActivityVersionInlineCreate": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "gameCenterActivityVersions"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "fallbackUrl": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "relationships": {
+            "type": "object",
+            "properties": {
+              "activity": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "gameCenterActivities"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "type"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "GameCenterActivityLocalizationCreateRequest": {
+        "type": "object",
+        "title": "GameCenterActivityLocalizationCreateRequest",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "gameCenterActivityLocalizations"
+                ]
+              },
+              "attributes": {
+                "type": "object",
+                "properties": {
+                  "locale": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "name",
+                  "locale"
+                ]
+              },
+              "relationships": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterActivityVersions"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "data"
+                    ]
+                  }
+                },
+                "required": [
+                  "version"
+                ]
+              }
+            },
+            "required": [
+              "relationships",
+              "attributes",
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GameCenterChallengeCreateRequest": {
+        "type": "object",
+        "title": "GameCenterChallengeCreateRequest",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "gameCenterChallenges"
+                ]
+              },
+              "attributes": {
+                "type": "object",
+                "properties": {
+                  "referenceName": {
+                    "type": "string"
+                  },
+                  "vendorIdentifier": {
+                    "type": "string"
+                  },
+                  "challengeType": {
+                    "type": "string",
+                    "enum": [
+                      "LEADERBOARD"
+                    ]
+                  },
+                  "repeatable": {
+                    "type": "boolean",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "vendorIdentifier",
+                  "challengeType",
+                  "referenceName"
+                ]
+              },
+              "relationships": {
+                "type": "object",
+                "properties": {
+                  "gameCenterDetail": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterDetails"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    }
+                  },
+                  "gameCenterGroup": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterGroups"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    }
+                  },
+                  "versions": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "gameCenterChallengeVersions"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "leaderboard": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterLeaderboards"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    },
+                    "deprecated": true
+                  },
+                  "leaderboardV2": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterLeaderboards"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "attributes",
+              "type"
+            ]
+          },
+          "included": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameCenterChallengeVersionInlineCreate"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GameCenterChallengeVersionInlineCreate": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "gameCenterChallengeVersions"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "relationships": {
+            "type": "object",
+            "properties": {
+              "challenge": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "gameCenterChallenges"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "type"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "GameCenterChallengeLocalizationCreateRequest": {
+        "type": "object",
+        "title": "GameCenterChallengeLocalizationCreateRequest",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "gameCenterChallengeLocalizations"
+                ]
+              },
+              "attributes": {
+                "type": "object",
+                "properties": {
+                  "locale": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "name",
+                  "locale"
+                ]
+              },
+              "relationships": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterChallengeVersions"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "data"
+                    ]
+                  }
+                },
+                "required": [
+                  "version"
+                ]
+              }
+            },
+            "required": [
+              "relationships",
+              "attributes",
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GameCenterLeaderboardLocalizationV2CreateRequest": {
+        "type": "object",
+        "title": "GameCenterLeaderboardLocalizationV2CreateRequest",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "gameCenterLeaderboardLocalizations"
+                ]
+              },
+              "attributes": {
+                "type": "object",
+                "properties": {
+                  "locale": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "formatterOverride": {
+                    "nullable": true,
+                    "$ref": "#/components/schemas/GameCenterLeaderboardFormatter"
+                  },
+                  "formatterSuffix": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "formatterSuffixSingular": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "name",
+                  "locale"
+                ]
+              },
+              "relationships": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterLeaderboardVersions"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "data"
+                    ]
+                  }
+                },
+                "required": [
+                  "version"
+                ]
+              }
+            },
+            "required": [
+              "relationships",
+              "attributes",
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GameCenterLeaderboardFormatter": {
+        "type": "string",
+        "enum": [
+          "INTEGER",
+          "DECIMAL_POINT_1_PLACE",
+          "DECIMAL_POINT_2_PLACE",
+          "DECIMAL_POINT_3_PLACE",
+          "ELAPSED_TIME_CENTISECOND",
+          "ELAPSED_TIME_MINUTE",
+          "ELAPSED_TIME_SECOND",
+          "MONEY_POUND_DECIMAL",
+          "MONEY_POUND",
+          "MONEY_DOLLAR_DECIMAL",
+          "MONEY_DOLLAR",
+          "MONEY_EURO_DECIMAL",
+          "MONEY_EURO",
+          "MONEY_FRANC_DECIMAL",
+          "MONEY_FRANC",
+          "MONEY_KRONER_DECIMAL",
+          "MONEY_KRONER",
+          "MONEY_YEN"
+        ]
+      },
+      "GameCenterLeaderboardV2CreateRequest": {
+        "type": "object",
+        "title": "GameCenterLeaderboardV2CreateRequest",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "gameCenterLeaderboards"
+                ]
+              },
+              "attributes": {
+                "type": "object",
+                "properties": {
+                  "defaultFormatter": {
+                    "$ref": "#/components/schemas/GameCenterLeaderboardFormatter"
+                  },
+                  "referenceName": {
+                    "type": "string"
+                  },
+                  "vendorIdentifier": {
+                    "type": "string"
+                  },
+                  "submissionType": {
+                    "type": "string",
+                    "enum": [
+                      "BEST_SCORE",
+                      "MOST_RECENT_SCORE"
+                    ]
+                  },
+                  "scoreSortType": {
+                    "type": "string",
+                    "enum": [
+                      "ASC",
+                      "DESC"
+                    ]
+                  },
+                  "scoreRangeStart": {
+                    "type": "string",
+                    "format": "number",
+                    "nullable": true
+                  },
+                  "scoreRangeEnd": {
+                    "type": "string",
+                    "format": "number",
+                    "nullable": true
+                  },
+                  "recurrenceStartDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "recurrenceDuration": {
+                    "type": "string",
+                    "format": "duration",
+                    "nullable": true
+                  },
+                  "recurrenceRule": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "activityProperties": {
+                    "nullable": true,
+                    "$ref": "#/components/schemas/StringToStringMap"
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "SHOW_FOR_ALL",
+                      "HIDE_FOR_ALL"
+                    ]
+                  }
+                },
+                "required": [
+                  "vendorIdentifier",
+                  "submissionType",
+                  "defaultFormatter",
+                  "scoreSortType",
+                  "referenceName"
+                ]
+              },
+              "relationships": {
+                "type": "object",
+                "properties": {
+                  "gameCenterDetail": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterDetails"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    }
+                  },
+                  "gameCenterGroup": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gameCenterGroups"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ]
+                      }
+                    }
+                  },
+                  "gameCenterLeaderboardSets": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "gameCenterLeaderboardSets"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "versions": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "gameCenterLeaderboardVersions"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "data"
+                    ]
+                  }
+                },
+                "required": [
+                  "versions"
+                ]
+              }
+            },
+            "required": [
+              "relationships",
+              "attributes",
+              "type"
+            ]
+          },
+          "included": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameCenterLeaderboardVersionV2InlineCreate"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GameCenterLeaderboardVersionV2InlineCreate": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "gameCenterLeaderboardVersions"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "relationships": {
+            "type": "object",
+            "properties": {
+              "leaderboard": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "gameCenterLeaderboards"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "type"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "type"
+        ]
+      }
+    }
+  },
+  "getPaths": [
+    "/v1/apps",
+    "/v1/apps/{id}/gameCenterDetail",
+    "/v1/gameCenterActivities/{id}/versions",
+    "/v1/gameCenterActivityVersions/{id}/localizations",
+    "/v1/gameCenterAppVersions/{id}/appStoreVersion",
+    "/v1/gameCenterChallengeVersions/{id}/localizations",
+    "/v1/gameCenterChallenges/{id}",
+    "/v1/gameCenterChallenges/{id}/versions",
+    "/v1/gameCenterDetails/{id}/gameCenterAchievementsV2",
+    "/v1/gameCenterDetails/{id}/gameCenterActivities",
+    "/v1/gameCenterDetails/{id}/gameCenterAppVersions",
+    "/v1/gameCenterDetails/{id}/gameCenterChallenges",
+    "/v1/gameCenterDetails/{id}/gameCenterLeaderboardsV2",
+    "/v2/gameCenterAchievementVersions/{id}/localizations",
+    "/v2/gameCenterAchievements/{id}/versions",
+    "/v2/gameCenterLeaderboardVersions/{id}/localizations",
+    "/v2/gameCenterLeaderboards/{id}/versions"
+  ]
+}
