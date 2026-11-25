@@ -5,12 +5,9 @@ A RealityKit-style API for 2D games, powered by SpriteKit and SwiftUI.
 Build scenes from entities and value components, run gameplay in query-driven
 systems, and present your game with `GameView`.
 
-**0.5.0 · Swift 6 · iOS 18+ · macOS 15+**
-
 ## Installation
 
-Build with **Xcode 27.2 or a compatible newer toolchain**. Deployment targets start
-at iOS 18 and macOS 15; newer platform features are availability-gated.
+Deployment targets start at iOS 18 and macOS 15; newer platform features are availability-gated.
 
 Add `https://github.com/Prince2k3/sprite-ui.git` in Xcode's **File → Add Package
 Dependencies** and select **Exact Version: 0.5.0** once the release tag is published.
@@ -23,7 +20,7 @@ In a Swift package, add:
 .package(url: "https://github.com/Prince2k3/sprite-ui.git", exact: "0.5.0")
 ```
 
-Link the chosen library product to your app target. To use a local checkout,
+Link the chosen library to your app target. To use a local checkout,
 choose **Add Local** instead.
 
 SpriteUI is pre-1.0. Pin an exact version and review [[changelog]] before upgrading.
@@ -66,9 +63,9 @@ SwiftUI updates, rather than the simulation clock.
 - **Simulation and diagnostics:** fixed ticks, interpolation, snapshots, scene inspection, and opt-in profiling.
 - **Optional services:** Game Center, replication, quests, leagues, player profiles, and cloud saves.
 
-## Choose a product
+## Libraries 
 
-| Product | Use it for |
+| Library | Use it for |
 | --- | --- |
 | `SpriteUI` | Complete SDK |
 | `SpriteUICore` | Complete engine without Game Center or cloud-save integration |
@@ -83,34 +80,6 @@ explains product boundaries and imports.
 ## Learn and explore
 
 **[Read the documentation and tutorials online](https://prince2k3.github.io/sprite-ui/documentation/spriteui/)**
-once the first Pages deployment completes.
-
-The [[Sources/SpriteUI/SpriteUI.docc/SpriteUI.md|DocC documentation]] starts with a five-lesson course on scenes, systems, input, movement, and levels.
-Task guides cover features to add later, with a separate API reference.
-Build the archive with `Tools/build-documentation.sh check`, then open
-`.build/documentation/SpriteUI.doccarchive` in Xcode.
-
-- **Feature showcase:** open `Demo/SpriteUIDemo.xcodeproj` and run **SpriteUIDemo**.
-- **DemoBots:** open `Examples/DemoBots/DemoBots.xcodeproj` and run **DemoBots** or
-  **DemoBotsMac**. See [[Examples/DemoBots/readme.md|the game guide]] for controls.
-
-## Release status
-
-The core engine is available for pre-1.0 adoption. **Native Game Center and cloud-save
-integrations are experimental:** signed two-account multiplayer and multi-device
-cloud-save validation remain pending. Local previews work without accounts and do
-not establish live-service compatibility. Native services require app capabilities
-and Apple-side configuration. SpriteKit physics is not deterministic rollback simulation.
-
-## Development
-
-```sh
-swift test
-python3 -B -m unittest discover -s Tools/tests
-Tools/build-documentation.sh check
-```
-
-See [[releasing]] for release verification and tagging.
 
 ## License
 
