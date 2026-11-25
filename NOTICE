@@ -1,0 +1,10 @@
+SpriteUI
+Copyright (c) 2026 Prince Ugwuh
+
+SpriteUI's original library code is licensed under the MIT License in LICENSE.
+
+The DemoBots example includes material derived from Apple's DemoBots 2.3 sample,
+including level layouts, patrol configurations, logo, scenery, and robot artwork.
+That material remains subject to Examples/DemoBots/APPLE-LICENSE.txt. The MIT
+License does not replace Apple's license for that material. Preserve the Apple
+license when redistributing Apple-derived DemoBots material.

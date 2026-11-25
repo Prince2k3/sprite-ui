@@ -1,0 +1,68 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths: ['Sources/**', 'Package.swift', 'Tools/**', '.github/workflows/documentation.yml']
+  pull_request:
+    paths: ['Sources/**', 'Package.swift', 'Tools/**', '.github/workflows/documentation.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: documentation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify toolchain
+        run: xcodebuild -version
+      - name: Check documentation and build static site
+        run: |
+          Tools/build-documentation.sh check --hosting-base-path "${GITHUB_REPOSITORY#*/}"
+          cp -R .build/documentation/SpriteUI.doccarchive .build/documentation-site
+          cp .build/documentation-site/index.html .build/documentation-site/404.html
+          cat > .build/documentation-site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta http-equiv="refresh" content="0; url=documentation/spriteui/">
+            <title>SpriteUI Documentation</title>
+          </head>
+          <body><a href="documentation/spriteui/">Open SpriteUI Documentation</a></body>
+          </html>
+          HTML
+          touch .build/documentation-site/.nojekyll
+          test -f .build/documentation-site/documentation/spriteui/index.html
+          test -f .build/documentation-site/data/documentation/spriteui.json
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .build/documentation-site
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - uses: actions/deploy-pages@v4
+        id: deployment
