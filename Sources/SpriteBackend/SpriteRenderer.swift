@@ -1,4 +1,5 @@
 @_spi(Backend) import ECSCore
+import Dispatch
 import SpriteKit
 import SwiftUI
 
@@ -120,6 +121,8 @@ public final class SpriteRenderer: SKScene {
     var fixedPresentedPoses: [Entity.ID: FixedPresentedPose] = [:]
     private var lastDeltaTime: TimeInterval = 0
     private var currentFrame: WorldFrame?
+    private var profileFrame: EngineProfileToken?
+    private var profileUpdateFinishedClock: UInt64?
     private var isPublishingRenderUpdate = false
     /// Capture must not render a partially updated native scene from a callback.
     @_spi(Backend) public private(set) var isUpdatingPresentation = false
@@ -186,6 +189,7 @@ public final class SpriteRenderer: SKScene {
         restoreFixedTransformPresentation()
         restoreRenderVisibility()
         if let currentFrame { world.cancelFrame(currentFrame) }
+        if let profileFrame { world.profiler.cancelRendererFrame(profileFrame) }
         if let prior = debugPriorProfiling { world.isProfilingEnabled = prior }
         attachedDebugController?.rendererWasDestroyed()
     }
@@ -215,6 +219,8 @@ public final class SpriteRenderer: SKScene {
     /// Rebase the display clock when a viewport host resumes. Simulation time,
     /// action state and physics settings are preserved.
     @_spi(Backend) public func resetFrameClock() {
+        if let profileFrame { world.profiler.cancelRendererFrame(profileFrame) }
+        profileFrame = nil; profileUpdateFinishedClock = nil
         restoreFixedTransformPresentation()
         nextFixedStepDeltaTime = nil
         world.resetFixedStepClock()
@@ -247,6 +253,7 @@ public final class SpriteRenderer: SKScene {
     }
 
     public override func update(_ currentTime: TimeInterval) {
+        let profileStart = world.profiler.isRecording ? DispatchTime.now().uptimeNanoseconds : nil
         // A native driver may abandon a frame before didFinishUpdate (and
         // headless callers may supply only update). Explicitly retire our own
         // frame before opening another; never overwrite the world's ownership
@@ -264,6 +271,15 @@ public final class SpriteRenderer: SKScene {
         restoreRenderVisibility()
         let interval = lastUpdateTime.map { currentTime - $0 } ?? 0
         let fixedDeltaTime = nextFixedStepDeltaTime ?? interval
+        profileFrame = profileStart == nil ? nil : world.profiler.beginRendererFrame(interval: fixedDeltaTime)
+        profileUpdateFinishedClock = nil
+        defer {
+            if let token = profileFrame, let profileStart {
+                let end = DispatchTime.now().uptimeNanoseconds
+                world.profiler.recordRendererUpdate(token, duration: Double(end >= profileStart ? end - profileStart : 0) / 1_000_000_000)
+                profileUpdateFinishedClock = end
+            }
+        }
         nextFixedStepDeltaTime = nil
         let deltaTime = min(interval, 1.0 / 15.0)
         lastUpdateTime = currentTime
@@ -289,6 +305,16 @@ public final class SpriteRenderer: SKScene {
 
     /// Evaluates final constraints and cameras after actions, physics and presentation systems.
     public override func didFinishUpdate() {
+        let profileToken = profileFrame
+        let profileStart = profileToken.map { _ in DispatchTime.now().uptimeNanoseconds }
+        profileFrame = nil; profileUpdateFinishedClock = nil
+        defer {
+            if let profileToken, let profileStart {
+                sampleProfileWorkload(profileToken)
+                let end = DispatchTime.now().uptimeNanoseconds
+                world.profiler.finishRendererFrame(profileToken, duration: Double(end >= profileStart ? end - profileStart : 0) / 1_000_000_000)
+            }
+        }
         defer { isUpdatingPresentation = false }
         validateManipulations()
         if let currentFrame { world.finishFrame(currentFrame) }
@@ -391,6 +417,11 @@ public final class SpriteRenderer: SKScene {
     /// Copies each dynamic body's position, rotation and velocity back into its entity,
     /// then publishes the contacts the step reported.
     public override func didSimulatePhysics() {
+        if let token = profileFrame, let start = profileUpdateFinishedClock, currentFrame != nil, !viewportPhysicsSuspended {
+            let end = DispatchTime.now().uptimeNanoseconds
+            world.profiler.recordSpriteKitInterval(token, duration: Double(end >= start ? end - start : 0) / 1_000_000_000)
+            profileUpdateFinishedClock = nil
+        }
         restoreFixedTransformPresentation()
         guard !viewportPhysicsSuspended else { contacts.removeAll(); return }
         guard world.isDebugStepping || (!world.isPaused && world.timeScale > 0) else { contacts.removeAll(); return }

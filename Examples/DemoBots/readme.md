@@ -15,6 +15,8 @@ The new `Examples/DemoBots/` folder contains a standalone iOS/iPadOS and macOS a
 
 ## Run
 
+During gameplay, use **Open profiling HUD** (chart icon), or enable **Profiling HUD** in the home/pause menu, then expand **Profiling** and choose **Start**. The game keeps running and accepts movement/beam input outside the panel. Stop to freeze, JSON to export through the system file picker, and Reset to clear the rolling capture. Closing the profiling HUD stops the recording started through that HUD; scene inspection can take priority without stopping it. Recording starts only from an explicit Start action. [[../../Sources/SpriteUI/SpriteUI.docc/Articles/saving-and-debugging.md]] explains frame, ECS/collision-query, fixed-step, and replication measurements. SpriteKit draw calls and live-particle counts remain unavailable; node/emitter counts are workload indicators. This uses engine targets only and needs no Game Center account.
+
 Open `DemoBots.xcodeproj`, choose **DemoBots** for an iPhone/iPad simulator, or **DemoBotsMac** for macOS, and Run. The project uses the SpriteUI package from this checkout. To regenerate the project, run `xcodegen generate` in this directory.
 
 Both targets link Apple's native `GameController.framework`. [[project.yml]] generates [[App/Info.plist]] with the Game Controller capability metadata `GCSupportsControllerUserInteraction = true` and `GCSupportedGameControllers` entries for `ExtendedGamepad` and `MicroGamepad`. A controller is optional; touch and keyboard controls remain available. These declarations follow [Apple's Game Controller configuration guidance](https://developer.apple.com/documentation/gamecontroller/).

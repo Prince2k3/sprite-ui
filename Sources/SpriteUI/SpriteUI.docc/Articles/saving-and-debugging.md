@@ -143,6 +143,106 @@ Debug selection can inspect visible content without an input-target component an
 
 For an interactive SwiftUI attachment, keep mutations inside `AttachmentContext.perform`, including delayed actions. That context validates the view's instance and activation before changing its entity. Combine it with observable app state for context UI that remains accurate across restore, removal, and reuse; see <doc:rendering-and-resources>.
 
+## Record engine performance without changing simulation
+
+Every ``SpriteUI/World`` owns an ``SpriteUI/EngineProfiler``. Recording is off by default and independent of `isProfilingEnabled`/`lastSystemTimings`. Start it explicitly, inspect the throttled `latestFrame` and `summary`, then stop to freeze completed frames. Profiling does not advance clocks, install systems, evaluate queries a second time, or run another render pass.
+
+Add `.profiling` to a debug controller's options to show Start, Stop, Reset, and JSON export controls. Merely displaying this panel does not start a capture. This complete scene moves a small grid through fixed systems, so recording includes both query and fixed-step work:
+
+```swift
+import SpriteUI
+import SwiftUI
+
+struct ProfiledMotion: Component {
+    var speed: Float
+}
+
+struct ProfiledMotionSystem: System {
+    static var phase: SystemPhase { .fixedSimulation }
+    init(world: World) {}
+
+    func update(context: UpdateContext) {
+        for entity in context.entities(matching: EntityQuery(where: .has(ProfiledMotion.self))) {
+            let speed = entity.components[ProfiledMotion.self]?.speed ?? 0
+            entity.position.x += speed * Float(context.deltaTime)
+            if entity.position.x > 180 { entity.position.x = -180 }
+        }
+    }
+}
+
+@MainActor
+struct EngineProfilingScene: View {
+    @State private var debug = SceneDebugController(options: [.profiling])
+
+    var body: some View {
+        GameView(debug: debug) { content in
+            content.world.fixedStep = .init(stepsPerSecond: 60, maximumCatchUpSteps: 4)
+            content.world.addSystem(ProfiledMotionSystem.self)
+            for index in 0..<48 {
+                let entity = Entity(components:
+                    SpriteComponent(color: .cyan, size: [8, 8]),
+                    ProfiledMotion(speed: 30), TransformInterpolationComponent())
+                entity.position = [Float(index % 8) * 36 - 140, Float(index / 8) * 30 - 90]
+                content.add(entity)
+            }
+        }
+        .frame(minWidth: 320, minHeight: 320)
+    }
+}
+```
+
+For an application-owned recording, configure the capacity, target cadence, sampling interval, and optional Instruments signposts directly. This complete helper pair starts a capture and exports an immutable JSON report to a caller-owned local file URL:
+
+```swift
+import Foundation
+import SpriteUI
+
+@MainActor
+func beginEngineCapture(in world: World) {
+    world.profiler.start(configuration: .init(
+        frameCapacity: 600, targetFramesPerSecond: 60,
+        sampleInterval: 0.25, emitsSignposts: true
+    ))
+}
+
+@MainActor
+func exportEngineCapture(from world: World, to url: URL) throws -> EngineProfileCapture {
+    world.profiler.stop()
+    let capture = world.profiler.capture()
+    try capture.write(to: url)
+    return capture
+}
+```
+
+`capture()` copies completed values without stopping a live recording; `stop()` freezes them, and `reset()` stops and clears them. A new `start` discards the previous ring and changes `recordingID`. Hosts that own a recording can retain that ID and compare it before cleanup. The `onEngineProfileRecordingStarted` view modifier observes only the debug panel's explicit Start action; it does not start recording itself. Detaching a debug controller does not stop an application-owned recording.
+
+### Read the report's measurement boundaries
+
+``SpriteUI/EngineProfileCapture`` exports format version 1, capture dates, configuration, a summary, total/overwritten/abandoned frame counts, and retained frame values. The ring retains the **newest** configured frames in chronological order; capacity is clamped to 1...3,600. Each completed frame keeps at most 128 distinct system/phase aggregates and flags truncation. No entity names, component values, peer identities, or packet payloads are included. These reports are diagnostics, not world snapshots or replay inputs.
+
+Frame intervals describe render-update callback cadence; headless frames use the caller's supplied delta. Average, maximum, and nearest-rank p95 use positive intervals in the retained window. Over-budget counts compare those intervals with the configured target cadence. They do not prove a GPU missed a display deadline. Keep the target aligned with the game's intended refresh rate.
+
+| Metric | Meaning |
+| --- | --- |
+| World update | Elapsed work in world simulation and presentation callbacks |
+| Renderer update/finish | Elapsed main-actor callback work, including world work and binding/constraint/debug overhead |
+| SpriteKit interval | Gap from `update` returning to `didSimulatePhysics` entering; includes actions, physics, and scheduling |
+| Systems | Inclusive elapsed duration and invocation count by type/phase; repeated fixed ticks are aggregated |
+| ECS queries | Calls, indexed candidate count, returned entities, and inclusive query duration |
+| Collision queries | Raycast/overlap/sweep calls, indexed candidates, returned hits, and complete traversal/geometry/sorting duration |
+| Network | Actual replication-update duration and encoded-envelope bytes/packet counts from existing send/receive paths |
+| Workload | Periodic entity/activity, native node, sprite, physics-body, and emitter counts |
+
+These durations overlap: query and networking work may be inside a system, which is inside world/renderer callbacks. **Do not add them together.** SpriteKit interval is not isolated physics CPU time. The capture does not measure GPU time. SpriteKit exposes no exact public draw-call or live-particle counter, so those fields stay unavailable rather than reporting zero or substituting node/emitter counts. Native subtree counts include inactive nodes and exclude the debug drawing layer; they are not visible-object counts.
+
+System phase order and invocation counts come from the actual schedule. Paused redraws and debug priming can produce completed renderer frames with `isSimulated == false` and empty system timings. Fixed-step dropped time records the clock's actual clamp/catch-up discard, even if gameplay subsequently resets that clock. Profiling does not change catch-up budgets.
+
+ECS predicates and collision geometry run once. Indexed candidates include inactive entities even when the query skips them. Network bytes include encoded envelopes, exclude transport headers/retransmissions, and a successful send means transport acceptance, not remote delivery. Receive counters count messages processed from known peers, including messages later rejected by decoding; enqueue-rejected and unknown-source arrivals are excluded. Explicit network updates are measured without calling them again. Queries and traffic outside a callback frame are assigned to the next completed frame; stopping first discards pending unframed work.
+
+Frame timings are recorded every completed frame. Workload censuses and observable UI publications use `sampleInterval`, clamped to 0.1...10 seconds; `sampledAt` identifies a reused census. `stop()` publishes the newest completed sample immediately. Abandoned/incomplete frames are excluded and counted separately. Diagnostics add measurement and census overhead, so compare like-for-like recordings and use Instruments on a physical device for deeper attribution.
+
+With `emitsSignposts`, the `dev.spriteui.engine` / `Profiling` category emits `Engine frame` and `System` intervals. This is opt-in; no signposts or capture buffers are collected by default. See Apple's [OSSignposter documentation](https://developer.apple.com/documentation/os/ossignposter) for Instruments integration. Rendering target budgets and completed viewport statistics remain available separately through ``SpriteUI/GameRenderMonitor``; enabling a monitor can select a different presentation driver, so it is not enabled automatically by profiling.
+
 ## Diagnose from the owner outward
 
 When something fails to appear or move, first check that the entity belongs to the expected world and is active. Then inspect its components, the installed system schedule, and pause/time scale. For interaction problems, inspect the collider and input-target hierarchy before the gesture resolver. For visual disagreement, compare model and presented transforms, then check camera, masks, and render groups. For load problems, inspect registration and reconnection before assuming the saved IDs refer to the old objects.

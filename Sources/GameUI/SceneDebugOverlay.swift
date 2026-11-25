@@ -3,6 +3,197 @@ import Foundation
 import Observation
 import SpriteBackend
 import SwiftUI
+import UniformTypeIdentifiers
+
+private struct EngineProfileRecordingStartedKey: EnvironmentKey {
+    static let defaultValue: (@MainActor (EngineProfiler) -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    fileprivate var engineProfileRecordingStarted: (@MainActor (EngineProfiler) -> Void)? {
+        get { self[EngineProfileRecordingStartedKey.self] }
+        set { self[EngineProfileRecordingStartedKey.self] = newValue }
+    }
+}
+
+/// Reads only the profiler's throttled observable publication. No view timer,
+/// renderer refresh, or simulation step is needed to keep these values current.
+@MainActor
+private struct SceneEngineProfilingPanel: View {
+    let controller: SceneDebugController
+    @Environment(\.engineProfileRecordingStarted) private var recordingStarted
+    @State private var showsSystems = false
+    @State private var exportDocument: EngineProfileDocument?
+    @State private var showsExporter = false
+    @State private var showsExportError = false
+    @State private var exportError = ""
+    @State private var exportStatus = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let profiler = controller.scene?.profiler {
+                HStack {
+                    Label(profiler.isRecording ? "Recording" : "Stopped",
+                          systemImage: profiler.isRecording ? "record.circle.fill" : "stop.circle")
+                        .foregroundStyle(profiler.isRecording ? .red : .secondary)
+                        .accessibilityIdentifier("engine-profile-status")
+                    Spacer(minLength: 4)
+                    Text("\(profiler.capturedFrameCount) stored / \(profiler.totalFrameCount) total")
+                }
+                profilingControls(profiler)
+                summary(profiler.summary)
+                if let frame = profiler.latestFrame {
+                    frameDetails(frame)
+                } else {
+                    Text("Start recording to collect frame timings.")
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("engine-profile-empty")
+                }
+                Text("Draw calls: unavailable · Live particles: unavailable")
+                    .accessibilityIdentifier("engine-profile-unavailable-metrics")
+                Text("Public SpriteKit APIs do not expose these metrics. Node counts are not visible draw calls.")
+                    .foregroundStyle(.secondary)
+                if !exportStatus.isEmpty {
+                    Text(exportStatus).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("engine-profile-export-status")
+                }
+            } else {
+                Text("Profiling unavailable while the scene is detached.")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("engine-profile-detached")
+            }
+        }
+        .monospacedDigit()
+        .fileExporter(isPresented: $showsExporter, document: exportDocument,
+                      contentType: .json, defaultFilename: "engine-profile.json") { result in
+            switch result {
+            case .success(let url): exportStatus = "Saved \(url.lastPathComponent)"
+            case .failure(let error): reportExportError(error)
+            }
+            exportDocument = nil
+        }
+        .alert("Couldn’t export profile", isPresented: $showsExportError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(exportError)
+        }
+    }
+
+    private func profilingControls(_ profiler: EngineProfiler) -> some View {
+        HStack(spacing: 6) {
+            Button(profiler.isRecording ? "Stop" : "Start",
+                   systemImage: profiler.isRecording ? "stop.fill" : "record.circle") {
+                guard controller.scene?.profiler === profiler else { return }
+                if profiler.isRecording {
+                    profiler.stop()
+                } else {
+                    profiler.start()
+                    recordingStarted?(profiler)
+                }
+            }
+            .accessibilityIdentifier(profiler.isRecording ? "engine-profile-stop" : "engine-profile-start")
+            Button("Reset", systemImage: "arrow.counterclockwise") {
+                guard controller.scene?.profiler === profiler else { return }
+                profiler.reset()
+                exportStatus = ""
+            }
+            .accessibilityIdentifier("engine-profile-reset")
+            Button("JSON", systemImage: "square.and.arrow.up") {
+                guard controller.scene?.profiler === profiler else { return }
+                do {
+                    exportDocument = try EngineProfileDocument(capture: profiler.capture())
+                    exportStatus = ""
+                    showsExporter = true
+                } catch {
+                    reportExportError(error)
+                }
+            }
+            .disabled(profiler.capturedFrameCount == 0)
+            .accessibilityLabel("Export profile as JSON")
+            .accessibilityIdentifier("engine-profile-export")
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private func summary(_ summary: EngineProfileSummary) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(summary.frameCount) frames · Average \(milliseconds(summary.averageFrameInterval))")
+            Text("p95 \(milliseconds(summary.p95FrameInterval)) · Max \(milliseconds(summary.maximumFrameInterval))")
+                .accessibilityIdentifier("engine-profile-p95")
+            Text("Over budget \(summary.overBudgetFrameCount) / \(summary.frameCount) · Dropped sim \(milliseconds(summary.droppedSimulationTime))")
+                .accessibilityIdentifier("engine-profile-budget")
+        }
+    }
+
+    private func frameDetails(_ frame: EngineProfileFrame) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Frame #\(frame.sequence) · Interval \(milliseconds(frame.interval)) · \(frame.fixedSteps) fixed steps")
+                .accessibilityIdentifier("engine-profile-frame")
+            Text("World update \(milliseconds(frame.worldUpdateDuration)) · Dropped sim \(milliseconds(frame.droppedSimulationTime))")
+            Text("Renderer update \(milliseconds(frame.rendererUpdateDuration)) · Finish \(milliseconds(frame.rendererFinishDuration))")
+            Text("SpriteKit action/physics interval \(milliseconds(frame.spriteKitInterval))")
+            Text("SpriteKit interval includes callback scheduling; it is not pure CPU or GPU time.")
+                .foregroundStyle(.secondary)
+            Text("ECS queries \(frame.queries.count) · Candidates \(frame.queries.candidateCount) · Results \(frame.queries.resultCount) · \(milliseconds(frame.queries.duration))")
+                .accessibilityIdentifier("engine-profile-queries")
+            Text("Collision queries \(frame.collisionQueries.count) · Candidates \(frame.collisionQueries.candidateCount) · Hits \(frame.collisionQueries.resultCount) · \(milliseconds(frame.collisionQueries.duration))")
+                .accessibilityIdentifier("engine-profile-collision-queries")
+            Text("Network \(frame.network.updateCount) updates · \(milliseconds(frame.network.duration))")
+            Text("Sent \(frame.network.sentBytes) B / \(frame.network.sentPackets) packets · Received \(frame.network.receivedBytes) B / \(frame.network.receivedPackets) packets")
+                .accessibilityIdentifier("engine-profile-network")
+            if let workload = frame.workload {
+                Text("Entities \(workload.activeEntityCount)/\(workload.entityCount) active · Nodes \(count(workload.nodeCount))")
+                Text("Sprites \(count(workload.spriteNodeCount)) · Physics bodies \(count(workload.physicsBodyCount)) · Emitters \(count(workload.emitterCount))")
+                    .accessibilityIdentifier("engine-profile-workload")
+            } else {
+                Text("Renderer workload unavailable for this frame.").foregroundStyle(.secondary)
+            }
+            DisclosureGroup("Systems (\(frame.systems.count))", isExpanded: $showsSystems) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(frame.systems.enumerated()), id: \.offset) { _, system in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(system.name) (\(String(describing: system.phase))) · \(system.invocationCount) calls · \(milliseconds(system.duration))")
+                            Text("Queries \(system.queries.count) · Candidates \(system.queries.candidateCount) · Results \(system.queries.resultCount) · \(milliseconds(system.queries.duration))")
+                                .foregroundStyle(.secondary)
+                            Text("Collision queries \(system.collisionQueries.count) · \(milliseconds(system.collisionQueries.duration))")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if frame.systems.isEmpty {
+                        Text("No systems ran in this frame.").foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .accessibilityIdentifier("engine-profile-systems")
+        }
+    }
+
+    private func milliseconds(_ duration: Double?) -> String {
+        guard let duration else { return "unavailable" }
+        return (duration * 1_000).formatted(.number.precision(.fractionLength(2))) + " ms"
+    }
+
+    private func count(_ value: Int?) -> String {
+        value.map { $0.formatted() } ?? "unavailable"
+    }
+
+    private func reportExportError(_ error: any Error) {
+        exportError = error.localizedDescription
+        showsExportError = true
+    }
+}
+
+extension View {
+    /// Called only when the debug panel's Start button begins a recording. Hosts
+    /// can retain this profiler to stop their own capture when closing the HUD,
+    /// even if its debug controller has since detached for inspection.
+    public func onEngineProfileRecordingStarted(
+        _ action: @escaping @MainActor (EngineProfiler) -> Void
+    ) -> some View {
+        environment(\.engineProfileRecordingStarted, action)
+    }
+}
 
 /// Panel frames are recorded in global SwiftUI coordinates, like gesture starts.
 /// Convert using the host's current frame so padding and moving hosts stay safe.
@@ -23,7 +214,7 @@ extension GameHost {
 
     func debugPanelContains(_ point: CGPoint) -> Bool {
         guard debugInput.isActive, let controller = activeDebugController,
-              !controller.options.intersection([.statistics, .inspector, .simulationControls, .selection]).isEmpty,
+              !controller.options.intersection([.statistics, .inspector, .simulationControls, .selection, .profiling]).isEmpty,
               let panel = debugInput.panelFrame else { return false }
         return panel.contains(CGPoint(x: point.x + viewFrame.minX, y: point.y + viewFrame.minY))
     }
@@ -75,7 +266,7 @@ struct SceneDebugOverlay: View {
     }
 
     private var hasPanel: Bool {
-        !controller.options.intersection([.statistics, .inspector, .simulationControls, .selection]).isEmpty
+        !controller.options.intersection([.statistics, .inspector, .simulationControls, .selection, .profiling]).isEmpty
     }
 
     var body: some View {
@@ -93,10 +284,16 @@ struct SceneDebugOverlay: View {
                             .accessibilityLabel("Pick a scene entity")
                     }
                     if hasPanel {
-                        panel(maxHeight: max(44, min(480, geometry.size.height * 0.65)))
+                        // Keep a profiling-only HUD clear of bottom game controls
+                        // on short landscape surfaces; its contents can scroll.
+                        let heightFraction = controller.options == [.profiling]
+                            && geometry.size.width > geometry.size.height ? 0.5 : 0.65
+                        panel(maxHeight: max(44, min(480, geometry.size.height * heightFraction)))
                             .frame(width: min(340, max(0, geometry.size.width - 16)))
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                             .contentShape(RoundedRectangle(cornerRadius: 12))
+                            // Consume empty-space taps before a host's scene tap gesture.
+                            .onTapGesture { }
                             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
                                 host.reportDebugPanel($0)
                             }
@@ -121,7 +318,7 @@ struct SceneDebugOverlay: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "ladybug")
-                    Text("Debug").fontWeight(.semibold)
+                    Text(controller.options == [.profiling] ? "Profiling" : "Debug").fontWeight(.semibold)
                     Spacer(minLength: 0)
                     if controller.options.contains(.statistics) {
                         Text("\(controller.snapshot.framesPerSecond, specifier: "%.0f") FPS · Sim \(controller.snapshot.simulationFrameNumber)")
@@ -135,11 +332,15 @@ struct SceneDebugOverlay: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(expanded ? "Collapse scene debug" : "Expand scene debug")
+            .accessibilityIdentifier("scene-debug-expand")
 
             if expanded {
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
+                        if controller.options.contains(.profiling) {
+                            SceneEngineProfilingPanel(controller: controller)
+                        }
                         if controller.options.contains(.simulationControls) { simulationControls }
                         if controller.options.contains(.selection) { selectionControls }
                         if controller.options.contains(.inspector) { inspector }

@@ -18,7 +18,9 @@ public struct SceneDebugOptions: OptionSet, Hashable, Sendable {
     public static let statistics = Self(rawValue: 1 << 6)
     public static let inspector = Self(rawValue: 1 << 7)
     public static let simulationControls = Self(rawValue: 1 << 8)
-    public static let all: Self = [.collisionShapes, .origins, .bounds, .joints, .constraintTargets, .selection, .statistics, .inspector, .simulationControls]
+    /// Shows recording/export controls. Displaying the panel does not start recording.
+    public static let profiling = Self(rawValue: 1 << 9)
+    public static let all: Self = [.collisionShapes, .origins, .bounds, .joints, .constraintTargets, .selection, .statistics, .inspector, .simulationControls, .profiling]
 }
 
 /// A bounded, read-only component description. Large images/resources and custom

@@ -173,6 +173,10 @@ public final class NetworkSession {
         guard !operating else { return }
         guard deltaTime.isFinite, deltaTime >= 0 else { fail(NetworkSessionError.invalidState); return }
         guard world != nil else { fail(NetworkSessionError.worldUnavailable); return }
+        let profiler = world?.profiler
+        let profileRevision = profiler?.measurementRevision
+        let profileStart = profileRevision.map { _ in profiler!.clock() }
+        defer { if let profiler, let profileRevision, let profileStart { profiler.recordNetworkUpdate(revision: profileRevision, start: profileStart) } }
         operating = true
         defer { operating = false }
         let revision = generation
@@ -303,6 +307,7 @@ public final class NetworkSession {
         case .received(let data, let sender):
             guard peers.contains(where: { $0.id == sender }) else { return }
             if case .client(let host) = role, sender != host { return }
+            world?.profiler.recordNetworkTraffic(received: data.count, isSend: false)
             var metric = statistics[sender] ?? .init(peerID: sender); metric.bytesReceived = Self.add(metric.bytesReceived, data.count); statistics[sender] = metric
             let packet: ReplicationPacket
             do { packet = try JSONDecoder().decode(ReplicationPacket.self, from: data) }
@@ -495,6 +500,7 @@ public final class NetworkSession {
     }
     private static func add(_ value: UInt64, _ count: Int) -> UInt64 { let (sum, overflow) = value.addingReportingOverflow(UInt64(max(0, count))); return overflow ? .max : sum }
     private func recordSent(_ count: Int, to peer: NetworkPeerID, lane: ReplicationPacket.Kind) {
+        world?.profiler.recordNetworkTraffic(sent: count, isSend: true)
         var value = statistics[peer] ?? .init(peerID: peer)
         switch lane {
         case .state, .poses: value.replicationBytesSent = Self.add(value.replicationBytesSent, count); value.replicationPacketsSent = Self.add(value.replicationPacketsSent, 1)

@@ -1,4 +1,4 @@
-import ECSCore
+@_spi(Backend) import ECSCore
 import Foundation
 @_exported import Gameplay
 import SpriteKit
@@ -89,19 +89,27 @@ extension World {
     /// - Complexity: O(n) candidate traversal, plus narrow-phase geometry and hit sorting.
     public func raycast(from start: SIMD2<Float>, to end: SIMD2<Float>, query: CollisionQueryMode = .nearest,
                         filter: CollisionQueryFilter = .init()) -> [CollisionHit] {
-        queryColliders(filter: filter).compactMap { entity, shape in
+        let measurement = profiler.beginCollisionQuery()
+        let candidates = measurement == nil ? 0 : allEntities.count
+        let hits = queryColliders(filter: filter).compactMap { entity, shape in
             CollisionGeometry.raycast(from: start, to: end, against: shape).map { CollisionHit(entity: entity, geometry: $0) }
         }.ordered(query)
+        profiler.endCollisionQuery(measurement, candidates: candidates, results: hits.count)
+        return hits
     }
     /// Finds all colliders touching a shape under a complete affine transform.
     /// Unlike gesture hit-testing, this reads model transforms, not animation presentation.
     /// - Complexity: O(n) candidate traversal, plus narrow-phase geometry and hit sorting.
     public func overlaps(shape: CollisionShape, transform: AffineTransform2D = .identity,
                          filter: CollisionQueryFilter = .init()) -> [CollisionHit] {
+        let measurement = profiler.beginCollisionQuery()
+        let candidates = measurement == nil ? 0 : allEntities.count
         let placed = collisionGeometry(shape: shape, matrix: transform)
-        return queryColliders(filter: filter).compactMap { entity, target in
+        let hits = queryColliders(filter: filter).compactMap { entity, target in
             CollisionGeometry.overlap(placed, target).map { CollisionHit(entity: entity, geometry: $0) }
         }.ordered(.all)
+        profiler.endCollisionQuery(measurement, candidates: candidates, results: hits.count)
+        return hits
     }
     /// Translates a shape from its starting affine pose to a scene-space origin.
     /// Rotation/scale remain fixed. Continuous casts prevent tunneling through
@@ -109,11 +117,15 @@ extension World {
     /// - Complexity: O(n) candidate traversal, plus narrow-phase geometry and hit sorting.
     public func sweep(shape: CollisionShape, from start: AffineTransform2D, to end: SIMD2<Float>,
                       query: CollisionQueryMode = .nearest, filter: CollisionQueryFilter = .init()) -> [CollisionHit] {
+        let measurement = profiler.beginCollisionQuery()
+        let candidates = measurement == nil ? 0 : allEntities.count
         let placed = collisionGeometry(shape: shape, matrix: start)
         let delta = end - SIMD2(start.tx, start.ty)
-        return queryColliders(filter: filter).compactMap { entity, target in
+        let hits = queryColliders(filter: filter).compactMap { entity, target in
             CollisionGeometry.sweep(placed, by: delta, against: target).map { CollisionHit(entity: entity, geometry: $0) }
         }.ordered(query)
+        profiler.endCollisionQuery(measurement, candidates: candidates, results: hits.count)
+        return hits
     }
     func queryColliders(filter: CollisionQueryFilter) -> [(Entity, CollisionGeometry.Shape)] {
         allEntities.compactMap { entity in

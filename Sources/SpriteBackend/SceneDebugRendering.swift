@@ -67,6 +67,9 @@ extension SpriteRenderer {
     /// render groups, so enabling diagnostics cannot alter hit or physics queries.
     func refreshDebugging(force: Bool = false) {
         guard let controller = attachedDebugController else { return }
+        // A profiling-only HUD uses the profiler's own throttled workload sample;
+        // don't also traverse the hierarchy for legacy inspector statistics.
+        if controller.options == [.profiling] { removeDebugLayer(); return }
         let selected = controller.validateSelection()
         if controller.options.isEmpty { removeDebugLayer(); return }
         let now = ProcessInfo.processInfo.systemUptime

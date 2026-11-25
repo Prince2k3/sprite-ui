@@ -3,7 +3,7 @@ import Foundation
 /// Opt-in fixed ticks precede per-frame simulation and backend physics;
 /// presentation runs afterward. Headless `World.update` preserves this order
 /// without stepping a native physics backend.
-public enum SystemPhase: Int, CaseIterable, Sendable, Comparable {
+public enum SystemPhase: Int, CaseIterable, Codable, Sendable, Comparable {
     case fixedSimulation = -1
     case simulation = 0
     case presentation = 1

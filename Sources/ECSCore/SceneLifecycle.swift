@@ -32,6 +32,9 @@ public struct WorldFrame {
 final class FrameCompletion {
     var finished = false
     var timings: [SystemTiming] = []
+    var profileToken: EngineProfileToken?
+    var profileFixedSteps = 0
+    var profileDroppedTime: Double = 0
 }
 
 extension World {
@@ -56,10 +59,19 @@ extension World {
                                isProfilingEnabled: isProfilingEnabled, profilingRevision: profilingRevision,
                                completion: FrameCompletion())
         let previousTick = fixedStepState.tick
+        frame.completion.profileToken = profiler.beginWorldFrame(interval: configuration.stepDuration, debugStep: true)
+        let profileStart = frame.completion.profileToken.map { _ in profiler.clock() }
         lastSystemTimings = []
         isRunningSystems = true
         isFixedSingleStepping = true
         defer {
+            if let profileStart {
+                sampleProfileWorkload(frame.completion.profileToken)
+                profiler.recordWorldBegin(frame.completion.profileToken, duration: profiler.elapsed(since: profileStart),
+                                          ticks: frame.completion.profileFixedSteps, dropped: frame.completion.profileDroppedTime)
+                profiler.finishWorldFrame(frame.completion.profileToken, duration: 0,
+                                          ticks: frame.completion.profileFixedSteps, dropped: frame.completion.profileDroppedTime)
+            }
             isRunningSystems = false
             isFixedSingleStepping = false
             fixedAccumulator = 0
@@ -102,9 +114,17 @@ extension World {
                                completion: FrameCompletion())
         lastSystemTimings = []
         activeFrameCompletion = frame.completion
+        frame.completion.profileToken = profiler.beginWorldFrame(interval: fixedDeltaTime ?? deltaTime, debugStep: debugStep)
+        let profileStart = frame.completion.profileToken.map { _ in profiler.clock() }
         isDebugStepping = debugStep
         isRunningSystems = true
-        defer { isRunningSystems = false }
+        defer {
+            if let profileStart {
+                profiler.recordWorldBegin(frame.completion.profileToken, duration: profiler.elapsed(since: profileStart),
+                                          ticks: frame.completion.profileFixedSteps, dropped: frame.completion.profileDroppedTime)
+            }
+            isRunningSystems = false
+        }
         publish(WorldEvents.Update(world: self, deltaTime: scaled))
         runFixedSteps(frame, wallDelta: fixedDeltaTime ?? deltaTime)
         run(frame, phase: .simulation)
@@ -119,6 +139,14 @@ extension World {
     public func finishFrame(_ frame: WorldFrame) {
         guard frame.world === self, !frame.completion.finished, !isRunningSystems else { return }
         frame.completion.finished = true
+        let profileStart = frame.completion.profileToken.map { _ in profiler.clock() }
+        defer {
+            if let profileStart {
+                sampleProfileWorkload(frame.completion.profileToken)
+                profiler.finishWorldFrame(frame.completion.profileToken, duration: profiler.elapsed(since: profileStart),
+                                          ticks: frame.completion.profileFixedSteps, dropped: frame.completion.profileDroppedTime)
+            }
+        }
         defer { if frame.isDebugStep { isDebugStepping = false } }
         guard canRun(frame) else { return }
         isRunningSystems = true
@@ -131,6 +159,7 @@ extension World {
     public func cancelFrame(_ frame: WorldFrame) {
         guard frame.world === self, !frame.completion.finished, !isRunningSystems else { return }
         frame.completion.finished = true
+        profiler.cancelWorldFrame(frame.completion.profileToken)
         if frame.isDebugStep { isDebugStepping = false }
     }
 
@@ -149,6 +178,8 @@ extension World {
             guard canRun(frame) else { break }
             if phase == .fixedSimulation && !canRunFixed(frame) { break }
             guard systemEntry(entry.type) === entry, entry.isEnabled else { continue }
+            let profileSystem = profiler.isRecording ? profiler.beginSystem(name: String(reflecting: entry.type), phase: phase) : nil
+            defer { profiler.endSystem(profileSystem) }
             if frame.isProfilingEnabled, isProfilingEnabled, frame.profilingRevision == profilingRevision {
                 let start = DispatchTime.now().uptimeNanoseconds
                 entry.instance.update(context: context)
@@ -194,6 +225,7 @@ extension World {
             fixedStepState.droppedTime = fixedFiniteSum(
                 fixedFiniteProduct(raw - clamped, frame.frameTimeScale), budgetDrop)
         }
+        frame.completion.profileDroppedTime = fixedStepState.droppedTime
         let unscaled = min(Double.greatestFiniteMagnitude, step / frame.frameTimeScale)
         for _ in 0..<count {
             guard canRunFixed(frame), fixedStepState.tick < UInt64.max else { break }
@@ -201,6 +233,7 @@ extension World {
             captureFixedTickStart()
             fixedStepState.tick += 1
             fixedStepState.ticksThisFrame += 1
+            if frame.completion.profileToken != nil { frame.completion.profileFixedSteps += 1 }
             fixedStepState.simulationTime = fixedFiniteSum(fixedStepState.simulationTime, step)
             let tick = fixedStepState.tick
             publish(WorldEvents.FixedUpdate(world: self, deltaTime: step,

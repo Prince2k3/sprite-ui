@@ -71,6 +71,10 @@ public final class World {
     var fixedTransformHistory: [Entity.ID: FixedTransformHistory] = [:]
     var fixedTickStart: [Entity.ID: FixedTransformHistory] = [:]
 
+    /// Opt-in, bounded frame capture, independent of the scene debugger's legacy timings.
+    /// Disabled until `start()` is explicitly called; never changes simulation cadence.
+    public let profiler = EngineProfiler()
+
     /// Collects wall-clock durations for systems that actually run in a frame.
     /// Turning profiling off immediately discards the previous measurements.
     public var isProfilingEnabled = false {
@@ -168,7 +172,18 @@ public final class World {
     }
 
     public func performQuery(_ query: EntityQuery) -> [Entity] {
-        index.values.filter { (query.includingDisabled || $0.isActive) && query.predicate.evaluate($0) }
+        let measurement = profiler.beginQueryMeasurement()
+        let candidates = index.count
+        let result = index.values.filter { (query.includingDisabled || $0.isActive) && query.predicate.evaluate($0) }
+        profiler.recordQuery(measurement, candidates: candidates, results: result.count)
+        return result
+    }
+
+    func sampleProfileWorkload(_ token: EngineProfileToken?) {
+        guard let token, profiler.active?.token == token, profiler.active?.isBackend == false,
+              profiler.needsWorkloadSample else { return }
+        profiler.recordWorkload(.init(sampledAt: profiler.elapsedRecordingTime(), entityCount: index.count,
+                                     activeEntityCount: index.values.filter(\.isActive).count), token: token)
     }
 
     // MARK: Systems

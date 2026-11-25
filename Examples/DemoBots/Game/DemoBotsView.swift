@@ -15,6 +15,10 @@ public struct DemoBotsView: View {
     private let nativeGameCenterTesting: Bool
     private let surfaceRegions: [GameSurfaceGeometry.ReservedRegion]?
     @State private var sceneDebug: SceneDebugController
+    @State private var profilingDebug = SceneDebugController(options: [.profiling])
+    @State private var showsProfiling = false
+    @State private var ownedProfileCapture: EngineProfiler?
+    @State private var ownedProfileRecordingID: UUID?
     @Environment(\.scenePhase) private var scenePhase
 
     /// Synthetic reservations are an override for previews; production hosts
@@ -41,18 +45,26 @@ public struct DemoBotsView: View {
                          renderMonitor: showsDisplaySettings ? display.monitor : nil,
                          presentation: showsDisplaySettings || display.externalEnabled ? display.presentation : nil,
                          surfaceRegions: surfaceRegions,
-                         debug: game.isInspecting ? sceneDebug : nil) { content in
+                         debug: game.isInspecting ? sceneDebug : (showsProfiling && game.phase == .playing ? profilingDebug : nil)) { content in
                     game.build(in: content)
                     await game.prepareResources()
                 } attachments: {
                     GameAttachment(id: "bot-status") { context in
-                        if !game.isInspecting, let status = game.botStatuses[context.entity.id],
+                        if !game.isInspecting, !showsProfiling, let status = game.botStatuses[context.entity.id],
                            !status.isPlayer || status.isRecharging {
                             botStatus(charge: status.charge, isBad: status.isBad,
                                       isPlayer: status.isPlayer, isRecharging: status.isRecharging)
                         }
                     }
                 }
+                    .onEngineProfileRecordingStarted { profiler in
+                        // This callback comes only from an explicit panel Start,
+                        // never from attaching the HUD or observing another client.
+                        if showsProfiling, !game.isInspecting {
+                            ownedProfileCapture = profiler
+                            ownedProfileRecordingID = profiler.recordingID
+                        }
+                    }
                     .contentShape(Rectangle())
                     .gesture(SpatialTapGesture().onEnded {
                         guard !showsHelp, !showsDisplaySettings else { return }
@@ -104,7 +116,17 @@ public struct DemoBotsView: View {
         .onChange(of: sceneDebug.isAttached) { _, attached in
             if attached, game.isInspecting { sceneDebug.select(game.player) }
         }
-        .onDisappear { controls.setInputActive(false); controls.suspend() }
+        .onChange(of: showsProfiling) { _, visible in
+            if !visible { stopOwnedProfileCapture() }
+        }
+        .onChange(of: ownedProfileCapture?.isRecording) { _, recording in
+            if recording == false { ownedProfileCapture = nil; ownedProfileRecordingID = nil }
+        }
+        .onDisappear {
+            stopOwnedProfileCapture()
+            controls.setInputActive(false)
+            controls.suspend()
+        }
         .sheet(isPresented: $showsGameCenterLab) { DemoBotsGameCenterView(useNativeServices: nativeGameCenterTesting).frame(minWidth: 320, minHeight: 550) }
         .sheet(isPresented: $showsCoop) { DemoBotsCoopView().frame(minWidth: 320, minHeight: 550) }
         .accessibilityHidden(showsHelp || showsDisplaySettings)
@@ -172,6 +194,7 @@ public struct DemoBotsView: View {
                 Button("How to play", systemImage: "gamecontroller") { showsHelp = true }
                     .font(.subheadline).foregroundStyle(.white.opacity(0.8)).buttonStyle(.plain)
                 displaySettingsButton
+                profilingToggle
                 if !game.message.isEmpty && game.message.hasPrefix("Couldn’t") {
                     Text(game.message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
                 }
@@ -221,22 +244,49 @@ public struct DemoBotsView: View {
                 }
                 .padding(12).frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 20))
+                // Leave the top corner clear for GameView's profiling panel.
+                .opacity(showsProfiling ? 0 : 1)
             }
+            .allowsHitTesting(!showsProfiling)
+            .accessibilityHidden(showsProfiling)
             surfaceElement(in: layout.prompts) { _ in
                 VStack(alignment: .leading, spacing: 4) {
                     inputPrompt(DemoBotsInput.fire, title: "Fire")
                     inputPrompt(DemoBotsInput.pause, title: "Pause")
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .opacity(showsProfiling ? 0 : 1)
             }
+            .allowsHitTesting(!showsProfiling)
+            .accessibilityHidden(showsProfiling)
             surfaceElement(in: layout.radar) { _ in
                 minimap.padding(9).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+                    .opacity(showsProfiling ? 0 : 1)
             }
+            .allowsHitTesting(!showsProfiling)
+            .accessibilityHidden(showsProfiling)
             surfaceElement(in: layout.beamMeter) { _ in
                 VStack(spacing: 6) {
-                    Text(game.isRecharging ? "POWER RESTORING" : "DEBUG BEAM")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(2)
-                    meter(value: game.beamFraction, color: .cyan).frame(height: 5)
-                    meter(value: game.charge / 100, color: game.charge < 30 ? .red : .green).frame(height: 3)
+                    if showsProfiling {
+                        HStack(spacing: 12) {
+                            Button("Close profiling", systemImage: "xmark.circle") { showsProfiling = false }
+                                .frame(width: 44, height: 32)
+                                .contentShape(Rectangle())
+                                .accessibilityIdentifier("profiling-close")
+                            Button("Pause game", systemImage: "pause.fill") { controls.togglePause() }
+                                .frame(width: 44, height: 32)
+                                .contentShape(Rectangle())
+                                .accessibilityIdentifier("profiling-pause")
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.plain)
+                        .font(.title3)
+                        .frame(minHeight: 32)
+                    } else {
+                        Text(game.isRecharging ? "POWER RESTORING" : "DEBUG BEAM")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(2)
+                        meter(value: game.beamFraction, color: .cyan).frame(height: 5)
+                        meter(value: game.charge / 100, color: game.charge < 30 ? .red : .green).frame(height: 3)
+                    }
                 }
                 .padding(10).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 10))
             }
@@ -270,6 +320,10 @@ public struct DemoBotsView: View {
                 .foregroundStyle(game.secondsLeft < 30 ? .red : .white)
             Button { controls.toggleInspection() } label: { Image(systemName: "ladybug").frame(width: 42, height: 42) }
                 .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Open scene tools")
+            Button { showsProfiling = true } label: { Image(systemName: "chart.bar.xaxis").frame(width: 42, height: 42) }
+                .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle())
+                .accessibilityLabel("Open profiling HUD")
+                .accessibilityIdentifier("profiling-open")
             Button { controls.togglePause() } label: { Image(systemName: "pause.fill").frame(width: 42, height: 42) }
                 .buttonStyle(.plain).background(.white.opacity(0.12), in: Circle()).accessibilityLabel("Pause game")
         }
@@ -342,6 +396,7 @@ public struct DemoBotsView: View {
             Toggle("Show bot paths", isOn: $game.showsPaths).tint(.mint)
             Toggle("Sound effects", isOn: $game.soundEnabled).tint(.mint)
             displaySettingsButton
+            profilingToggle
             Button("Restart level") { controls.start(level: game.levelNumber) }.buttonStyle(.bordered)
             Button("Level select") { controls.home() }.buttonStyle(.plain).foregroundStyle(.secondary)
         }
@@ -355,6 +410,17 @@ public struct DemoBotsView: View {
         }
         .buttonStyle(.bordered)
         .accessibilityIdentifier("display-settings")
+    }
+
+    private var profilingToggle: some View {
+        Toggle("Profiling HUD", isOn: $showsProfiling)
+            .tint(.mint)
+            .accessibilityIdentifier("profiling-toggle")
+    }
+
+    private func stopOwnedProfileCapture() {
+        if ownedProfileCapture?.recordingID == ownedProfileRecordingID { ownedProfileCapture?.stop() }
+        ownedProfileCapture = nil; ownedProfileRecordingID = nil
     }
     private var resultMenu: some View {
         let won = game.phase == .won
