@@ -24,6 +24,18 @@ enum DemoBotsGameCenterIDs {
     var isNative: Bool { !services.isPreview }
     var supportsActivities: Bool { services.isPreview || GameCenterActivities.isSupported }
     var canReport: Bool { !busy && (services.isPreview || services.isAuthenticated) }
+    var challengeCatalogSummary: String {
+        Self.challengeCatalogSummary(services.challenges.definitions)
+    }
+    static func challengeCatalogSummary(_ definitions: [GameCenterChallengeDefinition]) -> String {
+        guard let definition = definitions.first(where: { $0.id == DemoBotsGameCenterIDs.challenge }) else {
+            return "Repair Challenge is absent from the loaded catalog (\(definitions.count) challenges)."
+        }
+        guard let board = definition.leaderboardID else {
+            return "Repair Challenge loaded without an associated leaderboard."
+        }
+        return "Repair Challenge leaderboard: \(board)"
+    }
 
     init(native: Bool = false) {
         services = native ? .init(mode: .live) : .preview()
@@ -69,6 +81,9 @@ enum DemoBotsGameCenterIDs {
     } }
     func submitChallengeAttempt() { run { [self] in
         _ = try await services.challenges.load()
+        guard services.challenges.definitions.contains(where: { $0.id == DemoBotsGameCenterIDs.challenge && $0.leaderboardID != nil }) else {
+            return challengeCatalogSummary + " No score was submitted. Check the active GameKit configuration."
+        }
         _ = try await services.challenges.submitAttempt(score: 100, for: DemoBotsGameCenterIDs.challenge, attemptID: UUID())
         return "A new 100-point test attempt was requested. Each press represents a separate attempt; errors are never retried automatically."
     } }

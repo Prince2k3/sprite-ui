@@ -7,6 +7,13 @@ import Testing
     try #require(!lab.busy)
 }
 @MainActor @Suite(.serialized) struct DemoBotsGameCenterLabTests {
+    @Test func challengeDiagnosticsDistinguishMissingMetadataFromMissingLeaderboard() {
+        #expect(DemoBotsGameCenterLab.challengeCatalogSummary([]).contains("absent"))
+        let missingBoard = GameCenterChallengeDefinition(id: DemoBotsGameCenterIDs.challenge, title: "Repair Challenge", leaderboardID: nil, isRepeatable: true)
+        #expect(DemoBotsGameCenterLab.challengeCatalogSummary([missingBoard]).contains("without an associated leaderboard"))
+        let linked = GameCenterChallengeDefinition(id: DemoBotsGameCenterIDs.challenge, title: "Repair Challenge", leaderboardID: DemoBotsGameCenterIDs.leaderboard, isRepeatable: true)
+        #expect(DemoBotsGameCenterLab.challengeCatalogSummary([linked]).contains(DemoBotsGameCenterIDs.leaderboard))
+    }
     @Test func constructionDoesNotSignInLoadStartOrReport() {
         for native in [false, true] {
             let lab = DemoBotsGameCenterLab(native: native); defer { lab.close() }
@@ -16,6 +23,14 @@ import Testing
             #expect(lab.progress == 0 && lab.reportedScore == nil && !lab.busy)
             #expect(lab.canReport == !native)
         }
+    }
+    @Test func missingNativeStyleChallengeMetadataDoesNotSubmitAScore() async throws {
+        let lab = DemoBotsGameCenterLab(); defer { lab.close() }
+        try lab.services.challenges.configurePreview([])
+        lab.submitChallengeAttempt(); try await settleLab(lab)
+        #expect(lab.message.contains("0 challenges") && lab.message.contains("No score was submitted"))
+        #expect(lab.services.challenges.attempts.isEmpty)
+        #expect(lab.services.leaderboards.lastResults == nil)
     }
     @Test func sampleProgressAndScoresUseTheSharedIDsAndHighestScorePolicy() async throws {
         let lab = DemoBotsGameCenterLab(); defer { lab.close() }

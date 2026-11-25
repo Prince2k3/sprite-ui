@@ -131,6 +131,10 @@ The English definitions and small procedural 3840×2160 opaque placeholder art a
 
 Choose **DemoBots Local Game Center** or **DemoBotsMac Local Game Center** in Xcode to open the lab with native GameKit selected and Run → Options → GameKit Configuration → Enable Debug Mode enabled. Sign in explicitly as required. On a supported physical device, use Debug → GameKit → Manage Game Progress to inspect/reset progress and exercise Repair Test activity entry points. Preview mode remains available through the toggle. A simulator can check the preview UI; it cannot establish Game Progress Manager or signed two-account results.
 
+The example defaults to automatic signing with MFX Studios (`SHC9383T46`). Select your own team when building outside that organization. The Mac target still disables signing by default; enable it explicitly for signed Mac testing.
+
+The challenge panel displays the loaded definition's leaderboard, or identifies an absent definition or missing link. If the configured challenge is unavailable, **Submit new test attempt** reports that no score was submitted. A successful standalone leaderboard submission does not establish that challenge reporting works.
+
 The ordinary **DemoBots** and **DemoBotsMac** schemes leave GameKit Debug Mode off and launch the campaign. Release targets exclude `DemoBotsLocal.gamekit`; debug launch overrides and the campaign's lab button are compiled out of the app entry points. The package's reusable test view does not launch itself. [[project.yml]] invokes [[Tools/configure-game-center-schemes.py]] after XcodeGen so regeneration preserves the explicit scheme flag.
 
 From the repository root, check IDs, links, art, and scheme isolation with:
@@ -139,4 +143,4 @@ From the repository root, check IDs, links, art, and scheme isolation with:
 python3 Examples/DemoBots/Tools/check-game-center-testing.py
 ```
 
-Apple's [local Game Center configuration guide](https://developer.apple.com/documentation/gamekit/initializing-and-configuring-game-center) describes the physical-device workflow. Local native execution and signed two-account tests remain pending; the fixture and successful builds do not claim otherwise.
+Apple's [local Game Center configuration guide](https://developer.apple.com/documentation/gamekit/initializing-and-configuring-game-center) describes the physical-device workflow. Native checks on a physical Duo with iOS 27.3 and Xcode 27.2 passed sign-in, achievement progress (0 → 25 → 100), the best-score policy (100 followed by 50 retained 100), and activity start/finish/discard. GameKit returned zero challenge definitions despite the linked definition appearing in Xcode, and the native dashboard reported features unavailable. Challenge reporting, dashboard content, Game Progress Manager resets/deep links, and signed two-account testing remain unverified. These results establish partial local coverage, not release readiness.

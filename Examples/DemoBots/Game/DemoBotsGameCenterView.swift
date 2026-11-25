@@ -53,6 +53,7 @@ import SwiftUI
                 }.disabled(!lab.canReport || !lab.supportsActivities)
                 GroupBox("Challenge · Repair Challenge") {
                     VStack(alignment: .leading, spacing: 10) {
+                        Text(lab.challengeCatalogSummary).font(.caption).accessibilityIdentifier("game-center-lab-challenge-catalog")
                         Button("Submit new test attempt") { lab.submitChallengeAttempt() }
                         Button("Show test challenge") { lab.services.present(.challengeDefinition(DemoBotsGameCenterIDs.challenge)) }
                         Text("Each attempt submits 100 points to Repair Score. Native activities/challenges need OS 26+. No test action reports campaign progress.").font(.caption).foregroundStyle(.secondary)

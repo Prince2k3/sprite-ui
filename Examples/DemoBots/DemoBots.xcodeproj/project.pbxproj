@@ -153,6 +153,16 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					36E36D7AAE093271CA03FBD7 = {
+						DevelopmentTeam = SHC9383T46;
+						ProvisioningStyle = Automatic;
+					};
+					C631DE079BB6390672842BB1 = {
+						DevelopmentTeam = SHC9383T46;
+						ProvisioningStyle = Automatic;
+					};
+				};
 			};
 			buildConfigurationList = A2118E9C34AF3074B0F915D4 /* Build configuration list for PBXProject "DemoBots" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -280,6 +290,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "App/DemoBots-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = SHC9383T46;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -302,7 +314,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGN_ENTITLEMENTS = "App/DemoBots-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = SHC9383T46;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -321,7 +335,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGN_ENTITLEMENTS = "App/DemoBots-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = SHC9383T46;
 				EXCLUDED_SOURCE_FILE_NAMES = DemoBotsLocal.gamekit;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
@@ -404,6 +420,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "App/DemoBots-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = SHC9383T46;
 				EXCLUDED_SOURCE_FILE_NAMES = DemoBotsLocal.gamekit;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
