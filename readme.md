@@ -1,12 +1,3 @@
----
-title: SpriteUI
-tags: [spriteui, library, documentation]
-created: 2026-11-23
-updated: 2026-11-25
-status: active
-type: permanent
----
-
 # SpriteUI
 
 A RealityKit-style API for 2D games, powered by SpriteKit and SwiftUI.
