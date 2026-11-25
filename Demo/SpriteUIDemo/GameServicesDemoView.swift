@@ -56,6 +56,9 @@ struct GameServicesDemoView: View {
                         Label("Interactions & lag compensation lab", systemImage: "scope")
                     }
                     .buttonStyle(.bordered).tint(.mint)
+                    NavigationLink { InterestDemoView() } label: {
+                        Label("Relevance & traffic lab", systemImage: "antenna.radiowaves.left.and.right")
+                    }.buttonStyle(.bordered).tint(.mint)
                     previewIdentity
                     turnBasedCard
                     achievementCard

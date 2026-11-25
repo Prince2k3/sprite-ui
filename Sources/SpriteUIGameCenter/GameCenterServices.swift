@@ -55,6 +55,8 @@ public final class GameCenterServices {
     @ObservationIgnored private weak var pendingWorld: World?
     @ObservationIgnored private var pendingSchema: NetworkReplicationSchema?
     @ObservationIgnored private var pendingConfiguration: NetworkSessionConfiguration?
+    @ObservationIgnored private var pendingReplicationPolicy: NetworkReplicationPolicy?
+    @ObservationIgnored private var pendingReplicationBudget: NetworkReplicationBudget?
     @ObservationIgnored private var lastAuthenticatedPlayer: NetworkPeerID?
     private(set) var presentationRevision: UInt64 = 0
 
@@ -104,7 +106,7 @@ public final class GameCenterServices {
         default: break
         }
         if destination != .matchmaking && destination != .signIn {
-            pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil
+            pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil; pendingReplicationPolicy = nil; pendingReplicationBudget = nil
         }
         if destination == .setup || destination == .signIn || isAuthenticated {
             pendingDestination = nil; self.destination = destination
@@ -126,13 +128,15 @@ public final class GameCenterServices {
     /// The world is held weakly until then. Install the SwiftUI modifier first.
     public func connect(in world: World, schema: NetworkReplicationSchema = .init(),
                         request: GameCenterMatchRequest = .init(),
-                        configuration: NetworkSessionConfiguration = .init()) throws {
+                        configuration: NetworkSessionConfiguration = .init(),
+                        replicationPolicy: NetworkReplicationPolicy = .all, replicationBudget: NetworkReplicationBudget? = nil) throws {
         guard !isPreview else { throw GameCenterServiceError.unavailable }
         guard !party.isActive, pendingSchema == nil, networkSession == nil, multiplayer.transport == nil else {
             throw GameCenterServiceError.operationInProgress
         }
         try request.validate()
         pendingWorld = world; pendingSchema = schema; pendingConfiguration = configuration
+        pendingReplicationPolicy = replicationPolicy; pendingReplicationBudget = replicationBudget
         matchRequest = request
         present(.matchmaking)
     }
@@ -141,19 +145,21 @@ public final class GameCenterServices {
     /// retaining the resulting session. Existing low-level APIs remain usable.
     @discardableResult
     public func startSession(in world: World, schema: NetworkReplicationSchema = .init(),
-                             configuration: NetworkSessionConfiguration = .init()) throws -> NetworkSession {
+                             configuration: NetworkSessionConfiguration = .init(),
+                             replicationPolicy: NetworkReplicationPolicy = .all, replicationBudget: NetworkReplicationBudget? = nil) throws -> NetworkSession {
         guard multiplayer.matchmakingState == .ready, let transport = multiplayer.transport,
               let host = multiplayer.hostPeerID else { throw GameCenterServiceError.notFound }
-        return try attachSession(in: world, transport: transport, host: host, schema: schema, configuration: configuration)
+        return try attachSession(in: world, transport: transport, host: host, schema: schema, configuration: configuration, replicationPolicy: replicationPolicy, replicationBudget: replicationBudget)
     }
 
     @discardableResult
     func attachSession(in world: World, transport: any NetworkTransport, host: NetworkPeerID,
                        schema: NetworkReplicationSchema = .init(),
-                       configuration: NetworkSessionConfiguration = .init()) throws -> NetworkSession {
+                       configuration: NetworkSessionConfiguration = .init(),
+                             replicationPolicy: NetworkReplicationPolicy = .all, replicationBudget: NetworkReplicationBudget? = nil) throws -> NetworkSession {
         guard !party.isActive, networkSession == nil else { throw GameCenterServiceError.operationInProgress }
         let role: NetworkSession.Role = transport.localPeer.id == host ? .host : .client(host: host)
-        let session = NetworkSession(world: world, transport: transport, role: role, schema: schema, configuration: configuration)
+        let session = NetworkSession(world: world, transport: transport, role: role, schema: schema, configuration: configuration, replicationPolicy: replicationPolicy, replicationBudget: replicationBudget)
         try session.start(); attachedSession = session
         return session
     }
@@ -165,7 +171,7 @@ public final class GameCenterServices {
         destination = nil; pendingDestination = nil
         if previous == .signIn { multiplayer.cancelAuthentication() }
         if previous == .matchmaking { multiplayer.cancelMatchmaking() }
-        pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil
+        pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil; pendingReplicationPolicy = nil; pendingReplicationBudget = nil
     }
 
     /// Stops replication before releasing the native match. Local host entities
@@ -174,7 +180,7 @@ public final class GameCenterServices {
         party.leave()
         if destination == .matchmaking || pendingDestination == .matchmaking { dismiss() }
         attachedSession?.stop(); attachedSession = nil
-        pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil
+        pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil; pendingReplicationPolicy = nil; pendingReplicationBudget = nil
         multiplayer.disconnect()
     }
 
@@ -219,10 +225,10 @@ public final class GameCenterServices {
                 guard let world = pendingWorld else {
                     lastError = .cancelled; disconnect(); destination = nil; return
                 }
-                do { try startSession(in: world, schema: schema, configuration: pendingConfiguration ?? .init()) }
+                do { try startSession(in: world, schema: schema, configuration: pendingConfiguration ?? .init(), replicationPolicy: pendingReplicationPolicy ?? .all, replicationBudget: pendingReplicationBudget) }
                 catch { lastError = gameCenterServiceFailure(error); disconnect() }
             }
-            pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil
+            pendingWorld = nil; pendingSchema = nil; pendingConfiguration = nil; pendingReplicationPolicy = nil; pendingReplicationBudget = nil
             if destination == .matchmaking { destination = nil }
         case .idle, .failed:
             if multiplayer.transport == nil { attachedSession?.stop(); attachedSession = nil }

@@ -54,6 +54,7 @@
 		B36BFE534B5A8722BFFBBC3E /* InputReplayDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B94BE5F6590030481D42A6 /* InputReplayDemoView.swift */; };
 		CA2E123843221506FF47258F /* PathfindingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D5EBABF745C4EB0EF3EFC8 /* PathfindingDemoView.swift */; };
 		CBB78677B4DAD6DADA4850F2 /* TileMapDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0290E736C9DA4EC3CB46195 /* TileMapDemoView.swift */; };
+		CE609204C6D16D7D259611D0 /* InterestDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 665160B1B6FBEFEE694D2D52 /* InterestDemoView.swift */; };
 		D09F8919D12A41919B74142D /* ActivityChallengesDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEDCF9C1779DD013B23CC27F /* ActivityChallengesDemoView.swift */; };
 		D14F530D265ABDA40EE8CCF6 /* DecisionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6E8FED61232BCF9F1FB81B /* DecisionDemoView.swift */; };
 		D512D46F4777AEE3716EDFFB /* AttachmentDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E09D3133B059B22C7430498 /* AttachmentDemoView.swift */; };
@@ -100,6 +101,7 @@
 		60458B4819985FB661F0F10A /* JointDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JointDemoView.swift; sourceTree = "<group>"; };
 		64A07FC6D53E7ACB7F7547F5 /* PrefabDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrefabDemoView.swift; sourceTree = "<group>"; };
 		65A099A0EA0488624FAB7A5D /* ViewportDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewportDemoView.swift; sourceTree = "<group>"; };
+		665160B1B6FBEFEE694D2D52 /* InterestDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterestDemoView.swift; sourceTree = "<group>"; };
 		67F776F36226B4DF4AC99FA4 /* Pendulum.prefab */ = {isa = PBXFileReference; path = Pendulum.prefab; sourceTree = "<group>"; };
 		6A3B53F552AD81FF625191DC /* SpriteUIDemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpriteUIDemoApp.swift; sourceTree = "<group>"; };
 		762B334CCA2BBBB48820D0FB /* PresentationDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentationDemoView.swift; sourceTree = "<group>"; };
@@ -193,6 +195,7 @@
 				52B9F0361E950C696BAE6FFB /* HingeInputDemoView.swift */,
 				A3B94BE5F6590030481D42A6 /* InputReplayDemoView.swift */,
 				2943AC405056EE21F1ED5D3E /* InteractionDemoView.swift */,
+				665160B1B6FBEFEE694D2D52 /* InterestDemoView.swift */,
 				60458B4819985FB661F0F10A /* JointDemoView.swift */,
 				02AEA6150EF96D3BD54FB217 /* Level.sks */,
 				8F3033A0EF69832A230C07EB /* LevelTransitionDemoView.swift */,
@@ -333,6 +336,7 @@
 				D656A83FAF6BD0798CB1C62D /* HingeInputDemoView.swift in Sources */,
 				B36BFE534B5A8722BFFBBC3E /* InputReplayDemoView.swift in Sources */,
 				23E08C450D70E61AC38C5BE6 /* InteractionDemoView.swift in Sources */,
+				CE609204C6D16D7D259611D0 /* InterestDemoView.swift in Sources */,
 				676E42DBF1723EC73264995B /* JointDemoView.swift in Sources */,
 				1E154204E7097B2E5160696F /* LevelTransitionDemoView.swift in Sources */,
 				F4ADA338FC9E58E31452A0A0 /* LightingDemoView.swift in Sources */,

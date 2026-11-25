@@ -249,7 +249,7 @@ private struct InteractionPacket: Codable {
     }
     private func capture(in world: World) throws -> NetworkInteractionScene2D {
         let bodies = world.allEntities.filter(\.isActive).compactMap { entity -> HistoricalCollisionBody2D<NetworkEntityID>? in
-            guard let marker = entity.components[NetworkInteractionBodyComponent.self], let sync = entity.components[SynchronizationComponent.self] else { return nil }
+            guard let marker = entity.components[NetworkInteractionBodyComponent.self], let sync = entity.components[SynchronizationComponent.self], session.isEntityReplicated(sync.id, to: owner) else { return nil }
             let matrix = entity.sceneTransformMatrix * AffineTransform2D(tx: marker.offset.x, ty: marker.offset.y)
             return .init(id: sync.id, incarnation: marker.incarnation, shape: marker.shape, position: [matrix.tx, matrix.ty],
                 xAxis: [matrix.a, matrix.b], yAxis: [matrix.c, matrix.d], isTarget: marker.isTarget, blocksRays: marker.blocksRays, canInteract: marker.canInteract)

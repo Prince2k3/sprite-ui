@@ -1,0 +1,28 @@
+@Tutorial(time: 15) {
+    @Intro(title: "Controlling replication traffic") {
+        Select two independent recipient scopes, keep owned actors available, and inspect prioritized updates under per-player byte credits.
+        @Image(source: "spriteui-interest.svg", alt: "One host selects separate scopes and independent byte credits for Alice and Bob.")
+    }
+    @Section(title: "Compare independent scopes") {
+        @ContentAndMedia {
+            Select the full SpriteUI product in an iOS 18 or macOS 15 SwiftUI app whose entry point presents `ContentView()`. Replace that file with this complete stage. No assets, accounts, entitlements, or other files are required. Connect is explicit; appearance starts no match.
+        }
+        @Steps {
+            @Step {
+                Connect two local players. Alice observes the left cluster; Bob observes the right. Each client has its own world, scope, and byte credits. Toggle Alice joins red group to add an eligible bot to Alice's scope. The host keeps simulating every actor.
+                @Code(name: "ContentView.swift", file: "spriteui-interest-01.swift") {
+                    @Image(source: "spriteui-interest.svg", alt: "Expected schematic: separate membership and pose traffic follows each observer, with owned actors and parents retained.")
+                }
+            }
+            @Step {
+                Move Alice right and Bob left. The membership frames enter/exit reliably, while each player's owned actor remains in scope regardless of observer position. Relevant count changes independently for each recipient. Unreliable pose loss never deletes the other replicas in a scope.
+            }
+            @Step {
+                Raise pose loss, then return it to zero. Periodic refreshes repair even stationary final poses. Watch pending poses and deferred publications. Stop, choose a lower replication rate, and reconnect. The token bucket includes baseline/structural bytes and may defer publication until enough credits accrue; its initial burst is bounded.
+            }
+            @Step {
+                Fold and unfold Duo without leaving the active preview. Background or leave, then return: the fixture stays stopped until explicitly reconnected. No old observer or credits are restored from a checkpoint. Read <doc:replication-interest-and-bandwidth> before configuring live sessions; both peers need compatible SDKs for budgeted pose packets.
+            }
+        }
+    }
+}

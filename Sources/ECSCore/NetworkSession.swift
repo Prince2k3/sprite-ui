@@ -17,8 +17,10 @@ struct ReplicatedEntity: Codable, Equatable, Sendable {
     let components: [ReplicatedComponent]
 }
 
+struct ReplicatedPose: Codable { let id: NetworkEntityID; let transform: Data }
+
 struct ReplicationPacket: Codable {
-    enum Kind: String, Codable { case hello, state, command, response, end }
+    enum Kind: String, Codable { case hello, state, poses, command, response, end }
     var version = 1
     let kind: Kind
     let session: UUID
@@ -27,6 +29,8 @@ struct ReplicationPacket: Codable {
     var baseline = false
     var entities: [ReplicatedEntity] = []
     var command: Data? = nil
+    var poses: [ReplicatedPose]? = nil
+    var baseSequence: UInt64? = nil
 }
 
 /// A host-authoritative replicated world. Game Center supplies the transport;
@@ -47,6 +51,12 @@ public final class NetworkSession {
     public enum State: Equatable, Sendable { case idle, joining, connected, stopped, failed }
     public let role: Role
     public let configuration: NetworkSessionConfiguration
+    /// Host-only canonical relevance policy, fixed for this session's lifetime.
+    public let replicationPolicy: NetworkReplicationPolicy
+    /// Optional entity-replication token budget. Nil retains full-state updates.
+    public let replicationBudget: NetworkReplicationBudget?
+    /// Per-peer bounded diagnostics, sorted by stable peer identity.
+    public var replicationStatistics: [NetworkPeerReplicationStatistics] { statistics.values.sorted { $0.peerID < $1.peerID } }
     public var localPeer: NetworkPeer { transport.localPeer }
     public var isHost: Bool { role == .host }
     public private(set) var state: State = .idle
@@ -74,6 +84,14 @@ public final class NetworkSession {
     @ObservationIgnored private var replicas: [NetworkEntityID: Entity] = [:]
     @ObservationIgnored private var replicaComponents: [NetworkEntityID: Set<String>] = [:]
     @ObservationIgnored private var smoothing: [NetworkEntityID: RemotePose] = [:]
+    private var statistics: [NetworkPeerID: NetworkPeerReplicationStatistics] = [:]
+    @ObservationIgnored private var credits: [NetworkPeerID: Double] = [:]
+    @ObservationIgnored private var fullSequences: [NetworkPeerID: UInt64] = [:]
+    @ObservationIgnored private var sentPoses: [NetworkPeerID: [NetworkEntityID: Data]] = [:]
+    @ObservationIgnored private var poseTimes: [NetworkPeerID: [NetworkEntityID: TimeInterval]] = [:]
+    @ObservationIgnored private var pendingBaselines: Set<NetworkPeerID> = []
+    @ObservationIgnored private var appliedFullSequence: UInt64 = 0
+    @ObservationIgnored private var replicationClock: TimeInterval = 0
     @ObservationIgnored private var elapsed: TimeInterval = 0
     @ObservationIgnored private var joinElapsed: TimeInterval = 0
 
@@ -85,9 +103,11 @@ public final class NetworkSession {
     }
 
     public init(world: World, transport: any NetworkTransport, role: Role,
-                schema: NetworkReplicationSchema = .init(), configuration: NetworkSessionConfiguration = .init()) {
+                schema: NetworkReplicationSchema = .init(), configuration: NetworkSessionConfiguration = .init(),
+                replicationPolicy: NetworkReplicationPolicy = .all, replicationBudget: NetworkReplicationBudget? = nil) {
         self.world = world; self.transport = transport; self.role = role
         self.schema = schema; self.configuration = configuration
+        self.replicationPolicy = replicationPolicy; self.replicationBudget = replicationBudget
     }
 
     isolated deinit {
@@ -104,7 +124,7 @@ public final class NetworkSession {
         guard let world else { throw NetworkSessionError.worldUnavailable }
         guard world.networkSessionOwner == nil else { throw NetworkSessionError.worldInUse }
         guard transport.onEvent == nil else { throw NetworkSessionError.transportInUse }
-        guard validPeer(localPeer), Set(transport.connectedPeers.map(\.id)).count == transport.connectedPeers.count,
+        guard validPeer(localPeer), transport.connectedPeers.count <= 32, Set(transport.connectedPeers.map(\.id)).count == transport.connectedPeers.count,
               transport.connectedPeers.allSatisfy({ validPeer($0) && $0.id != localPeer.id }) else {
             throw NetworkSessionError.invalidState
         }
@@ -112,7 +132,8 @@ public final class NetworkSession {
         try world.systems.add(NetworkReplicationSystem.self)
         generation &+= 1; sessionID = UUID(); joinID = UUID(); hostSession = nil
         sequence = 0; commandSequence = 0; responseSequence = 0; lastError = nil
-        elapsed = 0; joinElapsed = 0; queueOverflow = false
+        elapsed = 0; joinElapsed = 0; queueOverflow = false; replicationClock = 0; appliedFullSequence = 0
+        statistics = [:]; credits = [:]; fullSequences = [:]; sentPoses = [:]; poseTimes = [:]; pendingBaselines = []
         incoming.removeAll(); queuedBytes = 0; joined.removeAll(); sentStructure.removeAll(); commandSequences.removeAll()
         peers = transport.connectedPeers.sorted { $0.id < $1.id }
         world.networkSessionOwner = self
@@ -157,6 +178,14 @@ public final class NetworkSession {
         let revision = generation
         do {
             guard !queueOverflow else { throw NetworkSessionError.capacityExceeded }
+            let dt = min(deltaTime, 1)
+            replicationClock += dt
+            if let budget = replicationBudget {
+                for peer in joined.keys {
+                    credits[peer] = min(Double(budget.burstBytes), (credits[peer] ?? Double(budget.burstBytes)) + dt * budget.bytesPerSecond)
+                    statistics[peer]?.availableReplicationBytes = credits[peer]
+                }
+            }
             let events = incoming; incoming.removeAll(keepingCapacity: true); queuedBytes = 0
             for event in events {
                 guard generation == revision else { return }
@@ -216,7 +245,9 @@ public final class NetworkSession {
         let packet = ReplicationPacket(kind: .response, session: sessionID, join: join, sequence: responseSequence + 1, command: data)
         let encoded = try encode(packet)
         guard reliably || encoded.count <= 1_000 else { throw NetworkSessionError.packetTooLarge }
-        try transport.send(encoded, to: peer, reliably: reliably); responseSequence += 1
+        let revision = generation
+        try transport.send(encoded, to: peer, reliably: reliably)
+        if generation == revision { responseSequence += 1; recordSent(encoded.count, to: peer, lane: .response) }
     }
 
     /// Whether this started session currently owns the supplied world.
@@ -226,6 +257,13 @@ public final class NetworkSession {
     public func entity(withNetworkID id: NetworkEntityID) -> Entity? {
         if !isHost { return replicas[id] }
         return world?.allEntities.first { $0.components[SynchronizationComponent.self]?.id == id }
+    }
+
+    /// Whether the host last published this identity in a player's membership frame.
+    /// Used by optional view/query adapters to avoid disclosing proxies outside the replicated scope.
+    /// - Complexity: O(n) in this player's last published entities.
+    public func isEntityReplicated(_ id: NetworkEntityID, to peer: NetworkPeerID) -> Bool {
+        isHost && state == .connected && (sentStructure[peer]?.contains(where: { $0.id == id }) ?? false)
     }
 
     func presentedTransform(for entity: Entity) -> Transform? {
@@ -251,20 +289,26 @@ public final class NetworkSession {
         case .failed(let message): throw NetworkSessionError.transport(message)
         case .connected(let peer):
             guard validPeer(peer), peer.id != localPeer.id else { throw NetworkSessionError.invalidPacket }
-            if !peers.contains(where: { $0.id == peer.id }) { peers.append(peer); peers.sort { $0.id < $1.id } }
+            if !peers.contains(where: { $0.id == peer.id }) {
+                guard peers.count < 32 else { throw NetworkSessionError.capacityExceeded }
+                peers.append(peer); peers.sort { $0.id < $1.id }
+            }
             if case .client(let host) = role, host == peer.id, state == .joining { try requestBaseline() }
         case .disconnected(let peer):
             guard peers.contains(where: { $0.id == peer }) else { return }
             peers.removeAll { $0.id == peer }; joined[peer] = nil; commandSequences[peer] = nil; sentStructure[peer] = nil
             if case .client(let host) = role, peer == host { throw NetworkSessionError.hostDisconnected }
+            credits[peer] = nil; fullSequences[peer] = nil; sentPoses[peer] = nil; poseTimes[peer] = nil; statistics[peer] = nil; pendingBaselines.remove(peer)
             world?.publish(NetworkEvents.PeerLeft(peerID: peer))
         case .received(let data, let sender):
             guard peers.contains(where: { $0.id == sender }) else { return }
             if case .client(let host) = role, sender != host { return }
+            var metric = statistics[sender] ?? .init(peerID: sender); metric.bytesReceived = Self.add(metric.bytesReceived, data.count); statistics[sender] = metric
             let packet: ReplicationPacket
             do { packet = try JSONDecoder().decode(ReplicationPacket.self, from: data) }
             catch { throw NetworkSessionError.invalidPacket }
             guard packet.version == 1 else { throw NetworkSessionError.incompatibleVersion }
+            guard packet.kind == .poses || (packet.poses == nil && packet.baseSequence == nil) else { throw NetworkSessionError.invalidPacket }
             if isHost { try receiveOnHost(packet, sender: sender) }
             else { try receiveOnClient(packet, sender: sender) }
         }
@@ -277,7 +321,8 @@ public final class NetworkSession {
             let revision = generation
             let changed = joined[sender] != packet.join
             joined[sender] = packet.join
-            if changed { commandSequences[sender] = 0; sentStructure[sender] = nil }
+            if changed { commandSequences[sender] = 0; sentStructure[sender] = nil; fullSequences[sender] = nil; sentPoses[sender] = nil; poseTimes[sender] = nil }
+            pendingBaselines.insert(sender)
             try publishState(only: sender, baseline: true)
             guard generation == revision else { return }
             if changed, let peer = peers.first(where: { $0.id == sender }) {
@@ -290,7 +335,7 @@ public final class NetworkSession {
             guard packet.sequence > (commandSequences[sender] ?? 0) else { return }
             commandSequences[sender] = packet.sequence
             world?.publish(NetworkEvents.CommandReceived(data: data, sender: sender))
-        case .state, .response, .end:
+        case .state, .poses, .response, .end:
             // A client never has authority to publish entity state or end a match.
             throw NetworkSessionError.notHost
         }
@@ -302,13 +347,17 @@ public final class NetworkSession {
             guard packet.session == hostSession else { return }
             throw NetworkSessionError.hostDisconnected
         }
+        if packet.kind == .poses {
+            try receivePoses(packet)
+            return
+        }
         if packet.kind == .response {
             guard packet.session == hostSession else { return }
             guard packet.entities.isEmpty, let data = packet.command, data.count <= configuration.maximumCommandBytes else { throw NetworkSessionError.invalidPacket }
             world?.publish(NetworkEvents.ResponseReceived(data: data, sender: sender))
             return
         }
-        guard packet.kind == .state else { throw NetworkSessionError.invalidPacket }
+        guard packet.kind == .state, packet.poses == nil, packet.baseSequence == nil else { throw NetworkSessionError.invalidPacket }
         guard hostSession != nil || packet.baseline else { return }
         guard hostSession == nil || hostSession == packet.session else { return }
         guard packet.sequence > sequence else { return }
@@ -320,7 +369,7 @@ public final class NetworkSession {
         let first = hostSession == nil
         try apply(packet.entities, decoded: decoded, first: first, revision: revision)
         guard generation == revision else { return }
-        hostSession = packet.session; sequence = packet.sequence; state = .connected
+        hostSession = packet.session; sequence = packet.sequence; appliedFullSequence = packet.sequence; state = .connected
         replicatedEntityCount = replicas.count
         if first, let peer = peers.first(where: { $0.id == host }) { world?.publish(NetworkEvents.PeerJoined(peer: peer)) }
         guard generation == revision else { return }
@@ -337,30 +386,152 @@ public final class NetworkSession {
         let revision = generation
         let records = try capture(world)
         guard revision == generation else { return }
-        guard sequence < UInt64.max else { throw NetworkSessionError.capacityExceeded }
-        sequence += 1; replicatedEntityCount = records.count
+        replicatedEntityCount = records.count
+        let entities = Dictionary(uniqueKeysWithValues: world.allEntities.compactMap { entity -> (NetworkEntityID, Entity)? in
+            entity.components[SynchronizationComponent.self].map { ($0.id, entity) }
+        })
         for peer in joined.keys.sorted() where recipient == nil || recipient == peer {
-            guard revision == generation, let join = joined[peer] else { return }
-            let structure = records.map { record in
-                ReplicatedEntity(id: record.id, parent: record.parent, name: record.name, isEnabled: record.isEnabled,
-                                 owner: record.owner, interpolates: record.interpolates, selected: record.selected,
-                                 components: record.components.map {
-                                     $0.name == "transform" ? ReplicatedComponent(name: "transform", value: Data()) : $0
-                                 })
-            }
-            let packet = ReplicationPacket(kind: .state, session: sessionID, join: join,
-                                           sequence: sequence, baseline: baseline, entities: records)
-            let data = try encode(packet)
-            let reliable = baseline || sentStructure[peer] != structure || data.count > 1000
-            try transport.send(data, to: peer, reliably: reliable)
+            guard revision == generation, let join = joined[peer], let player = peers.first(where: { $0.id == peer }) else { return }
+            let (scoped, priorities) = scope(records, entities: entities, for: player)
             guard revision == generation else { return }
-            sentStructure[peer] = structure
+            guard scoped.count <= configuration.maximumEntities else { throw NetworkSessionError.capacityExceeded }
+            let structure = scoped.map { record in
+                ReplicatedEntity(id: record.id, parent: record.parent, name: record.name, isEnabled: record.isEnabled,
+                    owner: record.owner, interpolates: record.interpolates, selected: record.selected,
+                    components: record.components.map { $0.name == "transform" ? ReplicatedComponent(name: "transform", value: Data()) : $0 })
+            }
+            var metric = statistics[peer] ?? .init(peerID: peer)
+            metric.relevantEntities = scoped.count; metric.availableEntities = records.count; statistics[peer] = metric
+            let needsBaseline = baseline || pendingBaselines.contains(peer) || sentStructure[peer] == nil
+            if replicationBudget == nil || needsBaseline || sentStructure[peer] != structure {
+                let next = try nextSequence()
+                let packet = ReplicationPacket(kind: .state, session: sessionID, join: join, sequence: next, baseline: needsBaseline, entities: scoped)
+                let data = try encode(packet)
+                guard try reserve(data.count, for: peer) else { deferPublication(for: peer); continue }
+                let reliable = needsBaseline || sentStructure[peer] != structure || data.count > 1000
+                try transport.send(data, to: peer, reliably: reliable)
+                guard revision == generation else { return }
+                recordSent(data.count, to: peer, lane: .state)
+                sequence = next; sentStructure[peer] = structure; fullSequences[peer] = next; pendingBaselines.remove(peer)
+                sentPoses[peer] = Dictionary(uniqueKeysWithValues: scoped.compactMap { record in record.components.first(where: { $0.name == "transform" }).map { (record.id, $0.value) } })
+                poseTimes[peer] = Dictionary(uniqueKeysWithValues: scoped.map { ($0.id, replicationClock) })
+                statistics[peer]?.deferredPoseUpdates = 0
+            } else if let budget = replicationBudget, let base = fullSequences[peer] {
+                var candidates = scoped.compactMap { record -> ReplicatedPose? in
+                    guard let value = record.components.first(where: { $0.name == "transform" })?.value,
+                          sentPoses[peer]?[record.id] != value || replicationClock - (poseTimes[peer]?[record.id] ?? 0) + 1e-9 >= budget.refreshInterval else { return nil }
+                    return ReplicatedPose(id: record.id, transform: value)
+                }
+                candidates.sort { lhs, rhs in
+                    let lt = poseTimes[peer]?[lhs.id] ?? 0, rt = poseTimes[peer]?[rhs.id] ?? 0
+                    let lo = replicationClock - lt >= budget.refreshInterval, ro = replicationClock - rt >= budget.refreshInterval
+                    if lo != ro { return lo }
+                    if lo, lt != rt { return lt < rt }
+                    let lp = priorities[lhs.id] ?? .normal, rp = priorities[rhs.id] ?? .normal
+                    return lp == rp ? (lt == rt ? lhs.id < rhs.id : lt < rt) : lp > rp
+                }
+                for _ in 0..<budget.maximumPosePacketsPerUpdate where !candidates.isEmpty {
+                    let next = try nextSequence()
+                    var packet = ReplicationPacket(kind: .poses, session: sessionID, join: join, sequence: next)
+                    packet.baseSequence = base
+                    var chosen: [ReplicatedPose] = []; var data: Data?
+                    for candidate in candidates {
+                        packet.poses = chosen + [candidate]
+                        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+                        let encoded = try encoder.encode(packet)
+                        let limit = min(budget.maximumPosePacketBytes, configuration.maximumPacketBytes)
+                        if encoded.count > limit {
+                            if chosen.isEmpty { throw NetworkSessionError.packetTooLarge }
+                            break
+                        }
+                        if Double(encoded.count) > (credits[peer] ?? Double(budget.burstBytes)) { break }
+                        chosen.append(candidate); data = encoded
+                    }
+                    guard let data, !chosen.isEmpty else { break }
+                    guard try reserve(data.count, for: peer) else { break }
+                    try transport.send(data, to: peer, reliably: false)
+                    guard revision == generation else { return }
+                    recordSent(data.count, to: peer, lane: .poses)
+                    sequence = next
+                    let sent = Set(chosen.map(\.id)); candidates.removeAll { sent.contains($0.id) }
+                    for pose in chosen { sentPoses[peer, default: [:]][pose.id] = pose.transform; poseTimes[peer, default: [:]][pose.id] = replicationClock }
+                }
+                statistics[peer]?.deferredPoseUpdates = candidates.count
+                if !candidates.isEmpty { deferPublication(for: peer) }
+            }
         }
+    }
+
+    private func scope(_ records: [ReplicatedEntity], entities: [NetworkEntityID: Entity], for peer: NetworkPeer) -> ([ReplicatedEntity], [NetworkEntityID: NetworkReplicationPriority]) {
+        let byID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+        var priorities: [NetworkEntityID: NetworkReplicationPriority] = [:]
+        for record in records {
+            guard let entity = entities[record.id] else { continue }
+            let decision = replicationPolicy.decision(entity, peer)
+            if record.owner == peer.id { priorities[record.id] = .critical }
+            else {
+                switch decision { case .hidden: break; case .visible(let priority): priorities[record.id] = priority; case .required: priorities[record.id] = .critical }
+            }
+        }
+        for id in Array(priorities.keys) {
+            var parent = byID[id]?.parent
+            while let value = parent { priorities[value] = max(priorities[value] ?? .background, priorities[id] ?? .normal); parent = byID[value]?.parent }
+        }
+        return (records.filter { priorities[$0.id] != nil }, priorities)
+    }
+    private func nextSequence() throws -> UInt64 {
+        guard sequence < UInt64.max else { throw NetworkSessionError.capacityExceeded }; return sequence + 1
+    }
+    private func reserve(_ count: Int, for peer: NetworkPeerID) throws -> Bool {
+        guard let budget = replicationBudget else { return true }
+        guard count <= budget.burstBytes else { throw NetworkSessionError.packetTooLarge }
+        let value = credits[peer] ?? Double(budget.burstBytes)
+        guard value + 1e-9 >= Double(count) else { return false }
+        credits[peer] = max(0, value - Double(count)); statistics[peer]?.availableReplicationBytes = credits[peer]; return true
+    }
+    private func deferPublication(for peer: NetworkPeerID) {
+        var value = statistics[peer] ?? .init(peerID: peer)
+        value.deferredPublications = Self.add(value.deferredPublications, 1); statistics[peer] = value
+    }
+    private static func add(_ value: UInt64, _ count: Int) -> UInt64 { let (sum, overflow) = value.addingReportingOverflow(UInt64(max(0, count))); return overflow ? .max : sum }
+    private func recordSent(_ count: Int, to peer: NetworkPeerID, lane: ReplicationPacket.Kind) {
+        var value = statistics[peer] ?? .init(peerID: peer)
+        switch lane {
+        case .state, .poses: value.replicationBytesSent = Self.add(value.replicationBytesSent, count); value.replicationPacketsSent = Self.add(value.replicationPacketsSent, 1)
+        case .command, .response: value.applicationBytesSent = Self.add(value.applicationBytesSent, count)
+        case .hello, .end: value.controlBytesSent = Self.add(value.controlBytesSent, count)
+        }
+        statistics[peer] = value
+    }
+    private func receivePoses(_ packet: ReplicationPacket) throws {
+        guard packet.session == hostSession, packet.baseSequence == appliedFullSequence, appliedFullSequence > 0 else { return }
+        guard packet.sequence > sequence else { return }
+        guard !packet.baseline, packet.entities.isEmpty, packet.command == nil, let poses = packet.poses,
+              !poses.isEmpty, poses.count <= configuration.maximumEntities, Set(poses.map(\.id)).count == poses.count else { throw NetworkSessionError.invalidPacket }
+        let revision = generation
+        var decoded: [(Entity, Transform)] = []
+        for pose in poses {
+            guard let entity = replicas[pose.id], entity.components.has(Transform.self),
+                  entity.components[SynchronizationComponent.self]?.components.contains("transform") == true,
+                  let entry = schema.entries["transform"], let transform = try entry.decode(pose.transform) as? Transform else { throw NetworkSessionError.invalidPacket }
+            decoded.append((entity, transform))
+        }
+        guard generation == revision else { return }
+        for (entity, transform) in decoded {
+            let old = presentedTransform(for: entity) ?? entity.transform
+            entity.components.set(transform)
+            guard generation == revision else { return }
+            if let id = entity.components[SynchronizationComponent.self]?.id {
+                smoothing[id] = RemotePose(from: old, to: transform, elapsed: 0, parent: entity.parent?.components[SynchronizationComponent.self]?.id)
+            }
+        }
+        sequence = packet.sequence
+        world?.publish(NetworkEvents.DidApplyState(sequence: sequence, entityCount: replicas.count))
     }
 
     private func capture(_ world: World) throws -> [ReplicatedEntity] {
         let entities = world.allEntities.filter { $0.components.has(SynchronizationComponent.self) }
-        guard entities.count <= configuration.maximumEntities else { throw NetworkSessionError.capacityExceeded }
+        guard entities.count <= (replicationPolicy.isSelective ? 512 : configuration.maximumEntities) else { throw NetworkSessionError.capacityExceeded }
         let records = try entities.map { entity -> ReplicatedEntity in
             let sync = entity.components[SynchronizationComponent.self]!
             let parent: NetworkEntityID?
@@ -380,7 +551,7 @@ public final class NetworkSession {
                                     owner: sync.owner, interpolates: sync.interpolates,
                                     selected: sync.components.sorted(), components: components)
         }.sorted { $0.id < $1.id }
-        _ = try validate(records)
+        _ = try NetworkRecordValidation.decode(records, schema: schema, maximumEntities: replicationPolicy.isSelective ? 512 : configuration.maximumEntities)
         return records
     }
 
@@ -455,7 +626,9 @@ public final class NetworkSession {
         return data
     }
     private func send(_ packet: ReplicationPacket, to peer: NetworkPeerID, reliably: Bool) throws {
-        try transport.send(encode(packet), to: peer, reliably: reliably)
+        let data = try encode(packet); let revision = generation
+        try transport.send(data, to: peer, reliably: reliably)
+        if generation == revision { recordSent(data.count, to: peer, lane: packet.kind) }
     }
     private func validPeer(_ peer: NetworkPeer) -> Bool {
         !peer.id.rawValue.isEmpty && peer.id.rawValue.utf8.count <= 256 && peer.displayName.utf8.count <= 512
@@ -473,6 +646,7 @@ public final class NetworkSession {
         if world?.networkSessionOwner === self { world?.networkSessionOwner = nil }
         incoming.removeAll(); queuedBytes = 0; queueOverflow = false
         joined.removeAll(); sentStructure.removeAll(); commandSequences.removeAll(); peers.removeAll()
+        credits = [:]; fullSequences = [:]; sentPoses = [:]; poseTimes = [:]; pendingBaselines = []
         let removed = replicas.values
         replicas.removeAll(); replicaComponents.removeAll(); smoothing.removeAll(); replicatedEntityCount = 0
         for entity in removed { entity.removeFromParent() }

@@ -84,9 +84,9 @@ Clients accept an initial baseline only from the configured match host. Join IDs
 
 Before mutating replicas, the receiver validates the complete frame: size and count limits, unique network IDs, selected schema names, decoded values and validators, and a bounded, acyclic parent graph with all parents present. Protocol/schema validation completes before application begins; this is not a general transaction guarantee for arbitrary application event handlers. Local cameras and services created independently on the client remain intact. Keep local-only entities outside replicated subtrees so removing a replica cannot remove its local descendants.
 
-Updates contain the **full selected state**, not an incremental patch that depends on a previous unreliable frame. Baselines, spawning, despawning, names, parenting, ownership, selections, non-transform values, and transform presence changes use reliable delivery. Coordinates may use unreliable delivery only when structure is unchanged and the entire encoded packet fits 1,000 bytes. A later complete state repairs a lost pose; changing the loss slider does not affect reliable frames.
+Default updates contain the **full selected state**, not an incremental patch that depends on a previous unreliable frame. Baselines, spawning, despawning, names, parenting, ownership, selections, non-transform values, and transform presence changes use reliable delivery. Coordinates may use unreliable delivery only when structure is unchanged and the entire encoded packet fits 1,000 bytes. A later complete state repairs a lost pose; changing the loss slider does not affect reliable frames.
 
-The session and both transports cap reliable packets at **48,000 bytes** and unreliable packets at **1,000 bytes**. Large pose frames use reliable delivery. Configuration defaults are 10 updates per second, 0.1-second interpolation, 128 replicated entities, 128 queued messages, and 4,096 command bytes; exposed limits are bounded. JSON envelopes and encoding overhead count toward the wire cap. There is no automatic chunking, compression, interest management, or large-world streaming. Keep matches and selected values small; surface `lastError` and failure events instead of assuming delivery succeeded.
+The session and both transports cap reliable packets at **48,000 bytes** and unreliable packets at **1,000 bytes**. Large pose frames use reliable delivery. Configuration defaults are 10 updates per second, 0.1-second interpolation, 128 replicated entities, 128 queued messages, and 4,096 command bytes; exposed limits are bounded. JSON envelopes and encoding overhead count toward the wire cap. There is no automatic chunking, compression, or large-world streaming. Opt into <doc:replication-interest-and-bandwidth> for per-player scope and budgeted pose updates; default sessions retain complete-state publication. Keep matches and selected values small; surface `lastError` and failure events instead of assuming delivery succeeded.
 
 ## Own exactly one update path
 
@@ -114,3 +114,5 @@ Before claiming native interoperability, run a signed build on two devices with 
 - <doc:player-input-sessions-and-feedback>
 - <doc:saving-and-debugging>
 - <doc:fixed-step-simulation-and-interpolation>
+
+Opt-in relevance and budgeted pose updates are covered in <doc:replication-interest-and-bandwidth>. Budgeted poses reference a reliable membership frame, refresh stationary final values after loss, and never implicitly delete other members.

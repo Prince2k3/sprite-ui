@@ -73,6 +73,8 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     @ObservationIgnored private weak var preparedWorld: World?
     @ObservationIgnored private var schema = NetworkReplicationSchema()
     @ObservationIgnored private var configuration = NetworkSessionConfiguration()
+    @ObservationIgnored private var replicationPolicy = NetworkReplicationPolicy.all
+    @ObservationIgnored private var replicationBudget: NetworkReplicationBudget?
     @ObservationIgnored private var compatibility: String?
     @ObservationIgnored private var revision: UInt64 = 0
     @ObservationIgnored private var remoteRevisions: [NetworkPeerID: UInt64] = [:]
@@ -155,16 +157,19 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     /// Retains a schema and a weak prepared world without attaching replication or changing the displayed game.
     /// Use a stable ID covering your content and wire protocol; all members must supply the same value.
     public func prepare(in world: World, compatibilityID: String, schema: NetworkReplicationSchema = .init(),
-                        configuration: NetworkSessionConfiguration = .init()) throws {
+                        configuration: NetworkSessionConfiguration = .init(),
+                        replicationPolicy: NetworkReplicationPolicy = .all, replicationBudget: NetworkReplicationBudget? = nil) throws {
         try requireLobby(); try validateGameCenterIdentifier(compatibilityID)
         guard recoveryOffer == nil else { throw NetworkRecoveryError.incompatibleCheckpoint }
-        configurePrepared(world, compatibilityID: compatibilityID, schema: schema, configuration: configuration, recovery: nil)
+        configurePrepared(world, compatibilityID: compatibilityID, schema: schema, configuration: configuration, recovery: nil, replicationPolicy: replicationPolicy, replicationBudget: replicationBudget)
         try updateLocal(ready: false)
     }
     private func configurePrepared(_ world: World, compatibilityID: String, schema: NetworkReplicationSchema,
-                                   configuration: NetworkSessionConfiguration, recovery: NetworkRecoveryDescriptor?) {
+                                   configuration: NetworkSessionConfiguration, recovery: NetworkRecoveryDescriptor?,
+                                   replicationPolicy: NetworkReplicationPolicy, replicationBudget: NetworkReplicationBudget?) {
         selectedRecovery = recovery
         preparedWorld = world; compatibility = compatibilityID; self.schema = schema; self.configuration = configuration
+        self.replicationPolicy = replicationPolicy; self.replicationBudget = replicationBudget
         watcher?.cancel(); baselineWatcher?.cancel()
         watcher = world.subscribe(to: WorldEvents.Update.self) { [weak self] _ in self?.synchronize(); self?.checkResynchronization() }
         baselineWatcher = world.subscribe(to: NetworkEvents.DidApplyState.self) { [weak self] _ in self?.checkResynchronization() }
@@ -214,7 +219,8 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     /// Accepts a host offer into a fresh prepared world. Only the host restores payload; clients wait for a new validated baseline.
     /// Validate your applicationState schema before calling this. No existing synchronized state is overwritten.
     public func prepareRecovery(in world: World, accepting descriptor: NetworkRecoveryDescriptor, compatibilityID: String,
-                                schema: NetworkReplicationSchema = .init(), configuration: NetworkSessionConfiguration = .init()) throws {
+                                schema: NetworkReplicationSchema = .init(), configuration: NetworkSessionConfiguration = .init(),
+                        replicationPolicy: NetworkReplicationPolicy = .all, replicationBudget: NetworkReplicationBudget? = nil) throws {
         try requireLobby(); try validateRecoveryDescriptor(descriptor)
         guard recoveryOffer == descriptor, descriptor.compatibilityID == compatibilityID else { throw NetworkRecoveryError.incompatibleCheckpoint }
         guard !world.allEntities.contains(where: { $0.components.has(SynchronizationComponent.self) }) else { throw NetworkRecoveryError.worldNotEmpty }
@@ -223,7 +229,7 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
             guard let checkpoint = offeredCheckpoint, checkpoint.descriptor == descriptor else { throw NetworkRecoveryError.invalidCheckpoint }
             try checkpoint.restore(in: world, approving: descriptor, schema: schema)
         }
-        configurePrepared(world, compatibilityID: descriptor.compatibilityID, schema: schema, configuration: configuration, recovery: descriptor)
+        configurePrepared(world, compatibilityID: descriptor.compatibilityID, schema: schema, configuration: configuration, recovery: descriptor, replicationPolicy: replicationPolicy, replicationBudget: replicationBudget)
         try updateLocal(ready: false)
     }
     private var recoveryScope: String? {
@@ -236,7 +242,7 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
         guard descriptor.scope == recoveryScope, descriptor.hostPeerID == hostPeerID, descriptor.peerIDs == roster.map(\.id) else { throw NetworkRecoveryError.incompatibleCheckpoint }
     }
     private func clearPreparation() {
-        preparedWorld = nil; compatibility = nil; selectedRecovery = nil
+        preparedWorld = nil; compatibility = nil; selectedRecovery = nil; replicationPolicy = .all; replicationBudget = nil
         watcher?.cancel(); watcher = nil; baselineWatcher?.cancel(); baselineWatcher = nil
     }
 
@@ -319,7 +325,7 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
     private func attach() throws {
         guard let world = preparedWorld, let channel, let host = hostPeerID else { throw NetworkSessionError.worldUnavailable }
         let session = NetworkSession(world: world, transport: channel,
-            role: channel.localPeer.id == host ? .host : .client(host: host), schema: schema, configuration: configuration)
+            role: channel.localPeer.id == host ? .host : .client(host: host), schema: schema, configuration: configuration, replicationPolicy: replicationPolicy, replicationBudget: replicationBudget)
         try session.start(); self.session = session
     }
     private func commitIfReady() throws {
@@ -385,7 +391,7 @@ public struct GameCenterPartyMember: Hashable, Sendable, Identifiable {
         channel?.close(); channel = nil
         let match = match; self.match = nil; match?.close()
         if let previous { activities.releaseParty(previous) }
-        owner = nil; activity = nil; roster = []; hostPeerID = nil; preparedWorld = nil; compatibility = nil
+        owner = nil; activity = nil; roster = []; hostPeerID = nil; preparedWorld = nil; compatibility = nil; replicationPolicy = .all; replicationBudget = nil
         revision = 0; remoteRevisions = [:]; launchID = nil; acknowledgments = []
         recoveryOffer = nil; offeredCheckpoint = nil; selectedRecovery = nil; synchronizedPeers = []; sentSynchronization = false
     }

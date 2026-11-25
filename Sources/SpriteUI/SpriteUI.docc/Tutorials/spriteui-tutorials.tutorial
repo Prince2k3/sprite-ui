@@ -158,6 +158,11 @@
             @Image(source: "spriteui-interactions.svg", alt: "Issued view references flow to host validation and one cached final receipt.")
             @TutorialReference(tutorial: "doc:validating-multiplayer-interactions")
         }
+        @Chapter(name: "Control replication traffic") {
+            Select per-player scopes, retain required actors and parents, and inspect prioritized pose updates under independent byte credits.
+            @Image(source: "spriteui-interest.svg", alt: "One host selects separate scopes and byte credits for two clients.")
+            @TutorialReference(tutorial: "doc:controlling-replication-traffic")
+        }
         @Chapter(name: "Recover a multiplayer session") {
             Keep a bounded host checkpoint, request a fresh match explicitly, and wait for every returning client to apply its new baseline.
             @Image(source: "spriteui-recovery.svg", alt: "An approved checkpoint passes through fresh-party matching and client resynchronization before play resumes.")
